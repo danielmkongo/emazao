@@ -1,0 +1,168 @@
+import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { TrendingUp, Eye, ShoppingBag, DollarSign, Package, Star, ArrowUpRight, Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatCurrency, formatNumber } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import api from '@/lib/api'
+
+interface AnalyticsOverview {
+  totalRevenue: number
+  totalOrders: number
+  totalViews: number
+  avgRating: number
+  productCount: number
+  revenueGrowth: number
+  viewsGrowth: number
+  ordersGrowth: number
+}
+
+const MetricCard = ({ icon: Icon, label, value, growth, color }: {
+  icon: React.ElementType; label: string; value: string; growth?: number; color: string
+}) => (
+  <motion.div
+    whileHover={{ y: -2, scale: 1.01 }}
+    className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5"
+  >
+    <div className="flex items-center justify-between mb-4">
+      <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${color}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      {growth !== undefined && (
+        <span className={`text-xs font-medium flex items-center gap-1 ${growth >= 0 ? 'text-brand-lime' : 'text-red-400'}`}>
+          <TrendingUp className="h-3 w-3" />
+          {growth >= 0 ? '+' : ''}{growth}%
+        </span>
+      )}
+    </div>
+    <p className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-mono)' }}>
+      {value}
+    </p>
+    <p className="text-sm text-white/40">{label}</p>
+  </motion.div>
+)
+
+const aiInsights = [
+  { icon: '🔥', text: 'Your tomato listing performed 45% better than average this week.' },
+  { icon: '⏰', text: 'Post between 6–8 PM for 2× more engagement.' },
+  { icon: '📈', text: 'Maize demand is rising in your region. Consider adding stock.' },
+]
+
+export default function Dashboard() {
+  const { user } = useAuthStore()
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['analytics-overview'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: AnalyticsOverview }>('/analytics/overview')
+      return res.data.data
+    },
+    // Return mock data if API not ready
+    placeholderData: {
+      totalRevenue: 45820,
+      totalOrders: 124,
+      totalViews: 8340,
+      avgRating: 4.7,
+      productCount: 18,
+      revenueGrowth: 23,
+      viewsGrowth: 41,
+      ordersGrowth: 15,
+    },
+  })
+
+  const metrics = [
+    { icon: DollarSign, label: 'Total Revenue', value: formatCurrency(data?.totalRevenue ?? 0), growth: data?.revenueGrowth, color: 'bg-brand-green/15 text-brand-green' },
+    { icon: ShoppingBag, label: 'Total Orders', value: formatNumber(data?.totalOrders ?? 0), growth: data?.ordersGrowth, color: 'bg-gold/15 text-gold' },
+    { icon: Eye, label: 'Product Views', value: formatNumber(data?.totalViews ?? 0), growth: data?.viewsGrowth, color: 'bg-brand-lime/15 text-brand-lime' },
+    { icon: Star, label: 'Avg. Rating', value: (data?.avgRating ?? 0).toFixed(1) + ' / 5', color: 'bg-purple-500/15 text-purple-400' },
+  ]
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between mb-8"
+      >
+        <div>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+            Good morning, {user?.name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-white/40 text-sm mt-1">Here's how your farm is performing</p>
+        </div>
+        <div className="flex gap-3">
+          <Link to="/dashboard/products/new">
+            <Button><Package className="h-4 w-4" /> Add Product</Button>
+          </Link>
+        </div>
+      </motion.div>
+
+      {/* Metrics */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {metrics.map((m) => (
+            <MetricCard key={m.label} {...m} />
+          ))}
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* AI Insights */}
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-white flex items-center gap-2">
+              <Zap className="h-5 w-5 text-gold" /> AI Insights
+            </h2>
+            <Link to="/dashboard/analytics">
+              <Button variant="ghost" size="xs">
+                Full Analytics <ArrowUpRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {aiInsights.map((insight, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-start gap-4 bg-brand-800 rounded-xl border border-white/[0.06] p-4"
+              >
+                <span className="text-2xl flex-shrink-0">{insight.icon}</span>
+                <p className="text-sm text-white/70 leading-relaxed">{insight.text}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <h2 className="font-semibold text-white mb-4">Quick Actions</h2>
+          <div className="space-y-2">
+            {[
+              { label: 'Manage Products', href: '/dashboard/products', icon: Package, color: 'text-brand-green' },
+              { label: 'View Orders', href: '/dashboard/orders', icon: ShoppingBag, color: 'text-gold' },
+              { label: 'Check Bids', href: '/dashboard/bids', icon: TrendingUp, color: 'text-brand-lime' },
+              { label: 'Full Analytics', href: '/dashboard/analytics', icon: Eye, color: 'text-purple-400' },
+            ].map(({ label, href, icon: Icon, color }) => (
+              <Link key={href} to={href}>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-800 border border-white/[0.06] hover:border-white/20 transition-all group">
+                  <Icon className={`h-5 w-5 ${color}`} />
+                  <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
+                  <ArrowUpRight className="h-4 w-4 text-white/20 ml-auto group-hover:text-white/50 transition-colors" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

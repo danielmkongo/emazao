@@ -1,0 +1,37 @@
+import { NavLink } from 'react-router-dom'
+import { Home, Search, Play, ShoppingBag, FileText } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const tabs = [
+  { icon: Home, label: 'Feed', href: '/feed' },
+  { icon: Search, label: 'Explore', href: '/explore' },
+  { icon: Play, label: 'Reels', href: '/reels' },
+  { icon: ShoppingBag, label: 'Market', href: '/marketplace' },
+  { icon: FileText, label: 'Bids', href: '/requirements' },
+]
+
+export const BottomNav = () => (
+  <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-dark border-t border-white/[0.06] safe-area-pb">
+    <div className="flex items-center justify-around py-2">
+      {tabs.map(({ icon: Icon, label, href }) => (
+        <NavLink
+          key={href}
+          to={href}
+          className={({ isActive }) =>
+            cn(
+              'flex flex-col items-center gap-1 px-4 py-1 rounded-xl text-xs font-medium transition-all',
+              isActive ? 'text-brand-lime' : 'text-white/40'
+            )
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <Icon className={cn('h-5 w-5', isActive && 'drop-shadow-[0_0_8px_rgba(34,197,94,0.6)]')} />
+              {label}
+            </>
+          )}
+        </NavLink>
+      ))}
+    </div>
+  </nav>
+)
