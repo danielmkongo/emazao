@@ -42,7 +42,12 @@ const io = new SocketServer(httpServer, {
 initSocket(io)
 
 // Middleware
-app.use(helmet({ hsts: false })) // disable HSTS until HTTPS is configured
+app.use(helmet({
+  hsts: false,                      // no HTTPS-upgrade header
+  crossOriginOpenerPolicy: false,   // causes browser warnings on HTTP
+  originAgentCluster: false,        // same
+  contentSecurityPolicy: false,     // CSP can block assets on HTTP
+}))
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
