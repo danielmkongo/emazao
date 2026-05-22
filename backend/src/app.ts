@@ -77,7 +77,8 @@ app.use('/api/categories', categoryRoutes)
 const frontendDist = path.join(__dirname, '../../frontend/dist')
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist))
-  app.get('*', (_req, res) => {
+  // Express 5 catch-all: use middleware instead of app.get('*')
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, 'index.html'))
   })
 } else {
