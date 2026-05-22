@@ -4,6 +4,8 @@ import helmet from 'helmet'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
+import fs from 'fs'
 
 import { env } from './config/env'
 import { connectDB } from './config/db'
@@ -71,9 +73,17 @@ app.use('/api/reels', reelRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/categories', categoryRoutes)
 
-// Error handling
-app.use(notFound)
-app.use(errorHandler)
+// Serve frontend static files if built
+const frontendDist = path.join(__dirname, '../../frontend/dist')
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist))
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'))
+  })
+} else {
+  app.use(notFound)
+  app.use(errorHandler)
+}
 
 // Start
 const start = async () => {
