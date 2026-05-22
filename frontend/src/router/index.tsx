@@ -10,7 +10,8 @@ const Loading = () => (
   </div>
 )
 
-const wrap = (Component: React.LazyExoticComponent<() => JSX.Element>) => (
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wrap = (Component: React.LazyExoticComponent<() => any>) => (
   <Suspense fallback={<Loading />}><Component /></Suspense>
 )
 

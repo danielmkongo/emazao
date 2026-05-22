@@ -33,7 +33,8 @@ export default function PostRequirement() {
   const [error, setError] = useState('')
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { quantityUnit: 'ton', isUrgent: false },
   })
 
@@ -66,7 +67,7 @@ export default function PostRequirement() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6">
           {/* Basic info */}
           <div className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6 space-y-5">
             <h2 className="font-semibold text-white">Basic Information</h2>

@@ -45,7 +45,8 @@ export default function AddProduct() {
   })
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
     defaultValues: { condition: 'FRESH', isOrganic: false, minimumOrder: 1 },
   })
 
@@ -89,7 +90,7 @@ export default function AddProduct() {
       </button>
       <h1 className="text-2xl font-bold text-white mb-8">Add New Product</h1>
 
-      <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-6">
+      <form onSubmit={handleSubmit(d => mutation.mutate(d as FormData))} className="space-y-6">
         {/* Images */}
         <div>
           <p className="text-sm font-medium text-white/70 mb-3">Product Images</p>

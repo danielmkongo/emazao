@@ -129,6 +129,12 @@ export interface Order {
   currency: string
   status: string
   estimatedDelivery?: string
+  deliveryAddress?: {
+    street: string
+    city: string
+    region: string
+    country: string
+  }
   createdAt: string
 }
 
