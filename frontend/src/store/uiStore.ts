@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 interface UIState {
   theme: 'dark' | 'light'
@@ -11,13 +12,18 @@ interface UIState {
   setSearchOpen: (v: boolean) => void
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  theme: 'dark',
-  sidebarOpen: false,
-  cartOpen: false,
-  searchOpen: false,
-  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
-  setSidebarOpen: (v) => set({ sidebarOpen: v }),
-  setCartOpen: (v) => set({ cartOpen: v }),
-  setSearchOpen: (v) => set({ searchOpen: v }),
-}))
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      sidebarOpen: false,
+      cartOpen: false,
+      searchOpen: false,
+      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      setSidebarOpen: (v) => set({ sidebarOpen: v }),
+      setCartOpen: (v) => set({ cartOpen: v }),
+      setSearchOpen: (v) => set({ searchOpen: v }),
+    }),
+    { name: 'emazao-ui', partialize: (s) => ({ theme: s.theme }) }
+  )
+)

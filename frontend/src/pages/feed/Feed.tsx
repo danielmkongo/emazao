@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Filter, Flame, Clock, MapPin } from 'lucide-react'
+import { Filter, Flame, Clock, MapPin, Play } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -9,9 +10,9 @@ import api from '@/lib/api'
 import type { FeedItem, Product, Reel } from '@/types'
 
 const filters = [
-  { icon: Flame, label: 'Trending', value: 'trending' },
-  { icon: Clock, label: 'Latest', value: 'latest' },
-  { icon: MapPin, label: 'Nearby', value: 'nearby' },
+  { icon: Flame,  label: 'Trending', value: 'trending' },
+  { icon: Clock,  label: 'Latest',   value: 'latest' },
+  { icon: MapPin, label: 'Nearby',   value: 'nearby' },
 ]
 
 export default function Feed() {
@@ -35,7 +36,7 @@ export default function Feed() {
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between mb-6"
       >
-        <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+        <h1 className="text-xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
           Your Feed
         </h1>
         <Button variant="ghost" size="icon">
@@ -44,15 +45,15 @@ export default function Feed() {
       </motion.div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
+      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar pb-1">
         {filters.map(({ icon: Icon, label, value }) => (
           <button
             key={value}
             onClick={() => setActiveFilter(value)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
               activeFilter === value
-                ? 'bg-brand-green text-white'
-                : 'bg-brand-800 text-white/50 hover:text-white'
+                ? 'bg-brand-green text-white shadow-md shadow-brand-green/20'
+                : 'bg-[var(--c-card)] text-[var(--c-text-2)] border border-[var(--c-border)] hover:border-brand-green/40'
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -73,8 +74,8 @@ export default function Feed() {
           className="text-center py-24"
         >
           <span className="text-6xl mb-4 block">🌾</span>
-          <h3 className="text-lg font-semibold text-white mb-2">Your feed is empty</h3>
-          <p className="text-white/40 text-sm">Follow some farmers to see their products and reels here.</p>
+          <h3 className="text-lg font-semibold text-[var(--c-text)] mb-2">Your feed is empty</h3>
+          <p className="text-[var(--c-text-3)] text-sm">Follow some farmers to see their products and reels here.</p>
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -85,32 +86,41 @@ export default function Feed() {
                   key={`product-${i}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  transition={{ delay: i * 0.04 }}
                 >
                   <FeedProductCard product={item.data as Product} />
                 </motion.div>
               )
             }
-            // REEL — show as preview card
             const reel = item.data as Reel
             return (
               <motion.div
                 key={`reel-${i}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="bg-brand-800 rounded-2xl border border-white/[0.06] overflow-hidden aspect-[4/3] relative cursor-pointer group"
+                transition={{ delay: i * 0.04 }}
               >
-                {reel.thumbnailUrl ? (
-                  <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <div className="w-full h-full bg-brand-700 flex items-center justify-center text-4xl">▶️</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                <div className="absolute bottom-3 left-3 right-3">
-                  <p className="text-white text-xs font-medium line-clamp-2">{reel.caption}</p>
-                  <p className="text-white/50 text-xs mt-1">{reel.viewCount?.toLocaleString()} views</p>
-                </div>
+                <Link to="/reels" className="block">
+                  <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden aspect-[4/3] relative cursor-pointer group shadow-sm hover:shadow-md transition-shadow">
+                    {reel.thumbnailUrl ? (
+                      <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full bg-[var(--c-input)] flex items-center justify-center">
+                        <Play className="h-12 w-12 text-[var(--c-text-4)]" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    <div className="absolute top-3 left-3">
+                      <span className="flex items-center gap-1 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
+                        <Play className="h-3 w-3 fill-white" /> Reel
+                      </span>
+                    </div>
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <p className="text-white text-xs font-medium line-clamp-2">{reel.caption}</p>
+                      <p className="text-white/60 text-xs mt-1">{(reel.viewCount ?? 0).toLocaleString()} views</p>
+                    </div>
+                  </div>
+                </Link>
               </motion.div>
             )
           })}

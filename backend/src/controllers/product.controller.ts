@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import Product from '../models/Product'
 import { AuthRequest } from '../middleware/auth.middleware'
 import slugify from 'slugify'
@@ -74,9 +75,11 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 // GET /api/products/:id
 export const getProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const product = await Product.findOne({
-      $or: [{ _id: req.params['id'] }, { slug: req.params['id'] }],
-    })
+    const id = req.params['id']
+    const filter = mongoose.isValidObjectId(id)
+      ? { $or: [{ _id: id }, { slug: id }] }
+      : { slug: id }
+    const product = await Product.findOne(filter)
       .populate('sellerId', 'name username avatar isVerified country')
       .populate('categoryId', 'name slug')
 

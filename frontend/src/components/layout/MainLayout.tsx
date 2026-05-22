@@ -4,7 +4,7 @@ import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
 
 export const MainLayout = () => (
-  <div className="min-h-screen bg-brand-dark">
+  <div className="min-h-screen bg-[var(--c-bg)] transition-colors duration-200">
     <Sidebar />
     <TopBar />
 

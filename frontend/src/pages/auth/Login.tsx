@@ -40,11 +40,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-dark flex items-center justify-center p-6">
-      {/* Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-brand-green/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-gold/6 rounded-full blur-3xl" />
+    <div className="min-h-screen bg-[var(--c-bg)] flex items-center justify-center p-6 transition-colors duration-200">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-brand-green/6 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-gold/5 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -52,24 +51,23 @@ export default function Login() {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        {/* Logo */}
         <Link to="/" className="flex items-center justify-center gap-2 mb-10">
-          <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center shadow-lg shadow-brand-green/25">
             <Sprout className="h-5 w-5 text-white" />
           </div>
-          <span className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+          <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
             EMAZAO
           </span>
         </Link>
 
-        <div className="glass rounded-2xl p-8">
+        <div className="glass rounded-2xl p-8 shadow-xl">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">Welcome back</h1>
-            <p className="text-white/50 text-sm">Sign in to your account to continue trading</p>
+            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">Welcome back</h1>
+            <p className="text-[var(--c-text-3)] text-sm">Sign in to your account to continue trading</p>
           </div>
 
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
               {error}
             </div>
           )}
@@ -91,7 +89,7 @@ export default function Login() {
               placeholder="••••••••"
               leftIcon={<Lock className="h-4 w-4" />}
               rightIcon={
-                <button type="button" onClick={() => setShowPass(!showPass)} className="hover:text-white">
+                <button type="button" onClick={() => setShowPass(!showPass)}>
                   {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               }
@@ -103,12 +101,26 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="text-center text-sm text-white/40 mt-6">
+          <p className="text-center text-sm text-[var(--c-text-3)] mt-6">
             Don't have an account?{' '}
-            <Link to="/register" className="text-brand-lime hover:underline">
+            <Link to="/register" className="text-brand-green hover:underline font-medium">
               Create one
             </Link>
           </p>
+
+          <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
+            <p className="text-xs text-[var(--c-text-4)] text-center mb-2">Demo accounts (password: Demo1234!)</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-[var(--c-text-3)]">
+              <div className="bg-[var(--c-input)] rounded-lg p-2">
+                <p className="font-medium text-[var(--c-text-2)]">Farmer</p>
+                <p>james@emazao.demo</p>
+              </div>
+              <div className="bg-[var(--c-input)] rounded-lg p-2">
+                <p className="font-medium text-[var(--c-text-2)]">Buyer</p>
+                <p>sarah@emazao.demo</p>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
     </div>

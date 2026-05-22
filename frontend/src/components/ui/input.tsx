@@ -11,16 +11,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, leftIcon, rightIcon, type = 'text', ...props }, ref) => (
     <div className="flex flex-col gap-1.5 w-full">
-      {label && <label className="text-sm font-medium text-white/70">{label}</label>}
+      {label && (
+        <label className="text-sm font-medium text-[var(--c-text-2)]">{label}</label>
+      )}
       <div className="relative">
         {leftIcon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">{leftIcon}</div>
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--c-text-3)]">{leftIcon}</div>
         )}
         <input
           ref={ref}
           type={type}
           className={cn(
-            'w-full h-11 bg-brand-800 border border-white/10 rounded-xl px-4 text-white placeholder-white/30 text-sm',
+            'w-full h-11 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 text-[var(--c-text)] text-sm',
+            'placeholder:text-[var(--c-text-4)]',
             'focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green/40',
             'transition-all duration-200',
             leftIcon && 'pl-10',
@@ -31,10 +34,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {rightIcon && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40">{rightIcon}</div>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-text-3)]">{rightIcon}</div>
         )}
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
 )

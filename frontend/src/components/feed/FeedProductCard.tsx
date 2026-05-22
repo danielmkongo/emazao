@@ -19,11 +19,11 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
-      className="bg-brand-800 rounded-2xl border border-white/[0.06] overflow-hidden"
+      className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
     >
       {/* Image */}
       <Link to={`/marketplace/product/${product.slug}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden bg-brand-700">
+        <div className="relative aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
           {product.images[0] ? (
             <img
               src={product.images[0]}
@@ -51,31 +51,32 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
         {/* Seller */}
         <Link to={`/farm/${seller?.username}`} className="flex items-center gap-2 mb-3 group">
           <Avatar src={seller?.avatar} name={seller?.name} size="xs" verified={seller?.isVerified} />
-          <span className="text-xs text-white/50 group-hover:text-white transition-colors">
+          <span className="text-xs text-[var(--c-text-3)] group-hover:text-[var(--c-text)] transition-colors">
             {seller?.name}
           </span>
         </Link>
 
         {/* Title */}
         <Link to={`/marketplace/product/${product.slug}`}>
-          <h3 className="font-semibold text-white text-sm leading-tight mb-2 hover:text-brand-lime transition-colors line-clamp-2">
+          <h3 className="font-semibold text-[var(--c-text)] text-sm leading-tight mb-2 hover:text-brand-green transition-colors line-clamp-2">
             {product.title}
           </h3>
         </Link>
 
         {/* Price */}
         <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-mono)' }}>
+          <span className="text-lg font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-mono)' }}>
             {formatCurrency(product.price)}
           </span>
-          <span className="text-xs text-white/40">{product.priceUnit}</span>
+          <span className="text-xs text-[var(--c-text-3)]">{product.priceUnit}</span>
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-3 text-xs text-white/30 mb-4">
+        <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)] mb-4">
           <span className="flex items-center gap-1">
             <Star className="h-3 w-3 fill-gold text-gold" />
-            {product.rating.toFixed(1)} ({formatNumber(product.ratingCount)})
+            {(product.rating ?? 0).toFixed(1)}
+            {product.ratingCount > 0 && <span className="text-[var(--c-text-4)]">({formatNumber(product.ratingCount)})</span>}
           </span>
           <span>{formatNumber(product.viewCount)} views</span>
         </div>
