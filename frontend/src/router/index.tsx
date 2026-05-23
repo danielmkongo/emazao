@@ -84,6 +84,16 @@ export const router = createBrowserRouter([
 
   // Fullscreen routes — no layout chrome
   {
+    path: '/reels',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<div className="h-screen bg-black" />}>
+          <ReelFeed />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/live',
     element: (
       <ProtectedRoute>
@@ -113,7 +123,6 @@ export const router = createBrowserRouter([
     children: [
       { path: '/feed', element: wrap(Feed) },
       { path: '/explore', element: wrap(Explore) },
-      { path: '/reels', element: wrap(ReelFeed) },
       { path: '/marketplace', element: wrap(Marketplace) },
       { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
       { path: '/requirements', element: wrap(Requirements) },

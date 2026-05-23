@@ -325,10 +325,12 @@ export default function ProductDetail() {
   })
 
   // Initialize saved state from server once data loads
-  if (data && !savedInitialized) {
-    setSaved(!!(data as any).userSaved)
-    setSavedInitialized(true)
-  }
+  useEffect(() => {
+    if (data && !savedInitialized) {
+      setSaved(!!(data as any).userSaved)
+      setSavedInitialized(true)
+    }
+  }, [data, savedInitialized])
 
   const handleSave = async () => {
     if (!isAuthenticated) { navigate('/login'); return }

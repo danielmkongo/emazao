@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
@@ -150,12 +150,17 @@ function ReelCard({
           .catch(() => { setPlaying(false) })
       }
 
-      // If enough data is already buffered, play immediately; otherwise wait
       if (video.readyState >= 3) {
         tryPlay()
       } else {
         setBuffering(true)
         video.addEventListener('canplay', tryPlay, { once: true })
+        // Guard against race: video may have become ready between the readyState
+        // check above and when the listener was added, so canplay won't re-fire
+        if (video.readyState >= 3) {
+          video.removeEventListener('canplay', tryPlay)
+          tryPlay()
+        }
         return () => video.removeEventListener('canplay', tryPlay)
       }
     } else {
@@ -339,6 +344,9 @@ export default function ReelFeed() {
   const prevCardY = useTransform(y, v => v - window.innerHeight)
   const nextCardY = useTransform(y, v => v + window.innerHeight)
 
+  // Used to signal useLayoutEffect to reset y after a state-driven index change
+  const pendingYReset = useRef(false)
+
   const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
     queryKey: ['reels'],
     queryFn: async ({ pageParam = 1 }) => {
@@ -351,6 +359,16 @@ export default function ReelFeed() {
 
   const reels = data?.pages.flatMap(p => p.data) ?? []
   reelsRef.current = reels
+
+  // Reset y to 0 AFTER React has committed the new currentIndex to the DOM,
+  // so both changes land in the same browser paint — eliminates the blink.
+  useLayoutEffect(() => {
+    if (pendingYReset.current) {
+      pendingYReset.current = false
+      y.set(0)
+      animatingRef.current = false
+    }
+  }, [currentIndex, y])
 
   const snapTo = useCallback((targetIndex: number) => {
     if (animatingRef.current) return
@@ -376,9 +394,8 @@ export default function ReelFeed() {
       velocity: currentVel, // carry through finger velocity for natural feel
       onComplete: () => {
         currentIndexRef.current = targetIndex
-        setCurrentIndex(targetIndex)
-        y.set(0)
-        animatingRef.current = false
+        pendingYReset.current = true
+        setCurrentIndex(targetIndex)  // triggers re-render; useLayoutEffect resets y after paint
         if (targetIndex >= rls.length - 3 && hasNextPage) fetchNextPage()
       },
     })

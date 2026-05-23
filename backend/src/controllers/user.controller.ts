@@ -10,7 +10,7 @@ import slugify from 'slugify'
 export const listUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { role = 'FARMER', q, limit = '20' } = req.query
-    const filter: Record<string, unknown> = { onboardingDone: true }
+    const filter: Record<string, unknown> = {}
     if (role !== 'ALL') filter.role = role
     if (q) filter['$or'] = [
       { name: { $regex: q, $options: 'i' } },
@@ -144,8 +144,8 @@ export const upsertSellerProfile = async (req: AuthRequest, res: Response): Prom
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     )
 
-    // Also update role to FARMER
-    await User.findByIdAndUpdate(req.user!.id, { role: 'FARMER' })
+    // Completing the seller profile counts as finishing onboarding
+    await User.findByIdAndUpdate(req.user!.id, { role: 'FARMER', onboardingDone: true })
 
     res.json({ success: true, data: profile })
   } catch (err) {

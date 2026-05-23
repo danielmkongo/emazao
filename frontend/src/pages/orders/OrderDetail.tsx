@@ -64,12 +64,13 @@ export default function OrderDetail() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isLoading, isError, error } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Order>>(`/orders/${id}`)
       return res.data.data
     },
+    retry: 1,
   })
 
   const confirmMutation = useMutation({
@@ -93,7 +94,24 @@ export default function OrderDetail() {
     </div>
   )
 
-  if (!order) return null
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
+      <span className="text-6xl mb-4">⚠️</span>
+      <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Failed to load order</h2>
+      <p className="text-[var(--c-text-3)] mb-6 text-sm max-w-sm">
+        {(error as any)?.response?.data?.message || (error as Error)?.message || 'Order not found or access denied.'}
+      </p>
+      <Button onClick={() => navigate('/orders')}>Back to Orders</Button>
+    </div>
+  )
+
+  if (!order) return (
+    <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
+      <span className="text-6xl mb-4">📦</span>
+      <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Order not found</h2>
+      <Button onClick={() => navigate('/orders')}>Back to Orders</Button>
+    </div>
+  )
 
   const seller = order.sellerId as unknown as User
   const buyer = order.buyerId as unknown as User
