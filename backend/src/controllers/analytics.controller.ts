@@ -1,4 +1,5 @@
 import { Response } from 'express'
+import mongoose from 'mongoose'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Order from '../models/Order'
 import Product from '../models/Product'
@@ -7,7 +8,7 @@ import { startOfMonth, subMonths, format } from 'date-fns'
 
 export const getOverview = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id
+    const userId = new mongoose.Types.ObjectId(req.user!.id)
     const now = new Date()
     const monthStart = startOfMonth(now)
     const lastMonthStart = startOfMonth(subMonths(now, 1))
@@ -61,7 +62,7 @@ export const getOverview = async (req: AuthRequest, res: Response) => {
 
 export const getRevenueChart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id
+    const userId = new mongoose.Types.ObjectId(req.user!.id)
     const months = 6
     const data = []
 
