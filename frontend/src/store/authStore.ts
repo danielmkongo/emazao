@@ -22,9 +22,12 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       setAuth: (user, accessToken, refreshToken) => {
+        // Normalize: old API returned { id } instead of { _id }
+        const normalized = { ...user } as any
+        if (!normalized._id && normalized.id) { normalized._id = normalized.id; delete normalized.id }
         localStorage.setItem('accessToken', accessToken)
         localStorage.setItem('refreshToken', refreshToken)
-        set({ user, accessToken, refreshToken, isAuthenticated: true })
+        set({ user: normalized as User, accessToken, refreshToken, isAuthenticated: true })
       },
 
       updateUser: (updates) =>
@@ -39,6 +42,15 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false })
       },
     }),
-    { name: 'emazao-auth', partialize: (s) => ({ user: s.user, accessToken: s.accessToken, refreshToken: s.refreshToken, isAuthenticated: s.isAuthenticated }) }
+    {
+      name: 'emazao-auth',
+      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, refreshToken: s.refreshToken, isAuthenticated: s.isAuthenticated }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user) {
+          const u = state.user as any
+          if (!u._id && u.id) { u._id = u.id; delete u.id }
+        }
+      },
+    }
   )
 )
