@@ -13,13 +13,14 @@ import type { ApiResponse, Product } from '@/types'
 export default function DashboardProducts() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['my-products', user?._id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Product[]>>(`/products?sellerId=${user!._id}&status=all&limit=100`)
       return res.data.data ?? []
     },
     enabled: !!user?._id,
+    staleTime: 0,
   })
 
   return (
@@ -31,6 +32,10 @@ export default function DashboardProducts() {
 
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+      ) : error ? (
+        <div className="text-center py-20">
+          <p className="text-red-400 text-sm">Failed to load products. Please refresh.</p>
+        </div>
       ) : !data?.length ? (
         <div className="text-center py-20">
           <Package className="h-12 w-12 text-[var(--c-text-4)] mx-auto mb-4" />

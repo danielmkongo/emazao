@@ -12,7 +12,9 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 
     const filter: Record<string, unknown> = {}
     if (status !== 'all') filter['status'] = status
-    if (sellerId) filter['sellerId'] = sellerId
+    if (sellerId && mongoose.isValidObjectId(sellerId)) {
+      filter['sellerId'] = new mongoose.Types.ObjectId(sellerId as string)
+    }
     if (category) filter['categoryId'] = category
     if (tags) filter['tags'] = { $in: (tags as string).split(',') }
     if (organic === 'true') filter['isOrganic'] = true
