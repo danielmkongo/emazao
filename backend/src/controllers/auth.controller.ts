@@ -51,20 +51,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     user.refreshToken = refreshToken
     await user.save()
 
+    const userObj = user.toObject() as unknown as Record<string, unknown>
+    delete userObj.passwordHash
+    delete userObj.refreshToken
+    delete userObj.otp
+    delete userObj.otpExpiry
+
     res.status(201).json({
       success: true,
-      data: {
-        accessToken,
-        refreshToken,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          username: user.username,
-          role: user.role,
-          onboardingDone: user.onboardingDone,
-        },
-      },
+      data: { accessToken, refreshToken, user: userObj },
     })
   } catch (err) {
     const error = err as Error
@@ -98,22 +93,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     user.refreshToken = refreshToken
     await user.save()
 
+    const userObj = user.toObject() as unknown as Record<string, unknown>
+    delete userObj.passwordHash
+    delete userObj.refreshToken
+    delete userObj.otp
+    delete userObj.otpExpiry
+
     res.json({
       success: true,
-      data: {
-        accessToken,
-        refreshToken,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          username: user.username,
-          avatar: user.avatar,
-          role: user.role,
-          onboardingDone: user.onboardingDone,
-          subscriptionTier: user.subscriptionTier,
-        },
-      },
+      data: { accessToken, refreshToken, user: userObj },
     })
   } catch (err) {
     const error = err as Error
