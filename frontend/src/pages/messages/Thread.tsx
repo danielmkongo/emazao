@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Send, Phone, Video, MoreHorizontal, Check, CheckCheck } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
@@ -46,12 +46,31 @@ function formatTime(dateStr: string) {
 
 export default function Thread() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const [text, setText] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
+
+  const isNewConvo = id === 'new'
+  const recipientIdParam = searchParams.get('recipientId')
+  // Recipient passed via navigate state (from compose modal / Message button)
+  const stateRecipient = (location.state as { recipient?: User } | null)?.recipient
+
+  // Fetch recipient by ID if not in navigation state
+  const { data: fetchedRecipient } = useQuery({
+    queryKey: ['user-by-id', recipientIdParam],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<User>>(`/users/by-id/${recipientIdParam}`)
+      return res.data.data
+    },
+    enabled: isNewConvo && !!recipientIdParam && !stateRecipient,
+  })
+
+  const newConvoRecipient = stateRecipient ?? fetchedRecipient
 
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
@@ -60,6 +79,7 @@ export default function Thread() {
       await api.put(`/messages/${id}/read`)
       return res.data.data
     },
+    enabled: !isNewConvo && !!id,
   })
 
   const { data: conversations } = useQuery({
@@ -71,22 +91,38 @@ export default function Thread() {
   })
 
   const conversation = conversations?.find(c => c._id === id)
-  const other = conversation?.participants.find(p => p._id !== user?._id) ?? conversation?.participants[0]
+  const conversationOther = conversation?.participants.find(p => p._id !== user?._id) ?? conversation?.participants[0]
+  const other = isNewConvo ? newConvoRecipient : conversationOther
 
   const sendMutation = useMutation({
     mutationFn: async (content: string) => {
-      const res = await api.post<ApiResponse<{ message: Message }>>('/messages', { conversationId: id, content })
-      return res.data.data.message
+      if (isNewConvo) {
+        const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
+          '/messages',
+          { recipientId: recipientIdParam, content }
+        )
+        return res.data.data
+      }
+      const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
+        '/messages',
+        { conversationId: id, content }
+      )
+      return res.data.data
     },
-    onSuccess: (msg) => {
-      queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, msg])
-      setText('')
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    onSuccess: (data) => {
+      if (isNewConvo) {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+        navigate(`/messages/${data.conversationId}`, { replace: true })
+      } else {
+        queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, data.message])
+        setText('')
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      }
     },
   })
 
   useEffect(() => {
-    if (!user?._id || !id) return
+    if (!user?._id || !id || isNewConvo) return
     const socket = getSocket(user._id)
     socket.emit('join_conversation', id)
     socket.on('message:new', (msg: Message) => {
@@ -94,7 +130,7 @@ export default function Thread() {
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
     return () => { socket.off('message:new'); socket.emit('leave_conversation', id) }
-  }, [id, user?._id])
+  }, [id, user?._id, isNewConvo])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
@@ -103,18 +139,18 @@ export default function Thread() {
   const handleSend = () => {
     if (!text.trim() || sendMutation.isPending) return
     sendMutation.mutate(text.trim())
+    if (!isNewConvo) setText('')
   }
 
   const getSenderId = (msg: Message) =>
     typeof msg.senderId === 'string' ? msg.senderId : (msg.senderId as User)._id
 
-  // Group consecutive messages from the same sender
   const grouped = (messages ?? []).map((msg, i, arr) => {
     const isMe = getSenderId(msg) === user?._id
     const prevSame = i > 0 && getSenderId(arr[i - 1]) === getSenderId(msg)
     const nextSame = i < arr.length - 1 && getSenderId(arr[i + 1]) === getSenderId(msg)
     const showDay = i === 0 || !isSameDay(msg.createdAt, arr[i - 1].createdAt)
-    const isLast = !nextSame // last in group → show avatar + tail
+    const isLast = !nextSame
     return { msg, isMe, prevSame, nextSame, isLast, showDay }
   })
 
@@ -149,7 +185,24 @@ export default function Thread() {
 
       {/* ── Messages ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5">
-        {isLoading ? (
+        {isNewConvo ? (
+          <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-12">
+            {other ? (
+              <>
+                <Avatar src={other.avatar} name={other.name} size="xl" verified={other.isVerified} />
+                <div>
+                  <p className="font-semibold text-[var(--c-text)]">{other.name}</p>
+                  {other.username && <p className="text-[var(--c-text-4)] text-sm">@{other.username}</p>}
+                </div>
+                <p className="text-[var(--c-text-3)] text-sm max-w-xs">
+                  Send a message to start your conversation with {other.name}.
+                </p>
+              </>
+            ) : (
+              <p className="text-[var(--c-text-3)] text-sm">Loading…</p>
+            )}
+          </div>
+        ) : isLoading ? (
           <div className="space-y-4 pt-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className={`flex gap-2 ${i % 3 === 0 ? 'justify-end' : 'justify-start'}`}>
@@ -161,7 +214,6 @@ export default function Thread() {
         ) : (
           grouped.map(({ msg, isMe, prevSame, isLast, showDay }) => (
             <div key={msg._id}>
-              {/* Day separator */}
               {showDay && (
                 <div className="flex items-center gap-3 my-4">
                   <div className="flex-1 h-px bg-[var(--c-border)]" />
@@ -171,7 +223,6 @@ export default function Thread() {
               )}
 
               <div className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`}>
-                {/* Other's avatar — only on last in group */}
                 {!isMe && (
                   <div className="w-7 shrink-0">
                     {isLast ? (
@@ -180,7 +231,6 @@ export default function Thread() {
                   </div>
                 )}
 
-                {/* Bubble */}
                 <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
                   <div
                     className={`
@@ -198,7 +248,6 @@ export default function Thread() {
                     {msg.content}
                   </div>
 
-                  {/* Timestamp + read receipt — only on last in group */}
                   {isLast && (
                     <div className={`flex items-center gap-1 mt-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[var(--c-text-4)] text-[10px]">{formatTime(msg.createdAt)}</span>

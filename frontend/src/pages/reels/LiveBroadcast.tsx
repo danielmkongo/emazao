@@ -11,7 +11,7 @@ interface LiveComment { username: string; text: string; id: string }
 
 const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
 
-type PermState = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable'
+type PermState = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'insecure' | 'in_use'
 
 export default function LiveBroadcast() {
   const { user } = useAuthStore()
@@ -35,6 +35,11 @@ export default function LiveBroadcast() {
 
   // Request camera access immediately on mount so the browser prompts right away
   const requestCamera = useCallback(async () => {
+    // getUserMedia requires HTTPS (or localhost) — browsers block it on plain HTTP
+    if (!window.isSecureContext) {
+      setPermState('insecure')
+      return
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setPermState('unavailable')
       return
@@ -48,9 +53,13 @@ export default function LiveBroadcast() {
     } catch (err: any) {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermState('denied')
-      } else if (err.name === 'NotFoundError') {
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setPermState('unavailable')
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setPermState('in_use')
       } else {
+        // Fallback: show the raw error name so user can report it
+        console.error('getUserMedia error:', err.name, err.message)
         setPermState('denied')
       }
     }
@@ -139,6 +148,45 @@ export default function LiveBroadcast() {
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   // ── Permission error screen ────────────────────────────────────────────────
+  if (permState === 'insecure') {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-yellow-500/20 border-2 border-yellow-500/40 flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-9 w-9 text-yellow-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-3">HTTPS required</h2>
+          <p className="text-white/60 text-sm mb-8">
+            Camera access requires a secure connection. Open the app via <span className="text-white font-mono">https://</span> — browsers block camera on plain HTTP outside of localhost.
+          </p>
+          <Button variant="ghost" onClick={() => navigate(-1)} className="text-white/60">Go back</Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (permState === 'in_use') {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-orange-500/20 border-2 border-orange-500/40 flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-9 w-9 text-orange-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-3">Camera in use</h2>
+          <p className="text-white/60 text-sm mb-8">
+            Another app is currently using your camera (a video call, another tab, etc.). Close it and try again.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Button onClick={() => { setPermState('idle'); requestCamera() }} className="w-full">
+              <RefreshCw className="h-4 w-4" /> Try again
+            </Button>
+            <Button variant="ghost" onClick={() => navigate(-1)} className="w-full text-white/60">Go back</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (permState === 'denied') {
     return (
       <div className="h-screen bg-black flex items-center justify-center p-6">

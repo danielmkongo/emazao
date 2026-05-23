@@ -41,18 +41,10 @@ export default function Profile() {
     },
   })
 
-  const messageMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post<ApiResponse<{ message: unknown; conversationId: string }>>('/messages', {
-        recipientId: user?._id,
-        content: `Hi ${user?.name}! 👋`,
-      })
-      return res.data.data
-    },
-    onSuccess: (data) => {
-      navigate(`/messages/${data.conversationId}`)
-    },
-  })
+  const handleMessage = () => {
+    if (!user) return
+    navigate(`/messages/new?recipientId=${user._id}`, { state: { recipient: user } })
+  }
 
   const startCall = (video: boolean) => {
     if (!me || !user) return
@@ -100,7 +92,7 @@ export default function Profile() {
               </Link>
             ) : (
               <div className="flex gap-2 flex-wrap justify-end">
-                <Button size="sm" variant="outline" onClick={() => messageMutation.mutate()} loading={messageMutation.isPending}>
+                <Button size="sm" variant="outline" onClick={handleMessage}>
                   <MessageSquare className="h-3.5 w-3.5" /> Message
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => startCall(false)}>

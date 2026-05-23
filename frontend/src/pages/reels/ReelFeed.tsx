@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, X, Send } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, X, Send, Radio } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -274,14 +275,16 @@ function ReelCard({
 
 // ─── Main feed ─────────────────────────────────────────────────────────────────
 export default function ReelFeed() {
+  const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [muted, setMuted] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const currentIndexRef = useRef(0)
   const reelsRef = useRef<Reel[]>([])
-  const pointerStartY = useRef(0)
-  const isDragging = useRef(false)
-  const isAnimating = useRef(false)
+  const startYRef = useRef(0)
+  const draggingRef = useRef(false)
+  const animatingRef = useRef(false)
 
   const y = useMotionValue(0)
   const prevCardY = useTransform(y, v => v - window.innerHeight)
@@ -301,63 +304,124 @@ export default function ReelFeed() {
   reelsRef.current = reels
 
   const snapTo = useCallback((targetIndex: number) => {
-    if (isAnimating.current) return
+    if (animatingRef.current) return
     const currentIdx = currentIndexRef.current
     const rls = reelsRef.current
 
     if (targetIndex < 0 || targetIndex >= rls.length) {
-      animate(y, 0, { type: 'spring', stiffness: 500, damping: 30, velocity: y.getVelocity() })
+      animate(y, 0, { type: 'spring', stiffness: 500, damping: 35 })
       return
     }
 
-    isAnimating.current = true
+    animatingRef.current = true
     const h = window.innerHeight
     const targetY = targetIndex > currentIdx ? -h : h
 
     animate(y, targetY, {
-      type: 'spring', stiffness: 350, damping: 28, velocity: y.getVelocity(),
+      type: 'spring', stiffness: 400, damping: 35,
       onComplete: () => {
         currentIndexRef.current = targetIndex
         setCurrentIndex(targetIndex)
         y.set(0)
-        isAnimating.current = false
+        animatingRef.current = false
         if (targetIndex >= rls.length - 3 && hasNextPage) fetchNextPage()
       },
     })
   }, [y, hasNextPage, fetchNextPage])
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (isAnimating.current) return
-    if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
-    pointerStartY.current = e.clientY
-    isDragging.current = false
-    // Capture pointer so events keep firing even if finger leaves the element boundary
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isAnimating.current) return
-    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return
-    const delta = e.clientY - pointerStartY.current
-    if (!isDragging.current && Math.abs(delta) < 6) return
-    isDragging.current = true
-    y.set(delta)
-  }
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return
-    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    if (!isDragging.current) return
-    isDragging.current = false
+  const settle = useCallback(() => {
+    if (!draggingRef.current) return
+    draggingRef.current = false
     const delta = y.get()
     const h = window.innerHeight
     const vel = y.getVelocity()
+    if (delta < -h * 0.15 || vel < -350) snapTo(currentIndexRef.current + 1)
+    else if (delta > h * 0.15 || vel > 350) snapTo(currentIndexRef.current - 1)
+    else animate(y, 0, { type: 'spring', stiffness: 500, damping: 35, velocity: vel })
+  }, [y, snapTo])
 
-    if (delta < -h * 0.15 || vel < -400) snapTo(currentIndexRef.current + 1)
-    else if (delta > h * 0.15 || vel > 400) snapTo(currentIndexRef.current - 1)
-    else animate(y, 0, { type: 'spring', stiffness: 500, damping: 30, velocity: vel })
-  }
+  // Touch events — registered manually so touchmove can be non-passive
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
 
+    const onTouchStart = (e: TouchEvent) => {
+      if (animatingRef.current) return
+      if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
+      startYRef.current = e.touches[0].clientY
+      draggingRef.current = false
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (animatingRef.current) return
+      if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
+      const delta = e.touches[0].clientY - startYRef.current
+      if (!draggingRef.current && Math.abs(delta) < 8) return
+      draggingRef.current = true
+      e.preventDefault() // stop page scroll — works because listener is non-passive
+      y.set(delta)
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', settle)
+    el.addEventListener('touchcancel', settle)
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', settle)
+      el.removeEventListener('touchcancel', settle)
+    }
+  }, [settle, y])
+
+  // Mouse events for desktop drag
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (animatingRef.current) return
+      if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
+      startYRef.current = e.clientY
+      draggingRef.current = false
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (animatingRef.current || !e.buttons) return
+      const delta = e.clientY - startYRef.current
+      if (!draggingRef.current && Math.abs(delta) < 8) return
+      draggingRef.current = true
+      y.set(delta)
+    }
+
+    const onMouseLeave = () => {
+      if (!draggingRef.current) return
+      // If the drag had enough momentum, complete the snap rather than snapping back
+      const delta = y.get()
+      const h = window.innerHeight
+      const vel = y.getVelocity()
+      if (Math.abs(delta) > h * 0.20 || Math.abs(vel) > 500) settle()
+      else {
+        draggingRef.current = false
+        animate(y, 0, { type: 'spring', stiffness: 500, damping: 35 })
+      }
+    }
+
+    el.addEventListener('mousedown', onMouseDown)
+    el.addEventListener('mousemove', onMouseMove)
+    el.addEventListener('mouseup', settle)
+    el.addEventListener('mouseleave', onMouseLeave)
+
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown)
+      el.removeEventListener('mousemove', onMouseMove)
+      el.removeEventListener('mouseup', settle)
+      el.removeEventListener('mouseleave', onMouseLeave)
+    }
+  }, [settle, y])
+
+  // Wheel events
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -365,7 +429,7 @@ export default function ReelFeed() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const now = Date.now()
-      if (isAnimating.current || now - lastTime < 300) return
+      if (animatingRef.current || now - lastTime < 350) return
       lastTime = now
       if (e.deltaY > 0) snapTo(currentIndexRef.current + 1)
       else snapTo(currentIndexRef.current - 1)
@@ -385,14 +449,7 @@ export default function ReelFeed() {
   return (
     <div
       ref={containerRef}
-      className="h-screen bg-black overflow-hidden relative touch-none select-none"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={() => {
-        isDragging.current = false
-        animate(y, 0, { type: 'spring', stiffness: 500, damping: 30 })
-      }}
+      className="h-screen bg-black overflow-hidden relative select-none"
     >
       {/* Previous card — non-interactive, just visual */}
       {currentIndex > 0 && (
@@ -413,11 +470,23 @@ export default function ReelFeed() {
         </motion.div>
       )}
 
+      {/* Go Live — farmers only, top-left */}
+      {user?.role === 'FARMER' && (
+        <div className="absolute top-4 left-4 z-20">
+          <button
+            onClick={() => navigate('/live')}
+            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-full text-white text-xs font-bold border border-red-400/30 active:scale-95 transition-all shadow-lg"
+          >
+            <Radio className="h-3.5 w-3.5" />
+            Go Live
+          </button>
+        </div>
+      )}
+
       {/* Global mute badge top-right */}
       <div className="absolute top-4 right-4 z-20">
         <button
           onClick={() => setMuted(m => !m)}
-          onPointerDown={e => e.stopPropagation()}
           className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium border border-white/10 active:scale-95 transition-transform"
         >
           {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}

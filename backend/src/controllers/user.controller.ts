@@ -5,11 +5,12 @@ import Follow from '../models/Follow'
 import { AuthRequest } from '../middleware/auth.middleware'
 import slugify from 'slugify'
 
-// GET /api/users?role=FARMER&q=...&limit=20
+// GET /api/users?role=FARMER|ALL&q=...&limit=20
 export const listUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { role = 'FARMER', q, limit = '20' } = req.query
-    const filter: Record<string, unknown> = { role, onboardingDone: true }
+    const filter: Record<string, unknown> = { onboardingDone: true }
+    if (role !== 'ALL') filter.role = role
     if (q) filter['$or'] = [
       { name: { $regex: q, $options: 'i' } },
       { username: { $regex: q, $options: 'i' } },
@@ -21,6 +22,17 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
       .sort({ followersCount: -1 })
       .limit(parseInt(limit as string))
     res.json({ success: true, data: users })
+  } catch (err) {
+    res.status(500).json({ success: false, message: (err as Error).message })
+  }
+}
+
+// GET /api/users/by-id/:userId
+export const getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.params.userId).select('name username avatar isVerified role country bio')
+    if (!user) { res.status(404).json({ success: false, message: 'User not found' }); return }
+    res.json({ success: true, data: user })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })
   }

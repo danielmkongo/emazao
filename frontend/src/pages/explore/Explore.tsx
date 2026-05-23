@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Search, TrendingUp, MapPin, X } from 'lucide-react'
+import { Search, TrendingUp, MapPin, X, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -265,14 +265,15 @@ function ExploreProductCard({ product, index }: { product: Product; index: numbe
 }
 
 function ExploreFarmerCard({ farmer, index }: { farmer: User; index: number }) {
+  const navigate = useNavigate()
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
     >
-      <Link to={`/farm/${farmer.username}`}>
-        <div className="flex items-center gap-3 p-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] hover:border-brand-green/30 hover:shadow-sm transition-all group">
+      <div className="flex items-center gap-3 p-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] hover:border-brand-green/30 hover:shadow-sm transition-all">
+        <Link to={`/farm/${farmer.username}`} className="flex items-center gap-3 flex-1 min-w-0 group">
           <Avatar src={farmer.avatar} name={farmer.name} size="lg" verified={farmer.isVerified} />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-[var(--c-text)] text-sm group-hover:text-brand-green transition-colors">{farmer.name}</p>
@@ -285,9 +286,20 @@ function ExploreFarmerCard({ farmer, index }: { farmer: User; index: number }) {
               </p>
             )}
           </div>
-          <Button size="xs" variant="outline" className="flex-shrink-0 text-xs">View</Button>
+        </Link>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => navigate(`/messages/new?recipientId=${farmer._id}`, { state: { recipient: farmer } })}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green hover:text-brand-green transition-all"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Message
+          </button>
+          <Link to={`/farm/${farmer.username}`}>
+            <Button size="xs" variant="outline" className="text-xs">View</Button>
+          </Link>
         </div>
-      </Link>
+      </div>
     </motion.div>
   )
 }

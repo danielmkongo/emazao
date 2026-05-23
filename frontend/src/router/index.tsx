@@ -79,6 +79,28 @@ export const router = createBrowserRouter([
   { path: '/verify-otp', element: wrap(VerifyOtp) },
   { path: '/onboarding', element: wrap(Onboarding) },
 
+  // Fullscreen routes — no layout chrome
+  {
+    path: '/live',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<div className="h-screen bg-black" />}>
+          <LiveBroadcast />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/live/:broadcasterId',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<div className="h-screen bg-black" />}>
+          <LiveViewer />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+
   {
     element: (
       <ProtectedRoute>
@@ -89,8 +111,6 @@ export const router = createBrowserRouter([
       { path: '/feed', element: wrap(Feed) },
       { path: '/explore', element: wrap(Explore) },
       { path: '/reels', element: wrap(ReelFeed) },
-      { path: '/live', element: wrap(LiveBroadcast) },
-      { path: '/live/:broadcasterId', element: wrap(LiveViewer) },
       { path: '/marketplace', element: wrap(Marketplace) },
       { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
       { path: '/requirements', element: wrap(Requirements) },
@@ -98,6 +118,7 @@ export const router = createBrowserRouter([
       { path: '/requirements/:id', element: wrap(RequirementDetail) },
       { path: '/farm/:username', element: wrap(Storefront) },
       { path: '/messages', element: wrap(Inbox) },
+      { path: '/messages/new', element: wrap(Thread) },
       { path: '/messages/:id', element: wrap(Thread) },
       { path: '/orders', element: wrap(Orders) },
       { path: '/orders/:id', element: wrap(OrderDetail) },
