@@ -152,6 +152,7 @@ export interface Reel {
   _id: string
   userId: User | string
   productId?: string
+  title?: string
   caption?: string
   videoUrl: string
   thumbnailUrl?: string
