@@ -97,7 +97,8 @@ export default function RequirementDetail() {
   const req = data?.requirement
   const bids = data?.bids ?? []
   const buyer = req?.buyerId as User
-  const isOwner = user?._id === (buyer as any)?._id || user?._id === buyer
+  const buyerId = typeof req?.buyerId === 'string' ? req.buyerId : (req?.buyerId as User)?._id
+  const isOwner = user?._id === buyerId
   const isFarmer = user?.role === 'FARMER'
   const statusCfg = STATUS_CONFIG[req?.status ?? 'OPEN'] ?? STATUS_CONFIG['OPEN']
 
