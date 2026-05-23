@@ -2,6 +2,8 @@ import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
+import User from '../models/User'
+import { sendNotification } from '../services/notification.service'
 
 export const getConversations = async (req: AuthRequest, res: Response) => {
   try {
@@ -57,6 +59,19 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     await conversation.save()
 
     await message.populate('senderId', 'name username avatar')
+
+    const notifyRecipientId = conversation.participants.map(String).find(id => id !== senderId)
+    if (notifyRecipientId) {
+      const sender = await User.findById(senderId).select('name')
+      await sendNotification({
+        userId: notifyRecipientId,
+        type: 'MESSAGE',
+        title: 'New message',
+        body: `${sender?.name ?? 'Someone'}: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''}`,
+        link: `/messages/${conversation._id}`,
+      })
+    }
+
     res.status(201).json({ success: true, data: { message, conversationId: conversation._id } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })

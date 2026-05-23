@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -24,11 +24,15 @@ export default function Profile() {
   const { data, isLoading } = useQuery({
     queryKey: ['profile', targetUsername],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<{ user: User; sellerProfile: SellerProfile | null }>>(`/users/${targetUsername}`)
+      const res = await api.get<ApiResponse<{ user: User; sellerProfile: SellerProfile | null; isFollowing: boolean }>>(`/users/${targetUsername}`)
       return res.data.data
     },
     enabled: !!targetUsername,
   })
+
+  useEffect(() => {
+    if (data?.isFollowing !== undefined) setFollowed(data.isFollowing)
+  }, [data])
 
   const followMutation = useMutation({
     mutationFn: async () => {

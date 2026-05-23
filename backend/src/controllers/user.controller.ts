@@ -3,6 +3,7 @@ import User from '../models/User'
 import SellerProfile from '../models/SellerProfile'
 import Follow from '../models/Follow'
 import { AuthRequest } from '../middleware/auth.middleware'
+import { sendNotification } from '../services/notification.service'
 import slugify from 'slugify'
 
 // GET /api/users?role=FARMER|ALL&q=...&limit=20
@@ -68,6 +69,7 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
 // GET /api/users/:username
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as AuthRequest
     const user = await User.findOne({ username: String(req.params['username'] ?? '').toLowerCase() })
       .select('-passwordHash -refreshToken -otp -otpExpiry -refreshToken')
     if (!user) { res.status(404).json({ success: false, message: 'User not found' }); return }
@@ -77,7 +79,12 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       sellerProfile = await SellerProfile.findOne({ userId: user._id })
     }
 
-    res.json({ success: true, data: { user, sellerProfile } })
+    let isFollowing = false
+    if (authReq.user?.id && authReq.user.id !== user._id.toString()) {
+      isFollowing = !!(await Follow.findOne({ followerId: authReq.user.id, followingId: user._id }))
+    }
+
+    res.json({ success: true, data: { user, sellerProfile, isFollowing } })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })
   }
@@ -102,6 +109,18 @@ export const toggleFollow = async (req: AuthRequest, res: Response): Promise<voi
       await Follow.create({ followerId, followingId })
       await User.findByIdAndUpdate(followerId, { $inc: { followingCount: 1 } })
       await User.findByIdAndUpdate(followingId, { $inc: { followersCount: 1 } })
+
+      const follower = await User.findById(followerId).select('name username')
+      if (follower) {
+        await sendNotification({
+          userId: followingId,
+          type: 'FOLLOW',
+          title: 'New follower',
+          body: `${follower.name} started following you.`,
+          link: `/profile/${follower.username}`,
+        })
+      }
+
       res.json({ success: true, data: { following: true } })
     }
   } catch (err) {

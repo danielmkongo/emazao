@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Bell, ShoppingBag, MessageSquare, TrendingUp, CheckCheck, Heart, UserPlus, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,29 +20,30 @@ interface Notification {
 }
 
 const notifIcon = (type: string) => {
-  if (type === 'ORDER')    return <ShoppingBag className="h-4 w-4 text-blue-500" />
-  if (type === 'MESSAGE')  return <MessageSquare className="h-4 w-4 text-purple-500" />
-  if (type === 'BID')      return <TrendingUp className="h-4 w-4 text-gold" />
-  if (type === 'LIKE')     return <Heart className="h-4 w-4 text-red-500" />
-  if (type === 'FOLLOW')   return <UserPlus className="h-4 w-4 text-brand-green" />
-  if (type === 'DELIVERY') return <Truck className="h-4 w-4 text-brand-emerald" />
-  if (type === 'PAYMENT')  return <TrendingUp className="h-4 w-4 text-gold" />
+  if (type.includes('ORDER') || type === 'NEW_ORDER') return <ShoppingBag className="h-4 w-4 text-blue-500" />
+  if (type.includes('BID') || type === 'NEW_BID')     return <TrendingUp className="h-4 w-4 text-gold" />
+  if (type === 'MESSAGE')                              return <MessageSquare className="h-4 w-4 text-purple-500" />
+  if (type === 'LIKE')                                 return <Heart className="h-4 w-4 text-red-500" />
+  if (type === 'FOLLOW')                               return <UserPlus className="h-4 w-4 text-brand-green" />
+  if (type === 'DELIVERY')                             return <Truck className="h-4 w-4 text-brand-emerald" />
+  if (type === 'PAYMENT' || type === 'ESCROW_RELEASED') return <TrendingUp className="h-4 w-4 text-gold" />
   return <Bell className="h-4 w-4 text-brand-green" />
 }
 
 const notifBg = (type: string) => {
-  if (type === 'ORDER')    return 'bg-blue-500/10'
-  if (type === 'MESSAGE')  return 'bg-purple-500/10'
-  if (type === 'BID' || type === 'PAYMENT') return 'bg-gold/10'
-  if (type === 'LIKE')     return 'bg-red-500/10'
-  if (type === 'FOLLOW')   return 'bg-brand-green/10'
-  if (type === 'DELIVERY') return 'bg-brand-emerald/10'
+  if (type.includes('ORDER') || type === 'NEW_ORDER')   return 'bg-blue-500/10'
+  if (type.includes('BID') || type === 'NEW_BID')       return 'bg-gold/10'
+  if (type === 'PAYMENT' || type === 'ESCROW_RELEASED') return 'bg-gold/10'
+  if (type === 'MESSAGE')                                return 'bg-purple-500/10'
+  if (type === 'LIKE')                                   return 'bg-red-500/10'
+  if (type === 'DELIVERY')                               return 'bg-brand-emerald/10'
   return 'bg-brand-green/10'
 }
 
 export default function Notifications() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications', user?._id],
@@ -96,7 +98,10 @@ export default function Notifications() {
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.03 }}
-              onClick={() => !n.isRead && markOneMutation.mutate(n._id)}
+              onClick={() => {
+                if (!n.isRead) markOneMutation.mutate(n._id)
+                if (n.link) navigate(n.link)
+              }}
               className={`flex items-start gap-4 p-4 rounded-2xl cursor-pointer transition-all ${
                 n.isRead
                   ? 'opacity-70 hover:opacity-100 hover:bg-[var(--c-raised)]'
