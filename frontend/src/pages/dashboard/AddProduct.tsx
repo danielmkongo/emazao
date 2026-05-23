@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Upload, X, ArrowLeft, Leaf } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import type { ApiResponse, Category } from '@/types'
 
 const schema = z.object({
@@ -33,6 +34,8 @@ const PRICE_UNITS = ['per kg', 'per ton', 'per crate', 'per bag', 'per litre', '
 
 export default function AddProduct() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
   const [images, setImages] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
 
@@ -60,7 +63,10 @@ export default function AddProduct() {
       const res = await api.post('/products', payload)
       return res.data
     },
-    onSuccess: () => navigate('/dashboard/products'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-products', user?._id] })
+      navigate('/dashboard/products')
+    },
   })
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

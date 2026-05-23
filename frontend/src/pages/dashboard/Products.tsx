@@ -14,11 +14,12 @@ export default function DashboardProducts() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { data, isLoading } = useQuery({
-    queryKey: ['my-products'],
+    queryKey: ['my-products', user?._id],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Product[]>>(`/products?sellerId=${user?._id}&limit=50`)
-      return res.data.data
+      const res = await api.get<ApiResponse<Product[]>>(`/products?sellerId=${user!._id}&status=all&limit=100`)
+      return res.data.data ?? []
     },
+    enabled: !!user?._id,
   })
 
   return (
@@ -56,7 +57,7 @@ export default function DashboardProducts() {
               <div className="flex items-center gap-1 text-xs text-[var(--c-text-3)]">
                 <Eye className="h-3.5 w-3.5" />{product.viewCount}
               </div>
-              <Button size="icon-sm" variant="ghost"><Edit className="h-4 w-4" /></Button>
+              <Button size="icon-sm" variant="ghost" onClick={() => navigate(`/dashboard/products/${product._id}/edit`)}><Edit className="h-4 w-4" /></Button>
             </motion.div>
           ))}
         </div>

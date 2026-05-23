@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, Edit, X, Search, Loader2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
@@ -32,7 +32,6 @@ const ROLE_LABELS: Record<string, string> = {
 export default function Inbox() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [composing, setComposing] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const debouncedQ = useDebounce(searchQ, 300)
@@ -57,35 +56,20 @@ export default function Inbox() {
     staleTime: 10_000,
   })
 
-  const startConversation = useMutation({
-    mutationFn: async (recipientId: string) => {
-      const res = await api.post<ApiResponse<{ message: { _id: string }; conversationId: string }>>(
-        '/messages',
-        { recipientId, content: '👋' }
-      )
-      return res.data.data.conversationId as string
-    },
-    onSuccess: (conversationId) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] })
-      setComposing(false)
-      navigate(`/messages/${conversationId}`)
-    },
-  })
-
   const openCompose = () => {
     setSearchQ('')
     setComposing(true)
   }
 
   const selectUser = (recipient: User) => {
+    setComposing(false)
     const existing = conversations?.find(c =>
       c.participants.some(p => p._id === recipient._id)
     )
     if (existing) {
-      setComposing(false)
       navigate(`/messages/${existing._id}`)
     } else {
-      startConversation.mutate(recipient._id)
+      navigate(`/messages/new?recipientId=${recipient._id}`, { state: { recipient } })
     }
   }
 
@@ -224,8 +208,7 @@ export default function Inbox() {
                       <button
                         key={u._id}
                         onClick={() => selectUser(u)}
-                        disabled={startConversation.isPending}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--c-raised)] transition-colors text-left disabled:opacity-60"
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--c-raised)] transition-colors text-left"
                       >
                         <Avatar src={u.avatar} name={u.name} size="md" verified={u.isVerified} />
                         <div className="flex-1 min-w-0">
@@ -236,9 +219,6 @@ export default function Inbox() {
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-green shrink-0">
                             {ROLE_LABELS[u.role] ?? u.role}
                           </span>
-                        )}
-                        {startConversation.isPending && startConversation.variables === u._id && (
-                          <Loader2 className="h-4 w-4 animate-spin text-brand-green shrink-0" />
                         )}
                       </button>
                     ))}

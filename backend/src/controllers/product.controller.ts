@@ -10,7 +10,8 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
   try {
     const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId } = req.query
 
-    const filter: Record<string, unknown> = { status }
+    const filter: Record<string, unknown> = {}
+    if (status !== 'all') filter['status'] = status
     if (sellerId) filter['sellerId'] = sellerId
     if (category) filter['categoryId'] = category
     if (tags) filter['tags'] = { $in: (tags as string).split(',') }
@@ -101,7 +102,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
     const product = await Product.findOne({ _id: req.params['id'], sellerId: req.user!.id })
     if (!product) { res.status(404).json({ success: false, message: 'Product not found' }); return }
 
-    const allowed = ['title', 'description', 'price', 'priceUnit', 'images', 'tags', 'status', 'availableStock', 'condition', 'isOrganic']
+    const allowed = ['title', 'description', 'price', 'priceUnit', 'images', 'tags', 'status', 'availableStock', 'stockUnit', 'minimumOrder', 'condition', 'isOrganic', 'origin', 'certifications', 'categoryId']
     const updates: Record<string, unknown> = {}
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key]

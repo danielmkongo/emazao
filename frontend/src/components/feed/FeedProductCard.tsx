@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Heart, Bookmark, ShoppingCart, Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import api from '@/lib/api'
 import type { Product, User } from '@/types'
 
 interface FeedProductCardProps {
@@ -13,6 +16,37 @@ interface FeedProductCardProps {
 
 export const FeedProductCard = ({ product }: FeedProductCardProps) => {
   const seller = product.sellerId as User
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuthStore()
+  const [liked, setLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState(product.likeCount ?? 0)
+  const [saved, setSaved] = useState(false)
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!isAuthenticated) { navigate('/login'); return }
+    const next = !liked
+    setLiked(next)
+    setLikeCount(c => next ? c + 1 : c - 1)
+    try {
+      await api.post('/social/like', { targetId: product._id, targetType: 'Product' })
+    } catch {
+      setLiked(!next)
+      setLikeCount(c => next ? c - 1 : c + 1)
+    }
+  }
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!isAuthenticated) { navigate('/login'); return }
+    const next = !saved
+    setSaved(next)
+    try {
+      await api.post('/social/save', { productId: product._id })
+    } catch {
+      setSaved(!next)
+    }
+  }
 
   return (
     <motion.div
@@ -83,14 +117,18 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button size="sm" className="flex-1 text-xs h-8">
-            <ShoppingCart className="h-3.5 w-3.5" /> Buy
+          <Link to={`/marketplace/product/${product.slug}`} className="flex-1">
+            <Button size="sm" className="w-full text-xs h-8">
+              <ShoppingCart className="h-3.5 w-3.5" /> Buy
+            </Button>
+          </Link>
+          <Button size="icon-sm" variant="ghost" onClick={handleLike}
+            className={liked ? 'text-red-500' : ''}>
+            <Heart className={`h-4 w-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
           </Button>
-          <Button size="icon-sm" variant="ghost">
-            <Heart className="h-4 w-4" />
-          </Button>
-          <Button size="icon-sm" variant="ghost">
-            <Bookmark className="h-4 w-4" />
+          <Button size="icon-sm" variant="ghost" onClick={handleSave}
+            className={saved ? 'text-brand-green' : ''}>
+            <Bookmark className={`h-4 w-4 ${saved ? 'fill-brand-green text-brand-green' : ''}`} />
           </Button>
         </div>
       </div>

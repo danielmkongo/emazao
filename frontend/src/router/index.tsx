@@ -45,6 +45,7 @@ const Dashboard = lazy(() => import('@/pages/dashboard/Dashboard'))
 const Analytics = lazy(() => import('@/pages/dashboard/Analytics'))
 const DashboardProducts = lazy(() => import('@/pages/dashboard/Products'))
 const AddProduct = lazy(() => import('@/pages/dashboard/AddProduct'))
+const EditProduct = lazy(() => import('@/pages/dashboard/EditProduct'))
 const DashboardOrders = lazy(() => import('@/pages/dashboard/DashboardOrders'))
 const DashboardBids = lazy(() => import('@/pages/dashboard/Bids'))
 const DashboardWallet = lazy(() => import('@/pages/dashboard/DashboardWallet'))
@@ -133,6 +134,7 @@ export const router = createBrowserRouter([
       { path: '/dashboard/analytics', element: wrap(Analytics) },
       { path: '/dashboard/products', element: wrap(DashboardProducts) },
       { path: '/dashboard/products/new', element: wrap(AddProduct) },
+      { path: '/dashboard/products/:id/edit', element: wrap(EditProduct) },
       { path: '/dashboard/orders', element: wrap(DashboardOrders) },
       { path: '/dashboard/bids', element: wrap(DashboardBids) },
       { path: '/dashboard/wallet', element: wrap(DashboardWallet) },
