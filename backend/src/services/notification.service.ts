@@ -5,6 +5,10 @@ let _io: Server | null = null
 
 export const setIo = (io: Server): void => { _io = io }
 
+export const emitToRoom = (room: string, event: string, data: unknown): void => {
+  if (_io) _io.to(room).emit(event, data)
+}
+
 export const sendNotification = async (params: {
   userId: string
   type: NotificationType

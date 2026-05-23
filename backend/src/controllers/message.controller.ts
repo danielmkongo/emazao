@@ -3,7 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import User from '../models/User'
-import { sendNotification } from '../services/notification.service'
+import { sendNotification, emitToRoom } from '../services/notification.service'
 
 export const getConversations = async (req: AuthRequest, res: Response) => {
   try {
@@ -59,6 +59,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     await conversation.save()
 
     await message.populate('senderId', 'name username avatar')
+
+    emitToRoom(`conv:${conversation._id}`, 'message:new', message)
 
     const notifyRecipientId = conversation.participants.map(String).find(id => id !== senderId)
     if (notifyRecipientId) {
