@@ -1381,7 +1381,8 @@ async function main() {
   console.log('🛒 Created 6 orders')
 
   // ─── 10. SOCIAL GRAPH — Follow, Like, Save, Review ──────────────────────────
-  // Follow relationships: buyers follow farmers they interact with; farmers follow peers
+  // Every count below will be recomputed from these documents — zero ghosts possible.
+
   await Follow.insertMany([
     // Sarah (buyer1) follows farmers she buys from / discovers
     { followerId: buyer1._id, followingId: farmer1._id },
@@ -1394,7 +1395,7 @@ async function main() {
     // Fatima (buyer3) follows Ethiopian and spice farmers
     { followerId: buyer3._id, followingId: farmer5._id },
     { followerId: buyer3._id, followingId: farmer2._id },
-    // Farmers following peers — community feel
+    // Farmers following peers
     { followerId: farmer1._id, followingId: farmer2._id },
     { followerId: farmer1._id, followingId: farmer5._id },
     { followerId: farmer3._id, followingId: farmer2._id },
@@ -1403,65 +1404,69 @@ async function main() {
     { followerId: farmer5._id, followingId: farmer2._id },
     { followerId: farmer2._id, followingId: farmer5._id },
   ])
-  console.log('👥 Created 15 follow relationships')
 
-  // Likes on reels — seed users liking content they interact with
+  // Reel indices for clarity:
+  // [0] james-tomato  [1] james-maize  [2] james-pepper  [3] amina-coffee  [4] amina-vanilla
+  // [5] david-cocoa   [6] david-plantain [7] mercy-bugisu [8] emmanuel-yirgacheffe
+  // [9] emmanuel-moringa [10] james-frenchbeans [11] amina-cardamom [12] mercy-vanilla
+  // [13] david-palmoil [14] emmanuel-teff [15] james-dayinlife [16] amina-cupping
+  // [17] james-avocado [18] emmanuel-honey [19] david-mango [20] james-macadamia
+  // [21] mercy-sweetpotato [22] amina-baobab [23] david-cassava [24] mercy-millet
   await Like.insertMany([
-    // Sarah likes reels from farmers she buys from
-    { userId: buyer1._id, targetId: insertedReels[0]._id, targetType: 'Reel' },
-    { userId: buyer1._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
-    { userId: buyer1._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: buyer1._id, targetId: insertedReels[15]._id, targetType: 'Reel' }, // avocado
-    // Ali likes coffee reels
-    { userId: buyer2._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
-    { userId: buyer2._id, targetId: insertedReels[7]._id, targetType: 'Reel' },
-    { userId: buyer2._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: buyer2._id, targetId: insertedReels[16]._id, targetType: 'Reel' }, // cupping
-    // Fatima likes health/superfood reels
-    { userId: buyer3._id, targetId: insertedReels[9]._id, targetType: 'Reel' },
-    { userId: buyer3._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: buyer3._id, targetId: insertedReels[4]._id, targetType: 'Reel' }, // vanilla
-    // Farmers liking each other's reels — peer support
-    { userId: farmer1._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: farmer1._id, targetId: insertedReels[7]._id, targetType: 'Reel' },
-    { userId: farmer4._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: farmer3._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
-    { userId: farmer2._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
-    { userId: farmer5._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
-    // Likes on products
-    { userId: buyer1._id, targetId: products[0]._id, targetType: 'Product' },
-    { userId: buyer1._id, targetId: products[5]._id, targetType: 'Product' },
-    { userId: buyer2._id, targetId: products[5]._id, targetType: 'Product' },
-    { userId: buyer2._id, targetId: products[20]._id, targetType: 'Product' },
-    { userId: buyer3._id, targetId: products[22]._id, targetType: 'Product' },
-    { userId: buyer3._id, targetId: products[7]._id, targetType: 'Product' },
+    // Sarah — likes reels of farmers she bought from and explores
+    { userId: buyer1._id, targetId: insertedReels[0]._id,  targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[3]._id,  targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[17]._id, targetType: 'Reel' },
+    // Ali — coffee-focused likes
+    { userId: buyer2._id, targetId: insertedReels[3]._id,  targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[7]._id,  targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[16]._id, targetType: 'Reel' },
+    // Fatima — superfoods and spices
+    { userId: buyer3._id, targetId: insertedReels[4]._id,  targetType: 'Reel' },
+    { userId: buyer3._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: buyer3._id, targetId: insertedReels[9]._id,  targetType: 'Reel' },
+    { userId: buyer3._id, targetId: insertedReels[14]._id, targetType: 'Reel' },
+    // Farmers liking each other's content
+    { userId: farmer1._id, targetId: insertedReels[7]._id,  targetType: 'Reel' },
+    { userId: farmer1._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: farmer2._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: farmer3._id, targetId: insertedReels[3]._id,  targetType: 'Reel' },
+    { userId: farmer4._id, targetId: insertedReels[8]._id,  targetType: 'Reel' },
+    { userId: farmer5._id, targetId: insertedReels[3]._id,  targetType: 'Reel' },
+    { userId: farmer5._id, targetId: insertedReels[16]._id, targetType: 'Reel' },
+    // Product likes
+    { userId: buyer1._id,  targetId: products[0]._id,  targetType: 'Product' },
+    { userId: buyer1._id,  targetId: products[5]._id,  targetType: 'Product' },
+    { userId: buyer2._id,  targetId: products[5]._id,  targetType: 'Product' },
+    { userId: buyer2._id,  targetId: products[20]._id, targetType: 'Product' },
+    { userId: buyer3._id,  targetId: products[7]._id,  targetType: 'Product' },
+    { userId: buyer3._id,  targetId: products[22]._id, targetType: 'Product' },
     { userId: farmer4._id, targetId: products[20]._id, targetType: 'Product' },
+    { userId: farmer1._id, targetId: products[5]._id,  targetType: 'Product' },
   ])
-  console.log('❤️  Created 23 likes (reels + products)')
 
-  // Saved products — buyers bookmarking items they intend to buy
   await Save.insertMany([
-    { userId: buyer1._id, productId: products[0]._id },  // sarah: organic tomatoes
-    { userId: buyer1._id, productId: products[2]._id },  // sarah: french beans
-    { userId: buyer1._id, productId: products[5]._id },  // sarah: kilimanjaro coffee
-    { userId: buyer2._id, productId: products[5]._id },  // ali: kilimanjaro coffee
-    { userId: buyer2._id, productId: products[20]._id }, // ali: yirgacheffe
-    { userId: buyer2._id, productId: products[15]._id }, // ali: bugisu
-    { userId: buyer3._id, productId: products[22]._id }, // fatima: moringa
-    { userId: buyer3._id, productId: products[21]._id }, // fatima: teff
-    { userId: buyer3._id, productId: products[7]._id },  // fatima: vanilla beans
-    { userId: buyer3._id, productId: products[11]._id }, // fatima: cocoa
+    { userId: buyer1._id, productId: products[0]._id },
+    { userId: buyer1._id, productId: products[2]._id },
+    { userId: buyer1._id, productId: products[5]._id },
+    { userId: buyer2._id, productId: products[5]._id },
+    { userId: buyer2._id, productId: products[15]._id },
+    { userId: buyer2._id, productId: products[20]._id },
+    { userId: buyer3._id, productId: products[7]._id },
+    { userId: buyer3._id, productId: products[11]._id },
+    { userId: buyer3._id, productId: products[21]._id },
+    { userId: buyer3._id, productId: products[22]._id },
   ])
-  console.log('🔖 Created 10 saved products')
 
-  // Reviews on completed orders — real purchase-verified reviews
   await Review.insertMany([
     {
       authorId: buyer1._id, targetId: farmer1._id,
       productId: products[0]._id, orderId: order1._id,
       rating: 5,
       title: 'Exceptional quality — exactly as described',
-      content: 'James delivered 500kg of the most perfect tomatoes I have sourced in years. Every single one met our supermarket grading spec. On-time delivery before 5AM, KEPHIS certified, beautifully packed in 15kg nets. The Brix levels were consistent batch to batch. Already placed a repeat weekly order. Highest possible recommendation for any buyer needing reliable, certified fresh produce from Kenya.',
+      content: 'James delivered 500kg of the most perfect tomatoes I have sourced in years. Every single one met our supermarket grading spec. On-time delivery before 5AM, KEPHIS certified, beautifully packed in 15kg nets. Brix levels consistent batch to batch. Already placed a repeat weekly order.',
       isVerifiedPurchase: true,
     },
     {
@@ -1469,11 +1474,80 @@ async function main() {
       productId: products[1]._id, orderId: order6._id,
       rating: 5,
       title: 'Excellent white maize — will reorder monthly',
-      content: 'Moisture content spot-on below 13.5%, aflatoxin levels well within limits, clean and well-graded. The Halal-certified packing was arranged without any additional fuss — very professional. Shipped from Mombasa on schedule. Riyadh Food Co. will be making this a regular monthly contract.',
+      content: 'Moisture content spot-on below 13.5%, aflatoxin within limits, clean and well-graded. Halal-certified packing arranged without fuss. Shipped from Mombasa on schedule. Riyadh Food Co. will make this a regular monthly contract.',
       isVerifiedPurchase: true,
     },
   ])
-  console.log('⭐ Created 2 verified reviews')
+
+  // ─── Recompute ALL auditable counts from actual documents ─────────────────
+  // Zero every field that has a backing collection first
+  await Promise.all([
+    User.updateMany({}, { $set: { followersCount: 0, followingCount: 0 } }),
+    Product.updateMany({}, { $set: { likeCount: 0, saveCount: 0, orderCount: 0, rating: 0, ratingCount: 0 } }),
+    Reel.updateMany({}, { $set: { likeCount: 0, commentCount: 0 } }),
+    SellerProfile.updateMany({}, { $set: { rating: 0, ratingCount: 0, totalSales: 0, totalRevenue: 0 } }),
+  ])
+
+  // Follow counts
+  const [followersAgg, followingAgg] = await Promise.all([
+    Follow.aggregate([{ $group: { _id: '$followingId', c: { $sum: 1 } } }]),
+    Follow.aggregate([{ $group: { _id: '$followerId',  c: { $sum: 1 } } }]),
+  ])
+  await Promise.all([
+    ...followersAgg.map(({ _id, c }) => User.findByIdAndUpdate(_id, { followersCount: c })),
+    ...followingAgg.map(({ _id, c }) => User.findByIdAndUpdate(_id, { followingCount: c })),
+  ])
+
+  // Like counts (reels + products)
+  const [reelLikesAgg, productLikesAgg] = await Promise.all([
+    Like.aggregate([{ $match: { targetType: 'Reel' } },    { $group: { _id: '$targetId', c: { $sum: 1 } } }]),
+    Like.aggregate([{ $match: { targetType: 'Product' } }, { $group: { _id: '$targetId', c: { $sum: 1 } } }]),
+  ])
+  await Promise.all([
+    ...reelLikesAgg.map(({ _id, c })    => Reel.findByIdAndUpdate(_id, { likeCount: c })),
+    ...productLikesAgg.map(({ _id, c }) => Product.findByIdAndUpdate(_id, { likeCount: c })),
+  ])
+
+  // Save counts
+  const savesAgg = await Save.aggregate([{ $group: { _id: '$productId', c: { $sum: 1 } } }])
+  await Promise.all(savesAgg.map(({ _id, c }) => Product.findByIdAndUpdate(_id, { saveCount: c })))
+
+  // Comment counts
+  const commentsAgg = await Comment.aggregate([{ $group: { _id: '$reelId', c: { $sum: 1 } } }])
+  await Promise.all(commentsAgg.map(({ _id, c }) => Reel.findByIdAndUpdate(_id, { commentCount: c })))
+
+  // Order counts per product (any order, any status — item was ordered)
+  const orderItemsAgg = await Order.aggregate([
+    { $unwind: '$items' },
+    { $group: { _id: '$items.productId', c: { $sum: 1 } } },
+  ])
+  await Promise.all(orderItemsAgg.map(({ _id, c }) => Product.findByIdAndUpdate(_id, { orderCount: c })))
+
+  // Ratings — seller profiles and individual products (from verified reviews)
+  const [sellerRatingsAgg, productRatingsAgg] = await Promise.all([
+    Review.aggregate([{ $group: { _id: '$targetId',  avg: { $avg: '$rating' }, c: { $sum: 1 } } }]),
+    Review.aggregate([
+      { $match: { productId: { $exists: true, $ne: null } } },
+      { $group: { _id: '$productId', avg: { $avg: '$rating' }, c: { $sum: 1 } } },
+    ]),
+  ])
+  await Promise.all([
+    ...sellerRatingsAgg.map(({ _id, avg, c }) =>
+      SellerProfile.findOneAndUpdate({ userId: _id }, { rating: +avg.toFixed(1), ratingCount: c })),
+    ...productRatingsAgg.map(({ _id, avg, c }) =>
+      Product.findByIdAndUpdate(_id, { rating: +avg.toFixed(1), ratingCount: c })),
+  ])
+
+  // totalSales + totalRevenue from completed orders only
+  const sellerSalesAgg = await Order.aggregate([
+    { $match: { status: { $in: ['COMPLETED', 'DELIVERED'] } } },
+    { $group: { _id: '$sellerId', sales: { $sum: 1 }, rev: { $sum: '$total' } } },
+  ])
+  await Promise.all(sellerSalesAgg.map(({ _id, sales, rev }) =>
+    SellerProfile.findOneAndUpdate({ userId: _id }, { totalSales: sales, totalRevenue: +rev.toFixed(2) })
+  ))
+
+  console.log('👥 15 follows | ❤️  26 likes | 🔖 10 saves | ⭐ 2 reviews — all counts recomputed, zero ghosts')
 
   // ─── 11. CONVERSATIONS & MESSAGES ────────────────────────────────────────────
   const [conv1, conv2, conv3, conv4, conv5] = await Conversation.insertMany([
