@@ -235,7 +235,7 @@ function ExploreProductCard({ product, index }: { product: Product; index: numbe
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
     >
-      <Link to={`/marketplace/product/${product.slug}`}>
+      <Link to={`/marketplace/product/${product.slug || product._id}`}>
         <div className="group bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden hover:border-brand-green/30 hover:shadow-md transition-all">
           <div className="aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
             {product.images?.[0] ? (

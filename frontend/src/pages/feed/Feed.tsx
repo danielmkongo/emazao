@@ -203,7 +203,7 @@ export default function Feed() {
               </div>
               <div className="space-y-2">
                 {topProducts.map(product => (
-                  <Link key={product._id} to={`/marketplace/product/${product.slug}`}>
+                  <Link key={product._id} to={`/marketplace/product/${product.slug || product._id}`}>
                     <div className="flex items-center gap-3 p-2 -mx-2 rounded-xl hover:bg-[var(--c-raised)] transition-colors group">
                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                         {product.images?.[0]

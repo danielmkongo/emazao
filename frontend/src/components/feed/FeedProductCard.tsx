@@ -56,7 +56,7 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
       className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
     >
       {/* Image */}
-      <Link to={`/marketplace/product/${product.slug}`} className="block">
+      <Link to={`/marketplace/product/${product.slug || product._id}`} className="block">
         <div className="relative aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
           {product.images[0] ? (
             <img
@@ -91,7 +91,7 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
         </Link>
 
         {/* Title */}
-        <Link to={`/marketplace/product/${product.slug}`}>
+        <Link to={`/marketplace/product/${product.slug || product._id}`}>
           <h3 className="font-semibold text-[var(--c-text)] text-sm leading-tight mb-2 hover:text-brand-green transition-colors line-clamp-2">
             {product.title}
           </h3>
@@ -117,7 +117,7 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Link to={`/marketplace/product/${product.slug}`} className="flex-1">
+          <Link to={`/marketplace/product/${product.slug || product._id}`} className="flex-1">
             <Button size="sm" className="w-full text-xs h-8">
               <ShoppingCart className="h-3.5 w-3.5" /> Buy
             </Button>

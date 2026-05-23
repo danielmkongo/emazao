@@ -314,12 +314,13 @@ export default function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState(0)
   const [saved, setSaved] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['product', slug],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Product>>(`/products/${slug}`)
       return res.data.data
     },
+    retry: 1,
   })
 
   const handleSave = async () => {
@@ -356,6 +357,21 @@ export default function ProductDetail() {
           <Skeleton className="h-32 rounded-xl" />
           <Skeleton className="h-12 rounded-xl" />
         </div>
+      </div>
+    </div>
+  )
+
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
+      <span className="text-6xl mb-4">⚠️</span>
+      <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Failed to load product</h2>
+      <p className="text-[var(--c-text-3)] mb-2 text-sm max-w-sm">
+        {(error as any)?.response?.data?.message || (error as Error)?.message || 'An unexpected error occurred.'}
+      </p>
+      <p className="text-[var(--c-text-4)] text-xs mb-6">ID: {slug}</p>
+      <div className="flex gap-3">
+        <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+        <Link to="/marketplace"><Button>Browse Marketplace</Button></Link>
       </div>
     </div>
   )
