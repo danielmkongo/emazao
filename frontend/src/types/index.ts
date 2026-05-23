@@ -65,6 +65,7 @@ export interface Product {
   stockUnit?: string
   condition: string
   isOrganic: boolean
+  origin?: string
   tags: string[]
   status: string
   isBoosted: boolean
