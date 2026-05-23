@@ -36,30 +36,30 @@ export default function AdminDisputes() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-white mb-6">Disputes</h1>
+      <h1 className="text-xl font-bold text-[var(--c-text)] mb-6">Disputes</h1>
 
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
       ) : !data?.length ? (
         <div className="text-center py-20">
-          <AlertOctagon className="h-12 w-12 text-white/20 mx-auto mb-4" />
-          <p className="text-white/40">No active disputes</p>
+          <AlertOctagon className="h-12 w-12 text-[var(--c-text-4)] mx-auto mb-4" />
+          <p className="text-[var(--c-text-3)]">No active disputes</p>
         </div>
       ) : (
         <div className="space-y-3">
           {data.map((d, i) => (
             <motion.div key={d._id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5">
+              className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-sm text-white/40">{d.orderId?.orderNumber}</span>
+                    <span className="font-mono text-sm text-[var(--c-text-3)]">{d.orderId?.orderNumber}</span>
                     <Badge variant="urgent" className="text-xs">{d.status}</Badge>
                   </div>
-                  <p className="text-white font-medium">{d.reason}</p>
-                  <p className="text-white/40 text-sm">By @{d.raisedById?.username} · {timeAgo(d.createdAt)}</p>
+                  <p className="text-[var(--c-text)] font-medium">{d.reason}</p>
+                  <p className="text-[var(--c-text-3)] text-sm">By @{d.raisedById?.username} · {timeAgo(d.createdAt)}</p>
                 </div>
-                <p className="text-white font-semibold">{formatCurrency(d.orderId?.total)}</p>
+                <p className="text-[var(--c-text)] font-semibold">{formatCurrency(d.orderId?.total)}</p>
               </div>
               {d.status === 'OPEN' && (
                 <div className="flex gap-3">

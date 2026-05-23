@@ -36,7 +36,7 @@ export default function AdminAnalytics() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-white mb-6">Platform Analytics</h1>
+      <h1 className="text-xl font-bold text-[var(--c-text)] mb-6">Platform Analytics</h1>
 
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -46,10 +46,10 @@ export default function AdminAnalytics() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {metrics.map((m, i) => (
             <motion.div key={m.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5">
+              className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5">
               <m.icon className={`h-5 w-5 ${m.color} mb-3`} />
-              <p className="text-2xl font-bold text-white mb-1">{m.value}</p>
-              <p className="text-xs text-white/40">{m.label}</p>
+              <p className="text-2xl font-bold text-[var(--c-text)] mb-1">{m.value}</p>
+              <p className="text-xs text-[var(--c-text-3)]">{m.label}</p>
             </motion.div>
           ))}
         </div>

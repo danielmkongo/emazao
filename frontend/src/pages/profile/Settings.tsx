@@ -1,9 +1,9 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { User, Lock, Bell, LogOut } from 'lucide-react'
+import { User, Lock, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/store/authStore'
@@ -39,19 +39,13 @@ export default function Settings() {
     onSuccess: (updatedUser) => updateUser(updatedUser),
   })
 
-  const sections = [
-    { icon: User, label: 'Profile Information', id: 'profile' },
-    { icon: Lock, label: 'Password & Security', id: 'security' },
-    { icon: Bell, label: 'Notifications', id: 'notifications' },
-  ]
-
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-8">Settings</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-8">Settings</h1>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6 mb-4">
-        <h2 className="font-semibold text-white mb-6 flex items-center gap-2">
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6 mb-4">
+        <h2 className="font-semibold text-[var(--c-text)] mb-6 flex items-center gap-2">
           <User className="h-4 w-4 text-brand-green" /> Profile Information
         </h2>
 
@@ -59,10 +53,10 @@ export default function Settings() {
           <Input label="Display Name" placeholder="Your full name" error={errors.name?.message} {...register('name')} />
 
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-1.5">Bio</label>
+            <label className="block text-sm font-medium text-[var(--c-text-2)] mb-1.5">Bio</label>
             <textarea {...register('bio')} rows={3} maxLength={160}
               placeholder="Tell people about yourself..."
-              className="w-full bg-brand-700 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-brand-green resize-none" />
+              className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-[var(--c-text)] placeholder:text-[var(--c-text-3)] focus:outline-none focus:border-brand-green resize-none" />
             {errors.bio && <p className="text-red-400 text-xs mt-1">{errors.bio.message}</p>}
           </div>
 
@@ -80,8 +74,8 @@ export default function Settings() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6">
-        <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6">
+        <h2 className="font-semibold text-[var(--c-text)] mb-4 flex items-center gap-2">
           <Lock className="h-4 w-4 text-red-400" /> Account
         </h2>
         <Button variant="destructive" onClick={() => clearAuth()} className="w-full">

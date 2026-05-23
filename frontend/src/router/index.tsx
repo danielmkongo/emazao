@@ -24,6 +24,8 @@ const Onboarding = lazy(() => import('@/pages/auth/Onboarding'))
 const Feed = lazy(() => import('@/pages/feed/Feed'))
 const Explore = lazy(() => import('@/pages/explore/Explore'))
 const ReelFeed = lazy(() => import('@/pages/reels/ReelFeed'))
+const LiveBroadcast = lazy(() => import('@/pages/reels/LiveBroadcast'))
+const LiveViewer = lazy(() => import('@/pages/reels/LiveViewer'))
 const Marketplace = lazy(() => import('@/pages/marketplace/Marketplace'))
 const ProductDetail = lazy(() => import('@/pages/marketplace/ProductDetail'))
 const Requirements = lazy(() => import('@/pages/requirements/Requirements'))
@@ -87,6 +89,8 @@ export const router = createBrowserRouter([
       { path: '/feed', element: wrap(Feed) },
       { path: '/explore', element: wrap(Explore) },
       { path: '/reels', element: wrap(ReelFeed) },
+      { path: '/live', element: wrap(LiveBroadcast) },
+      { path: '/live/:broadcasterId', element: wrap(LiveViewer) },
       { path: '/marketplace', element: wrap(Marketplace) },
       { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
       { path: '/requirements', element: wrap(Requirements) },

@@ -43,15 +43,15 @@ export default function AdminUsers() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Users</h1>
+        <h1 className="text-xl font-bold text-[var(--c-text)]">Users</h1>
         <div className="flex gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--c-text-3)]" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..."
-              className="pl-9 pr-4 py-2 bg-brand-800 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:border-brand-green w-48" />
+              className="pl-9 pr-4 py-2 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl text-[var(--c-text)] text-sm placeholder:text-[var(--c-text-3)] focus:outline-none focus:border-brand-green w-48" />
           </div>
           <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-            className="px-3 py-2 bg-brand-800 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-brand-green">
+            className="px-3 py-2 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl text-[var(--c-text)] text-sm focus:outline-none focus:border-brand-green">
             <option value="">All roles</option>
             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -61,27 +61,27 @@ export default function AdminUsers() {
       {isLoading ? (
         <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
       ) : (
-        <div className="bg-brand-800 rounded-2xl border border-white/[0.06] overflow-hidden">
+        <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/[0.06]">
-                <th className="text-left px-4 py-3 text-xs text-white/40 font-medium">User</th>
-                <th className="text-left px-4 py-3 text-xs text-white/40 font-medium">Role</th>
-                <th className="text-left px-4 py-3 text-xs text-white/40 font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-xs text-white/40 font-medium">Joined</th>
-                <th className="text-right px-4 py-3 text-xs text-white/40 font-medium">Actions</th>
+              <tr className="border-b border-[var(--c-border)]">
+                <th className="text-left px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">User</th>
+                <th className="text-left px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">Role</th>
+                <th className="text-left px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">Status</th>
+                <th className="text-left px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">Joined</th>
+                <th className="text-right px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {data?.map((u, i) => (
                 <motion.tr key={u._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                  className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
+                  className="border-b border-[var(--c-border-sub)] last:border-0 hover:bg-[var(--c-input)]/40 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar src={u.avatar} name={u.name} size="sm" verified={u.isVerified} />
                       <div>
-                        <p className="text-white text-sm font-medium">{u.name}</p>
-                        <p className="text-white/30 text-xs">@{u.username}</p>
+                        <p className="text-[var(--c-text)] text-sm font-medium">{u.name}</p>
+                        <p className="text-[var(--c-text-3)] text-xs">@{u.username}</p>
                       </div>
                     </div>
                   </td>
@@ -91,7 +91,7 @@ export default function AdminUsers() {
                       {u.isVerified ? (u.verifiedType ?? 'Verified') : 'Unverified'}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-white/30 text-xs">{timeAgo(u.createdAt)}</td>
+                  <td className="px-4 py-3 text-[var(--c-text-3)] text-xs">{timeAgo(u.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       {!u.isVerified && (
@@ -111,7 +111,7 @@ export default function AdminUsers() {
             </tbody>
           </table>
           {!data?.length && (
-            <div className="text-center py-12 text-white/30">No users found</div>
+            <div className="text-center py-12 text-[var(--c-text-3)]">No users found</div>
           )}
         </div>
       )}

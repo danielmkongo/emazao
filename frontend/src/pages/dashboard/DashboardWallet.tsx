@@ -1,9 +1,10 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Wallet, TrendingUp, ArrowUpRight, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, timeAgo } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse } from '@/types'
 
@@ -14,8 +15,10 @@ interface WalletData {
 }
 
 export default function DashboardWallet() {
+  const { user } = useAuthStore()
+
   const { data: wallet, isLoading, refetch } = useQuery({
-    queryKey: ['dashboard-wallet'],
+    queryKey: ['dashboard-wallet', user?._id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<WalletData>>('/wallet')
       return res.data.data
@@ -23,7 +26,7 @@ export default function DashboardWallet() {
   })
 
   const { data: transactions } = useQuery({
-    queryKey: ['dashboard-wallet-txns'],
+    queryKey: ['dashboard-wallet-txns', user?._id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any[]>>('/wallet/transactions')
       return res.data.data
@@ -32,7 +35,7 @@ export default function DashboardWallet() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Earnings Wallet</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-6">Earnings Wallet</h1>
 
       {isLoading ? (
         <div className="space-y-4">
@@ -62,17 +65,17 @@ export default function DashboardWallet() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5">
-            <h2 className="font-semibold text-white mb-4">Recent Earnings</h2>
+            className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5">
+            <h2 className="font-semibold text-[var(--c-text)] mb-4">Recent Earnings</h2>
             {!transactions?.length ? (
-              <p className="text-white/30 text-sm text-center py-6">No transactions yet. Complete orders to earn.</p>
+              <p className="text-[var(--c-text-4)] text-sm text-center py-6">No transactions yet. Complete orders to earn.</p>
             ) : (
               <div className="space-y-1">
                 {transactions.slice(0, 10).map((txn: any) => (
-                  <div key={txn._id} className="flex items-center gap-3 py-3 border-b border-white/[0.04] last:border-0">
+                  <div key={txn._id} className="flex items-center gap-3 py-3 border-b border-[var(--c-border-sub)] last:border-0">
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium">{txn.description}</p>
-                      <p className="text-white/30 text-xs">{timeAgo(txn.createdAt)}</p>
+                      <p className="text-[var(--c-text)] text-sm font-medium">{txn.description}</p>
+                      <p className="text-[var(--c-text-3)] text-xs">{timeAgo(txn.createdAt)}</p>
                     </div>
                     <span className="font-semibold text-brand-green font-mono text-sm">+{formatCurrency(txn.amount)}</span>
                   </div>

@@ -22,25 +22,28 @@ export default function DashboardBids() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-6">My Bids</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-6">My Bids</h1>
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
       ) : !data?.length ? (
-        <div className="text-center py-20"><FileText className="h-12 w-12 text-white/20 mx-auto mb-4" /><p className="text-white/40">You haven't submitted any bids yet</p></div>
+        <div className="text-center py-20">
+          <FileText className="h-12 w-12 text-[var(--c-text-4)] mx-auto mb-4" />
+          <p className="text-[var(--c-text-3)]">You haven't submitted any bids yet</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {data.map((bid, i) => {
             const req = bid.requirementId as unknown as Requirement
             return (
               <motion.div key={bid._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5"
+                className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-white">{req?.title || 'Requirement'}</h3>
+                  <h3 className="font-medium text-[var(--c-text)]">{req?.title || 'Requirement'}</h3>
                   <Badge variant={statusColor[bid.status] ?? 'outline'}>{bid.status}</Badge>
                 </div>
-                <div className="flex items-center gap-6 text-sm text-white/40">
-                  <span className="font-semibold text-white">{formatCurrency(bid.totalPrice)}</span>
+                <div className="flex items-center gap-6 text-sm text-[var(--c-text-3)]">
+                  <span className="font-semibold text-[var(--c-text)]">{formatCurrency(bid.totalPrice)}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{timeAgo(bid.createdAt)}</span>
                   <span>{bid.deliveryTimeline}</span>
                 </div>

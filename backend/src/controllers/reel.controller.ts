@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Reel from '../models/Reel'
+import Comment from '../models/Comment'
 import { v2 as cloudinary } from 'cloudinary'
 
 export const getReels = async (req: AuthRequest, res: Response) => {
@@ -71,6 +72,44 @@ export const recordReelView = async (req: AuthRequest, res: Response) => {
     await Reel.findByIdAndUpdate(req.params.id, {
       $inc: { viewCount: 1, totalWatchTime: watchTime },
     })
+    res.json({ success: true })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+export const getComments = async (req: AuthRequest, res: Response) => {
+  try {
+    const comments = await Comment.find({ reelId: req.params.id as any })
+      .populate('userId', 'name username avatar isVerified')
+      .sort({ createdAt: -1 })
+      .limit(50)
+    res.json({ success: true, data: comments })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+export const postComment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { content } = req.body
+    if (!content?.trim()) return res.status(400).json({ success: false, message: 'Content required' })
+    const comment = await Comment.create({
+      userId: req.user!.id,
+      reelId: req.params.id as any,
+      content: content.trim(),
+    })
+    await Reel.findByIdAndUpdate(req.params.id, { $inc: { commentCount: 1 } })
+    await comment.populate('userId', 'name username avatar isVerified')
+    res.status(201).json({ success: true, data: comment })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+export const incrementShareCount = async (req: AuthRequest, res: Response) => {
+  try {
+    await Reel.findByIdAndUpdate(req.params.id, { $inc: { shareCount: 1 } })
     res.json({ success: true })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })

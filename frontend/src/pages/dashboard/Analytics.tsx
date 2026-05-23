@@ -26,8 +26,8 @@ interface ProductStat { _id: string; title: string; viewCount: number; likeCount
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-brand-800 border border-white/10 rounded-xl px-4 py-3 text-sm">
-      <p className="text-white/50 mb-1">{label}</p>
+    <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-sm shadow-lg">
+      <p className="text-[var(--c-text-3)] mb-1">{label}</p>
       {payload.map((p: any, i: number) => (
         <p key={i} style={{ color: p.color }} className="font-semibold">
           {p.name === 'revenue' ? formatCurrency(p.value) : p.value}
@@ -75,9 +75,8 @@ export default function Analytics() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-8">Analytics</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-8">Analytics</h1>
 
-      {/* Metric Cards */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
@@ -86,12 +85,12 @@ export default function Analytics() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {metrics.map((m, i) => (
             <motion.div key={m.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5">
+              className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5">
               <m.icon className={`h-5 w-5 ${m.color} mb-3`} />
-              <p className="text-2xl font-bold text-white mb-1">{m.value}</p>
-              <p className="text-xs text-white/40">{m.label}</p>
+              <p className="text-2xl font-bold text-[var(--c-text)] mb-1">{m.value}</p>
+              <p className="text-xs text-[var(--c-text-3)]">{m.label}</p>
               {m.sub && (
-                <p className={`text-xs mt-1 ${m.positive === false ? 'text-red-400' : m.positive ? 'text-brand-green' : 'text-white/30'}`}>
+                <p className={`text-xs mt-1 ${m.positive === false ? 'text-red-400' : m.positive ? 'text-brand-green' : 'text-[var(--c-text-4)]'}`}>
                   {m.sub}
                 </p>
               )}
@@ -100,10 +99,9 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Revenue Chart */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-        className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6 mb-6">
-        <h2 className="font-semibold text-white mb-6">Revenue Trend</h2>
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6 mb-6">
+        <h2 className="font-semibold text-[var(--c-text)] mb-6">Revenue Trend</h2>
         {!revenueData ? (
           <Skeleton className="h-48" />
         ) : (
@@ -115,9 +113,9 @@ export default function Analytics() {
                   <stop offset="100%" stopColor="#16A34A" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="month" stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-              <YAxis stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} tickFormatter={v => `$${v}`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
+              <XAxis dataKey="month" stroke="var(--c-text-3)" tick={{ fontSize: 12 }} />
+              <YAxis stroke="var(--c-text-3)" tick={{ fontSize: 12 }} tickFormatter={v => `$${v}`} />
               <Tooltip content={<CustomTooltip />} />
               <Area type="monotone" dataKey="revenue" stroke="#16A34A" fill="url(#revenueGrad)" strokeWidth={2} />
             </AreaChart>
@@ -125,18 +123,17 @@ export default function Analytics() {
         )}
       </motion.div>
 
-      {/* Orders Chart */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-        className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6 mb-6">
-        <h2 className="font-semibold text-white mb-6">Orders per Month</h2>
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6 mb-6">
+        <h2 className="font-semibold text-[var(--c-text)] mb-6">Orders per Month</h2>
         {!revenueData ? (
           <Skeleton className="h-40" />
         ) : (
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="month" stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-              <YAxis stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
+              <XAxis dataKey="month" stroke="var(--c-text-3)" tick={{ fontSize: 12 }} />
+              <YAxis stroke="var(--c-text-3)" tick={{ fontSize: 12 }} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="orders" fill="#F59E0B" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -144,23 +141,22 @@ export default function Analytics() {
         )}
       </motion.div>
 
-      {/* Top Products */}
       {products && products.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="bg-brand-800 rounded-2xl border border-white/[0.06] p-6">
-          <h2 className="font-semibold text-white mb-4">Top Products by Views</h2>
+          className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6">
+          <h2 className="font-semibold text-[var(--c-text)] mb-4">Top Products by Views</h2>
           <div className="space-y-3">
             {products.map((p, i) => (
               <div key={p._id} className="flex items-center gap-4">
-                <span className="text-white/20 font-mono text-sm w-4">{i + 1}</span>
+                <span className="text-[var(--c-text-4)] font-mono text-sm w-4">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{p.title}</p>
-                  <div className="flex items-center gap-3 text-xs text-white/30 mt-0.5">
+                  <p className="text-[var(--c-text)] text-sm font-medium truncate">{p.title}</p>
+                  <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)] mt-0.5">
                     <span><Eye className="h-3 w-3 inline mr-0.5" />{formatNumber(p.viewCount)}</span>
                     <span><ShoppingBag className="h-3 w-3 inline mr-0.5" />{p.orderCount} orders</span>
                   </div>
                 </div>
-                <div className="w-24 bg-brand-700 rounded-full h-1.5">
+                <div className="w-24 bg-[var(--c-input)] rounded-full h-1.5">
                   <div className="bg-brand-green h-1.5 rounded-full"
                     style={{ width: `${Math.min(100, (p.viewCount / (products[0]?.viewCount || 1)) * 100)}%` }} />
                 </div>

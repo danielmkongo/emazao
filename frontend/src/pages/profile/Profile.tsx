@@ -1,7 +1,8 @@
-import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { MapPin, Calendar, Users, Package, Star, MessageSquare } from 'lucide-react'
+import { MapPin, Calendar, Package, Star, MessageSquare, Phone, Video, UserCheck, UserPlus } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,9 @@ import type { ApiResponse, User, SellerProfile } from '@/types'
 export default function Profile() {
   const { username } = useParams<{ username?: string }>()
   const { user: me } = useAuthStore()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [followed, setFollowed] = useState(false)
 
   const targetUsername = username ?? me?.username
 
@@ -25,6 +29,37 @@ export default function Profile() {
     },
     enabled: !!targetUsername,
   })
+
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<{ following: boolean }>>(`/users/${user?._id}/follow`)
+      return res.data.data
+    },
+    onSuccess: (result) => {
+      setFollowed(result.following)
+      queryClient.invalidateQueries({ queryKey: ['profile', targetUsername] })
+    },
+  })
+
+  const messageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<{ message: unknown; conversationId: string }>>('/messages', {
+        recipientId: user?._id,
+        content: `Hi ${user?.name}! 👋`,
+      })
+      return res.data.data
+    },
+    onSuccess: (data) => {
+      navigate(`/messages/${data.conversationId}`)
+    },
+  })
+
+  const startCall = (video: boolean) => {
+    if (!me || !user) return
+    window.dispatchEvent(new CustomEvent('emazao:call-out', {
+      detail: { calleeId: user._id, calleeName: user.name, calleeAvatar: user.avatar, video }
+    }))
+  }
 
   if (isLoading) return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
@@ -41,18 +76,18 @@ export default function Profile() {
     <div className="text-center py-20 text-[var(--c-text-3)]">User not found</div>
   )
 
+  const followerCount = (user as any).followersCount ?? 0
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* Cover + Avatar */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden mb-4"
       >
-        {/* Cover image or gradient */}
-        <div className="h-32 bg-gradient-to-br from-brand-green/20 to-brand-emerald/10 overflow-hidden">
+        <div className="h-36 bg-gradient-to-br from-brand-green/20 to-brand-emerald/10 overflow-hidden">
           {(user as any).coverImage && (
-            <img src={(user as any).coverImage} alt="" className="w-full h-full object-cover opacity-60" />
+            <img src={(user as any).coverImage} alt="" className="w-full h-full object-cover opacity-70" />
           )}
         </div>
 
@@ -61,14 +96,23 @@ export default function Profile() {
             <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified} />
             {isOwnProfile ? (
               <Link to="/settings">
-                <Button size="sm" variant="outline">Edit Profile</Button>
+                <Button size="sm" variant="outline">Edit Profile / Settings</Button>
               </Link>
             ) : (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline">
+              <div className="flex gap-2 flex-wrap justify-end">
+                <Button size="sm" variant="outline" onClick={() => messageMutation.mutate()} loading={messageMutation.isPending}>
                   <MessageSquare className="h-3.5 w-3.5" /> Message
                 </Button>
-                <Button size="sm">Follow</Button>
+                <Button size="sm" variant="outline" onClick={() => startCall(false)}>
+                  <Phone className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => startCall(true)}>
+                  <Video className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" onClick={() => followMutation.mutate()} loading={followMutation.isPending}>
+                  {followed ? <UserCheck className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+                  {followed ? 'Following' : 'Follow'}
+                </Button>
               </div>
             )}
           </div>
@@ -102,7 +146,7 @@ export default function Profile() {
 
           <div className="flex gap-6 text-sm">
             <div className="text-center">
-              <p className="font-bold text-[var(--c-text)]">{formatNumber((user as any).followersCount ?? 0)}</p>
+              <p className="font-bold text-[var(--c-text)]">{formatNumber(followerCount + (followed ? 1 : 0))}</p>
               <p className="text-[var(--c-text-3)] text-xs">Followers</p>
             </div>
             <div className="text-center">
@@ -127,7 +171,6 @@ export default function Profile() {
         </div>
       </motion.div>
 
-      {/* Seller / Farm Details */}
       {user.role === 'FARMER' && seller && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -149,11 +192,9 @@ export default function Profile() {
               </span>
             ))}
           </div>
-          {seller.storeSlug && (
-            <Link to={`/farm/${seller.storeSlug}`} className="mt-4 block">
-              <Button size="sm" variant="outline" className="w-full">View Storefront</Button>
-            </Link>
-          )}
+          <Link to={`/farm/${user.username}`} className="mt-4 block">
+            <Button size="sm" variant="outline" className="w-full">View Storefront</Button>
+          </Link>
         </motion.div>
       )}
     </div>

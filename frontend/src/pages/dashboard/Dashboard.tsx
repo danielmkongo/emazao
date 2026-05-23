@@ -24,7 +24,7 @@ const MetricCard = ({ icon: Icon, label, value, growth, color }: {
 }) => (
   <motion.div
     whileHover={{ y: -2, scale: 1.01 }}
-    className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5"
+    className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5"
   >
     <div className="flex items-center justify-between mb-4">
       <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${color}`}>
@@ -37,10 +37,10 @@ const MetricCard = ({ icon: Icon, label, value, growth, color }: {
         </span>
       )}
     </div>
-    <p className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-mono)' }}>
+    <p className="text-2xl font-bold text-[var(--c-text)] mb-1" style={{ fontFamily: 'var(--font-mono)' }}>
       {value}
     </p>
-    <p className="text-sm text-white/40">{label}</p>
+    <p className="text-sm text-[var(--c-text-3)]">{label}</p>
   </motion.div>
 )
 
@@ -59,7 +59,6 @@ export default function Dashboard() {
       const res = await api.get<{ success: boolean; data: AnalyticsOverview }>('/analytics/overview')
       return res.data.data
     },
-    // Return mock data if API not ready
     placeholderData: {
       totalRevenue: 45820,
       totalOrders: 124,
@@ -81,17 +80,16 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between mb-8"
       >
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+          <h1 className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
             Good morning, {user?.name?.split(' ')[0]} 👋
           </h1>
-          <p className="text-white/40 text-sm mt-1">Here's how your farm is performing</p>
+          <p className="text-[var(--c-text-3)] text-sm mt-1">Here's how your farm is performing</p>
         </div>
         <div className="flex gap-3">
           <Link to="/dashboard/products/new">
@@ -100,7 +98,6 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Metrics */}
       {isLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
@@ -114,10 +111,9 @@ export default function Dashboard() {
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* AI Insights */}
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-white flex items-center gap-2">
+            <h2 className="font-semibold text-[var(--c-text)] flex items-center gap-2">
               <Zap className="h-5 w-5 text-gold" /> AI Insights
             </h2>
             <Link to="/dashboard/analytics">
@@ -133,18 +129,17 @@ export default function Dashboard() {
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className="flex items-start gap-4 bg-brand-800 rounded-xl border border-white/[0.06] p-4"
+                className="flex items-start gap-4 bg-[var(--c-card)] rounded-xl border border-[var(--c-border)] p-4"
               >
                 <span className="text-2xl flex-shrink-0">{insight.icon}</span>
-                <p className="text-sm text-white/70 leading-relaxed">{insight.text}</p>
+                <p className="text-sm text-[var(--c-text-2)] leading-relaxed">{insight.text}</p>
               </motion.div>
             ))}
           </div>
         </div>
 
-        {/* Quick Actions */}
         <div>
-          <h2 className="font-semibold text-white mb-4">Quick Actions</h2>
+          <h2 className="font-semibold text-[var(--c-text)] mb-4">Quick Actions</h2>
           <div className="space-y-2">
             {[
               { label: 'Manage Products', href: '/dashboard/products', icon: Package, color: 'text-brand-green' },
@@ -153,10 +148,10 @@ export default function Dashboard() {
               { label: 'Full Analytics', href: '/dashboard/analytics', icon: Eye, color: 'text-purple-400' },
             ].map(({ label, href, icon: Icon, color }) => (
               <Link key={href} to={href}>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-800 border border-white/[0.06] hover:border-white/20 transition-all group">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--c-card)] border border-[var(--c-border)] hover:border-brand-green/40 transition-all group">
                   <Icon className={`h-5 w-5 ${color}`} />
-                  <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
-                  <ArrowUpRight className="h-4 w-4 text-white/20 ml-auto group-hover:text-white/50 transition-colors" />
+                  <span className="text-sm text-[var(--c-text-2)] group-hover:text-[var(--c-text)] transition-colors">{label}</span>
+                  <ArrowUpRight className="h-4 w-4 text-[var(--c-text-4)] ml-auto group-hover:text-[var(--c-text-3)] transition-colors" />
                 </div>
               </Link>
             ))}

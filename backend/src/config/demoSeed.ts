@@ -17,6 +17,7 @@ import Bid from '../models/Bid'
 import Order from '../models/Order'
 import Wallet from '../models/Wallet'
 import Reel from '../models/Reel'
+import Comment from '../models/Comment'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import Notification from '../models/Notification'
@@ -47,6 +48,7 @@ async function main() {
     Order.deleteMany({}),
     Wallet.deleteMany({}),
     Reel.deleteMany({}),
+    Comment.deleteMany({}),
     Conversation.deleteMany({}),
     Message.deleteMany({}),
     Notification.deleteMany({}),
@@ -935,8 +937,90 @@ async function main() {
       viewCount: 28900, likeCount: 2300, commentCount: 189, shareCount: 567,
       status: 'PUBLISHED',
     },
+    // Extra reels for variety
+    {
+      userId: farmer1._id, productId: products[3]._id,
+      title: 'French beans ready for export!',
+      caption: 'Our fine French beans pass the UK supermarket grading standard every week 🇬🇧 Pre-washed, packaged, chilled — ready for airfreight. DM for contracts. #frenchbeans #kenya #export #freshproduce',
+      videoUrl: vid(1),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?w=400&h=700&fit=crop',
+      duration: 31, tags: ['french beans', 'export', 'kenya', 'organic', 'uk market'],
+      viewCount: 9100, likeCount: 621, commentCount: 52, shareCount: 108,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer2._id, productId: products[6]._id,
+      title: 'Cardamom harvest — Kilimanjaro highlands',
+      caption: 'Green cardamom freshly harvested at 1600m 🌿 The finest in East Africa. Bold, aromatic, green-grade premium. Exporting to UAE, India & Germany. #cardamom #spices #kilimanjaro #tanzania',
+      videoUrl: vid(2),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&h=700&fit=crop',
+      duration: 40, tags: ['cardamom', 'spices', 'kilimanjaro', 'tanzania', 'export'],
+      viewCount: 14200, likeCount: 985, commentCount: 71, shareCount: 203,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer4._id, productId: products[17]._id,
+      title: 'Vanilla beans — Uganda grade A',
+      caption: 'Freshly cured Tahitian vanilla from Mt. Elgon 🌸 20%+ vanillin content. Bourbon variety. Premium grade for luxury chocolate and pastry chefs worldwide. #vanilla #uganda #luxury #gourmet',
+      videoUrl: vid(0),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1553779913-d1f3e4ef5ca8?w=400&h=700&fit=crop',
+      duration: 55, tags: ['vanilla', 'uganda', 'gourmet', 'luxury', 'baking'],
+      viewCount: 31400, likeCount: 2450, commentCount: 178, shareCount: 612,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer3._id, productId: products[13]._id,
+      title: 'Palm oil processing — traditional & pure',
+      caption: 'Cold-pressed palm oil from our Ashanti estate 🌴 No chemicals, no bleaching — 100% natural red palm oil. High in beta-carotene and Vitamin E. Wholesale pricing available. #palmoil #ghana #organic #healthy',
+      videoUrl: vid(1),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1471193945509-9ad0617afabf?w=400&h=700&fit=crop',
+      duration: 37, tags: ['palm oil', 'ghana', 'organic', 'traditional', 'healthy'],
+      viewCount: 8700, likeCount: 534, commentCount: 43, shareCount: 97,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer5._id, productId: products[21]._id,
+      title: 'Teff flour — ancient grain revolution',
+      caption: 'Ethiopia gives the world teff 🌾 Gluten-free, high-iron, high-protein. Our stone-ground teff flour is the base of injera and gaining massive demand in Europe & USA. #teff #glutenfree #ethiopia #superfoods #injera',
+      videoUrl: vid(2),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=700&fit=crop',
+      duration: 49, tags: ['teff', 'gluten free', 'ethiopia', 'ancient grain', 'superfood'],
+      viewCount: 41200, likeCount: 3180, commentCount: 241, shareCount: 890,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer1._id,
+      title: 'Day in the life — organic farming Kenya',
+      caption: 'Wake up at 5AM, walk the fields, check the drip irrigation, pack the produce. This is farming life in Nakuru 🌅 Follow for daily farm updates! #farmlife #kenya #organic #behindthescenes',
+      videoUrl: vid(0),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1501004890684-d8cbf643f5f2?w=400&h=700&fit=crop',
+      duration: 62, tags: ['farmlife', 'kenya', 'organic', 'daily', 'behind the scenes'],
+      viewCount: 22100, likeCount: 1680, commentCount: 134, shareCount: 478,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer2._id,
+      title: 'Coffee cupping session — 87+ SCA score',
+      caption: 'We cup every batch before export ☕ Watch our quality team evaluate this Kilimanjaro Arabica. Caramel, citrus, floral — this is specialty coffee. Score: 87.5 SCA. #coffeecupping #specialty #quality #kilimanjaro',
+      videoUrl: vid(1),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&h=700&fit=crop',
+      duration: 70, tags: ['coffee', 'cupping', 'quality', 'specialty', 'arabica'],
+      viewCount: 55600, likeCount: 4230, commentCount: 318, shareCount: 1100,
+      status: 'PUBLISHED',
+    },
   ])
-  console.log('🎬 Created 10 reels')
+  const reelDocs = await Reel.find({ status: 'PUBLISHED' }).sort({ createdAt: -1 }).limit(6)
+  await Comment.insertMany([
+    { userId: buyer1._id, reelId: reelDocs[0]?._id, content: 'Amazing quality! We placed a big order last month and the produce was perfect. Highly recommend 🌟', likeCount: 24 },
+    { userId: buyer2._id, reelId: reelDocs[0]?._id, content: 'What is the minimum order quantity for export?', likeCount: 3 },
+    { userId: farmer3._id, reelId: reelDocs[0]?._id, content: 'Great work fellow farmer! 🤝 Solidarity from Ghana!', likeCount: 8 },
+    { userId: buyer3._id, reelId: reelDocs[1]?._id, content: 'This is exactly what we are looking for in Riyadh. How do we place a bulk order?', likeCount: 5 },
+    { userId: buyer1._id, reelId: reelDocs[1]?._id, content: 'The packaging looks world-class. Well done Amina!', likeCount: 12 },
+    { userId: farmer1._id, reelId: reelDocs[2]?._id, content: 'Our partner farms in Uganda are doing incredible work 🙌', likeCount: 7 },
+    { userId: buyer2._id, reelId: reelDocs[3]?._id, content: 'Shipped to Dubai last week — quality was exceptional! Repeat customer here.', likeCount: 31 },
+    { userId: farmer5._id, reelId: reelDocs[4]?._id, content: 'Ethiopian coffee is truly in a class of its own. Proud to see this! 🇪🇹', likeCount: 45 },
+  ])
+  console.log('🎬 Created 18 reels + 8 comments')
 
   // ─── 9. ORDERS ─────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────
   const addr = (city: string, region: string, country: string) => ({

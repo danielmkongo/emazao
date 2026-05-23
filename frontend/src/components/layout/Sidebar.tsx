@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
-  Package, Wallet, Bell, User, LayoutDashboard, LogOut, Sprout, Sun, Moon
+  Package, Wallet, Bell, User, LayoutDashboard, LogOut, Sprout, Sun, Moon, Radio
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -70,6 +70,27 @@ export const Sidebar = () => {
             )}
           </NavLink>
         ))}
+
+        {user?.role === 'FARMER' && (
+          <NavLink
+            to="/live"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                isActive
+                  ? 'bg-red-500/12 text-red-400'
+                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)]'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Radio className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-red-400' : '')} />
+                Go Live
+              </>
+            )}
+          </NavLink>
+        )}
 
         {user?.role === 'FARMER' && (
           <NavLink
