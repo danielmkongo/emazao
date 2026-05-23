@@ -5,6 +5,7 @@ import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
 import stripe from '../config/stripe'
 import { env } from '../config/env'
+import { sendNotification } from '../services/notification.service'
 
 export const createPaymentIntent = async (req: AuthRequest, res: Response) => {
   try {
@@ -64,7 +65,24 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           wallet = await Wallet.create({ userId: order.sellerId, balance: 0, pendingBalance: 0, currency: order.currency })
         }
         wallet.pendingBalance += order.total
+        wallet.transactions.push({
+          type: 'ESCROW_HOLD',
+          amount: order.total,
+          description: `Payment held in escrow for order ${order.orderNumber}`,
+          reference: order._id!.toString(),
+          status: 'pending',
+          createdAt: new Date(),
+        })
         await wallet.save()
+
+        await sendNotification({
+          userId: order.sellerId.toString(),
+          type: 'NEW_ORDER',
+          title: 'Payment received — order confirmed',
+          body: `Buyer paid for order ${order.orderNumber}. Prepare for shipment.`,
+          link: `/orders/${order._id}`,
+          data: { orderId: order._id!.toString() },
+        })
       }
     }
   }
@@ -98,7 +116,24 @@ export const releaseEscrow = async (req: AuthRequest, res: Response) => {
     }
     wallet.balance += net
     wallet.pendingBalance = Math.max(0, wallet.pendingBalance - escrow.amount)
+    wallet.transactions.push({
+      type: 'ESCROW_RELEASE',
+      amount: net,
+      description: `Payment released for order ${order.orderNumber}`,
+      reference: order._id.toString(),
+      status: 'completed',
+      createdAt: new Date(),
+    })
     await wallet.save()
+
+    await sendNotification({
+      userId: order.sellerId.toString(),
+      type: 'ESCROW_RELEASED',
+      title: 'Payment released to your wallet',
+      body: `Order ${order.orderNumber} funds released. $${net.toFixed(2)} added to your wallet.`,
+      link: '/wallet',
+      data: { orderId: order._id.toString() },
+    })
 
     res.json({ success: true, data: escrow })
   } catch (err: any) {

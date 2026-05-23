@@ -1,11 +1,10 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { Users, ShieldCheck, AlertOctagon, BarChart3, FileText } from 'lucide-react'
+import { Users, ShieldCheck, AlertOctagon, BarChart3 } from 'lucide-react'
 
 const nav = [
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/verification', label: 'Verification', icon: ShieldCheck },
   { to: '/admin/disputes', label: 'Disputes', icon: AlertOctagon },
-  { to: '/admin/content', label: 'Content', icon: FileText },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
 ]
 

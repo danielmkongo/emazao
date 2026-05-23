@@ -170,7 +170,7 @@ export default function AddProduct() {
 
         <label className="flex items-center gap-3 cursor-pointer">
           <div onClick={() => setValue('isOrganic', !isOrganic)}
-            className={`w-12 h-6 rounded-full transition-colors flex items-center px-1 ${isOrganic ? 'bg-brand-green' : 'bg-white/10'}`}>
+            className={`w-12 h-6 rounded-full transition-colors flex items-center px-1 ${isOrganic ? 'bg-brand-green' : 'bg-[var(--c-input)]'}`}>
             <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isOrganic ? 'translate-x-6' : ''}`} />
           </div>
           <span className="text-[var(--c-text)] flex items-center gap-2"><Leaf className="h-4 w-4 text-brand-green" />Certified Organic</span>
