@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Reel from '../models/Reel'
 import Comment from '../models/Comment'
-import { v2 as cloudinary } from 'cloudinary'
+import Like from '../models/Like'
 
 export const getReels = async (req: AuthRequest, res: Response) => {
   try {
@@ -14,7 +14,23 @@ export const getReels = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-    res.json({ success: true, data: reels, page })
+
+    let likedSet = new Set<string>()
+    if (req.user?.id) {
+      const likes = await Like.find({
+        userId: req.user.id,
+        targetId: { $in: reels.map(r => r._id) },
+        targetType: 'Reel',
+      })
+      likedSet = new Set(likes.map(l => l.targetId.toString()))
+    }
+
+    const data = reels.map(r => ({
+      ...r.toObject(),
+      userLiked: likedSet.has(r._id.toString()),
+    }))
+
+    res.json({ success: true, data, page })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

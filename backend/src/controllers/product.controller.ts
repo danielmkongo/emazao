@@ -8,9 +8,10 @@ import { nanoid } from 'nanoid'
 // GET /api/products
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q } = req.query
+    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId } = req.query
 
     const filter: Record<string, unknown> = { status }
+    if (sellerId) filter['sellerId'] = sellerId
     if (category) filter['categoryId'] = category
     if (tags) filter['tags'] = { $in: (tags as string).split(',') }
     if (organic === 'true') filter['isOrganic'] = true

@@ -21,6 +21,7 @@ import Comment from '../models/Comment'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import Notification from '../models/Notification'
+import { seedCategories } from './seed'
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/emazao'
 
@@ -38,6 +39,9 @@ const slug = (title: string) => slugify(title, { lower: true, strict: true })
 async function main() {
   await mongoose.connect(MONGO_URI)
   console.log('✅ Connected to MongoDB')
+
+  // Ensure categories exist before seeding products
+  await seedCategories()
 
   await Promise.all([
     User.deleteMany({ email: /@emazao\.demo$/ }),
@@ -633,8 +637,127 @@ async function main() {
       status: 'ACTIVE',
       viewCount: 760, likeCount: 52, saveCount: 21, orderCount: 10, rating: 4.6, ratingCount: 10,
     },
+
+    // ── Extra food products ─────────────────────────────────────────────────
+    {
+      sellerId: farmer1._id, categoryId: cat('fruits-vegetables'),
+      title: 'Hass Avocado Grade A Kenya', slug: slug('Hass Avocado Grade A Kenya'),
+      description: 'Premium Hass avocados from the slopes of Mt. Kenya. Creamy texture, high oil content, rich flavour. Available October–February. Packed in 4kg and 10kg cartons. KEPHIS certified.',
+      images: [
+        'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=600',
+        'https://images.unsplash.com/photo-1551253869-5f55a97eda4f?w=600',
+      ],
+      price: 1.20, priceUnit: 'per kg', minimumOrder: 500, availableStock: 15000, stockUnit: 'kg',
+      condition: 'FRESH', isOrganic: true, origin: 'Nakuru, Kenya',
+      tags: ['avocado', 'hass', 'kenya', 'organic', 'fresh', 'export'],
+      certifications: ['KEPHIS Organic', 'GlobalG.A.P'],
+      status: 'ACTIVE', isBoosted: true,
+      viewCount: 6800, likeCount: 510, saveCount: 240, orderCount: 52, rating: 4.9, ratingCount: 52,
+    },
+    {
+      sellerId: farmer5._id, categoryId: cat('sugar-confectionery'),
+      title: 'Raw Acacia Honey Organic', slug: slug('Raw Acacia Honey Organic'),
+      description: 'Pure raw acacia honey from Ethiopian highlands. Unfiltered, unpasteurised. Light amber colour, delicate floral taste. 250g, 500g, and 1kg glass jars. Halal certified.',
+      images: [
+        'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=600',
+        'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600',
+      ],
+      price: 15.00, priceUnit: 'per kg', minimumOrder: 10, availableStock: 300, stockUnit: 'kg',
+      condition: 'PROCESSED', isOrganic: true, origin: 'Yirgacheffe, Ethiopia',
+      tags: ['honey', 'acacia honey', 'raw', 'organic', 'ethiopia', 'natural'],
+      certifications: ['Organic Ethiopia', 'Halal Certified'],
+      status: 'ACTIVE',
+      viewCount: 3900, likeCount: 285, saveCount: 130, orderCount: 28, rating: 4.9, ratingCount: 28,
+    },
+    {
+      sellerId: farmer3._id, categoryId: cat('fruits-vegetables'),
+      title: 'Dried Mango Strips No Sugar', slug: slug('Dried Mango Strips No Sugar'),
+      description: 'Natural sun-dried mango strips from Ghana. No added sugar, no preservatives. Sweet, chewy, and nutritious. 500g and 1kg resealable bags. Excellent for snacking and health food brands.',
+      images: [
+        'https://images.unsplash.com/photo-1553279768-865429fa0078?w=600',
+        'https://images.unsplash.com/photo-1587132117033-22b4a3fbe8d0?w=600',
+      ],
+      price: 6.50, priceUnit: 'per kg', minimumOrder: 50, availableStock: 800, stockUnit: 'kg',
+      condition: 'DRIED', isOrganic: false, origin: 'Kumasi, Ghana',
+      tags: ['dried mango', 'mango', 'ghana', 'snack', 'fruit', 'no sugar'],
+      status: 'ACTIVE',
+      viewCount: 2200, likeCount: 168, saveCount: 78, orderCount: 19, rating: 4.7, ratingCount: 19,
+    },
+    {
+      sellerId: farmer1._id, categoryId: cat('oilseeds-nuts'),
+      title: 'Macadamia Nuts Raw Kenyan', slug: slug('Macadamia Nuts Raw Kenyan'),
+      description: 'Premium raw macadamia nuts from Central Kenya. Style 1 (whole). High oil content, buttery flavour. Packed in 5kg vacuum bags. KEBS certified. Ideal for confectionery and premium retail.',
+      images: [
+        'https://images.unsplash.com/photo-1617197349655-a0a10b888a57?w=600',
+        'https://images.unsplash.com/photo-1578020190125-f4f7c18bc9cb?w=600',
+      ],
+      price: 7.50, priceUnit: 'per kg', minimumOrder: 100, availableStock: 1200, stockUnit: 'kg',
+      condition: 'PROCESSED', isOrganic: false, origin: 'Nakuru, Kenya',
+      tags: ['macadamia', 'nuts', 'kenya', 'premium', 'confectionery'],
+      certifications: ['KEBS Certified', 'GlobalG.A.P'],
+      status: 'ACTIVE', isBoosted: true,
+      viewCount: 4100, likeCount: 302, saveCount: 155, orderCount: 34, rating: 4.8, ratingCount: 34,
+    },
+    {
+      sellerId: farmer4._id, categoryId: cat('roots-tubers'),
+      title: 'Sweet Potato Orange Flesh', slug: slug('Sweet Potato Orange Flesh'),
+      description: 'High-beta-carotene orange-flesh sweet potato. Excellent for food fortification and infant nutrition programs. 20kg woven bags. Good keeping quality (3+ weeks). NARO certified variety.',
+      images: [
+        'https://images.unsplash.com/photo-1596097635121-14b63b7a0c19?w=600',
+        'https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=600',
+      ],
+      price: 0.55, priceUnit: 'per kg', minimumOrder: 500, availableStock: 10000, stockUnit: 'kg',
+      condition: 'FRESH', isOrganic: false, origin: 'Mbale, Uganda',
+      tags: ['sweet potato', 'orange flesh', 'vitamin A', 'uganda', 'nutrition'],
+      status: 'ACTIVE',
+      viewCount: 1450, likeCount: 88, saveCount: 35, orderCount: 9, rating: 4.5, ratingCount: 9,
+    },
+    {
+      sellerId: farmer2._id, categoryId: cat('spices-herbs'),
+      title: 'Dried Baobab Fruit Powder', slug: slug('Dried Baobab Fruit Powder'),
+      description: 'Pure baobab fruit pulp powder — the African superfood. Exceptionally high in vitamin C (280mg/100g), calcium and fibre. Mild citrus flavour. 1kg and 5kg food-grade sealed bags.',
+      images: [
+        'https://images.unsplash.com/photo-1598511757337-fe2cafc31ba0?w=600',
+        'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=600',
+      ],
+      price: 18.00, priceUnit: 'per kg', minimumOrder: 20, availableStock: 400, stockUnit: 'kg',
+      condition: 'PROCESSED', isOrganic: true, origin: 'Arusha, Tanzania',
+      tags: ['baobab', 'superfood', 'powder', 'vitamin C', 'africa', 'health'],
+      certifications: ['Organic Tanzania'],
+      status: 'ACTIVE',
+      viewCount: 2800, likeCount: 195, saveCount: 89, orderCount: 22, rating: 4.8, ratingCount: 22,
+    },
+    {
+      sellerId: farmer3._id, categoryId: cat('roots-tubers'),
+      title: 'Fresh Cassava Root Grade 1', slug: slug('Fresh Cassava Root Grade 1'),
+      description: 'Grade 1 fresh cassava from Ashanti region. Smooth skin, high starch content, 30cm+ length. Packed in 50kg jute bags. Available year-round. Great for gari, fufu, and cassava flour.',
+      images: [
+        'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600',
+        'https://images.unsplash.com/photo-1571669537025-3f3a0c6cb0e7?w=600',
+      ],
+      price: 0.30, priceUnit: 'per kg', minimumOrder: 1000, availableStock: 30000, stockUnit: 'kg',
+      condition: 'FRESH', isOrganic: false, origin: 'Kumasi, Ghana',
+      tags: ['cassava', 'ghana', 'starch', 'gari', 'fufu', 'bulk'],
+      status: 'ACTIVE',
+      viewCount: 1100, likeCount: 58, saveCount: 19, orderCount: 7, rating: 4.3, ratingCount: 7,
+    },
+    {
+      sellerId: farmer4._id, categoryId: cat('grains-cereals'),
+      title: 'Finger Millet Grain Uganda', slug: slug('Finger Millet Grain Uganda'),
+      description: 'Nutritious finger millet (Eleusine coracana) from Mt. Elgon foothills. High calcium, iron and slow-release energy. Gluten-free. Ideal for millet flour, porridge, and health products. 50kg bags.',
+      images: [
+        'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=600',
+        'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600',
+      ],
+      price: 0.90, priceUnit: 'per kg', minimumOrder: 500, availableStock: 5000, stockUnit: 'kg',
+      condition: 'SEEDS', isOrganic: true, origin: 'Mbale, Uganda',
+      tags: ['millet', 'finger millet', 'gluten-free', 'uganda', 'grains', 'superfood'],
+      certifications: ['Organic Uganda'],
+      status: 'ACTIVE',
+      viewCount: 1650, likeCount: 105, saveCount: 46, orderCount: 15, rating: 4.6, ratingCount: 15,
+    },
   ])
-  console.log('📦 Created 25 products')
+  console.log('📦 Created 33 products')
 
   // ─── 6. REQUIREMENTS ────────────────────────────────────────────────────────
   const day = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
@@ -1008,6 +1131,87 @@ async function main() {
       viewCount: 55600, likeCount: 4230, commentCount: 318, shareCount: 1100,
       status: 'PUBLISHED',
     },
+    // ── More food-focused reels ─────────────────────────────────────────────
+    {
+      userId: farmer1._id,
+      title: 'Avocado harvest — perfect Hass',
+      caption: 'Hass avocado season is here! 🥑 Picking at peak maturity for maximum creaminess. Grade A, KEPHIS certified. Exporting to Europe, Middle East & Asia. DM for wholesale. #avocado #kenya #freshfood #hass',
+      videoUrl: vid(2),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=700&fit=crop',
+      duration: 33, tags: ['avocado', 'hass', 'kenya', 'harvest', 'export'],
+      viewCount: 34500, likeCount: 2780, commentCount: 198, shareCount: 645,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer5._id,
+      title: 'Raw Ethiopian honey — straight from the hive',
+      caption: 'Pure acacia honey from our highland hives 🍯 Unfiltered, raw, full of enzymes. Light amber, floral notes. Sourcing directly from smallholder beekeepers. #honey #ethiopia #organic #rawhoney #superfood',
+      videoUrl: vid(0),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&h=700&fit=crop',
+      duration: 41, tags: ['honey', 'ethiopia', 'raw', 'organic', 'beekeeping'],
+      viewCount: 19800, likeCount: 1560, commentCount: 122, shareCount: 387,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer3._id,
+      title: 'Mango drying — Ghana natural method',
+      caption: 'Sun-drying Ghanaian mangoes the natural way 🥭 No sugar, no preservatives. Just pure mango sweetness concentrated. Available for export in 500g & 1kg packs. #driedmango #ghana #naturalfood #snack',
+      videoUrl: vid(1),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=400&h=700&fit=crop',
+      duration: 47, tags: ['dried mango', 'ghana', 'mango', 'natural', 'snack', 'export'],
+      viewCount: 26400, likeCount: 2010, commentCount: 155, shareCount: 498,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer1._id,
+      title: 'Macadamia cracking — premium kenyan nuts',
+      caption: 'Watch the macadamia cracking process at our facility 🌰 Kenya produces some of the world\'s finest macadamia. Buttery, rich, premium. Minimum 100kg orders welcome. #macadamia #kenya #nuts #premium',
+      videoUrl: vid(2),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1617197349655-a0a10b888a57?w=400&h=700&fit=crop',
+      duration: 39, tags: ['macadamia', 'kenya', 'nuts', 'processing', 'premium'],
+      viewCount: 11200, likeCount: 820, commentCount: 63, shareCount: 184,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer4._id,
+      title: 'Sweet potato harvest — vitamin A powerhouse',
+      caption: 'Orange-flesh sweet potato harvest time in Mbale! 🍠 Rich in beta-carotene, naturally sweet. Huge demand from food fortification programs and health brands. Let\'s talk bulk orders. #sweetpotato #uganda #nutrition #health',
+      videoUrl: vid(0),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1596097635121-14b63b7a0c19?w=400&h=700&fit=crop',
+      duration: 28, tags: ['sweet potato', 'uganda', 'nutrition', 'harvest', 'health'],
+      viewCount: 8400, likeCount: 630, commentCount: 48, shareCount: 121,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer2._id,
+      title: 'Baobab harvest — Africa\'s superfood',
+      caption: 'Harvesting baobab pods in Tanzania 🌳 The "tree of life" produces the most nutrient-dense fruit on earth. 280mg vitamin C per 100g! Now shipping to Europe, USA & Japan. #baobab #superfood #tanzania #africanfood',
+      videoUrl: vid(1),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1598511757337-fe2cafc31ba0?w=400&h=700&fit=crop',
+      duration: 55, tags: ['baobab', 'tanzania', 'superfood', 'africafoods', 'vitamins'],
+      viewCount: 43200, likeCount: 3450, commentCount: 267, shareCount: 890,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer3._id,
+      title: 'Cassava processing for global export',
+      caption: 'From farm to factory — watch our cassava processing line 🏭 Grade 1 cassava from Ashanti region going into gari, fufu flour and starch for European food manufacturers. #cassava #ghana #processing #foodmanufacturing',
+      videoUrl: vid(2),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&h=700&fit=crop',
+      duration: 62, tags: ['cassava', 'ghana', 'processing', 'gari', 'export'],
+      viewCount: 7600, likeCount: 495, commentCount: 38, shareCount: 102,
+      status: 'PUBLISHED',
+    },
+    {
+      userId: farmer4._id,
+      title: 'Finger millet — the forgotten superfood',
+      caption: 'Finger millet from Mt. Elgon highlands 🌾 Ancient grain. High calcium. Gluten-free. Slow-release energy. Used in porridge, bread, and now trending in Western health markets. #millet #uganda #glutenfree #ancient grain #superfood',
+      videoUrl: vid(0),
+      thumbnailUrl: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=700&fit=crop',
+      duration: 44, tags: ['millet', 'finger millet', 'uganda', 'gluten free', 'superfood'],
+      viewCount: 16800, likeCount: 1280, commentCount: 97, shareCount: 312,
+      status: 'PUBLISHED',
+    },
   ])
   const reelDocs = await Reel.find({ status: 'PUBLISHED' }).sort({ createdAt: -1 }).limit(6)
   await Comment.insertMany([
@@ -1020,7 +1224,7 @@ async function main() {
     { userId: buyer2._id, reelId: reelDocs[3]?._id, content: 'Shipped to Dubai last week — quality was exceptional! Repeat customer here.', likeCount: 31 },
     { userId: farmer5._id, reelId: reelDocs[4]?._id, content: 'Ethiopian coffee is truly in a class of its own. Proud to see this! 🇪🇹', likeCount: 45 },
   ])
-  console.log('🎬 Created 18 reels + 8 comments')
+  console.log('🎬 Created 26 reels + 8 comments')
 
   // ─── 9. ORDERS ─────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────
   const addr = (city: string, region: string, country: string) => ({

@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { protect } from '../middleware/auth.middleware'
+import { protect, optionalProtect } from '../middleware/auth.middleware'
 import { getReels, getUserReels, createReel, deleteReel, recordReelView, getComments, postComment, incrementShareCount } from '../controllers/reel.controller'
 
 const router = Router()
 
-router.get('/', getReels)
+router.get('/', optionalProtect, getReels)
 router.get('/user/:userId', getUserReels)
 router.post('/:id/view', recordReelView)
 router.post('/:id/share', incrementShareCount)

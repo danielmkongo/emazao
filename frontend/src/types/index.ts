@@ -163,6 +163,7 @@ export interface Reel {
   commentCount: number
   shareCount: number
   status: string
+  userLiked?: boolean
   createdAt: string
 }
 

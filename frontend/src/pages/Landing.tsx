@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-brand-dark">
+    <div className="min-h-screen bg-brand-dark" data-theme="dark">
       {/* Public nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">

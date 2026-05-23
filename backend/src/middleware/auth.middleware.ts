@@ -11,6 +11,20 @@ export interface AuthRequest extends Request {
   }
 }
 
+export const optionalProtect = async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      if (token) {
+        const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; role: string; email: string }
+        req.user = { id: decoded.id, role: decoded.role, email: decoded.email }
+      }
+    }
+  } catch {}
+  next()
+}
+
 export const protect = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization

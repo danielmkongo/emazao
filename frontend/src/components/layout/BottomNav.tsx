@@ -1,13 +1,13 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Search, Play, ShoppingBag, User } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { Home, Search, Play, MessageSquare, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
 const tabs = [
-  { icon: Home,        label: 'Feed',    href: '/feed' },
-  { icon: Search,      label: 'Explore', href: '/explore' },
-  { icon: Play,        label: 'Reels',   href: '/reels' },
-  { icon: ShoppingBag, label: 'Market',  href: '/marketplace' },
+  { icon: Home,           label: 'Feed',     href: '/feed' },
+  { icon: Search,         label: 'Explore',  href: '/explore' },
+  { icon: Play,           label: 'Reels',    href: '/reels' },
+  { icon: MessageSquare,  label: 'Messages', href: '/messages' },
 ]
 
 export const BottomNav = () => {
