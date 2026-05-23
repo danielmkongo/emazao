@@ -328,36 +328,34 @@ export default function ReelFeed() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isAnimating.current) return
-    if ((e.target as Element).closest('button, a, input, textarea')) return
+    if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
     pointerStartY.current = e.clientY
     isDragging.current = false
+    // Capture pointer so events keep firing even if finger leaves the element boundary
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (isAnimating.current || !e.buttons) return
-    if ((e.target as Element).closest('button, a, input, textarea')) return
+    if (isAnimating.current) return
+    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return
     const delta = e.clientY - pointerStartY.current
-    if (!isDragging.current && Math.abs(delta) < 8) return
+    if (!isDragging.current && Math.abs(delta) < 6) return
     isDragging.current = true
     y.set(delta)
   }
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return
+    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
     if (!isDragging.current) return
     isDragging.current = false
     const delta = y.get()
     const h = window.innerHeight
     const vel = y.getVelocity()
 
-    if (delta < -h * 0.18 || vel < -600) snapTo(currentIndexRef.current + 1)
-    else if (delta > h * 0.18 || vel > 600) snapTo(currentIndexRef.current - 1)
+    if (delta < -h * 0.15 || vel < -400) snapTo(currentIndexRef.current + 1)
+    else if (delta > h * 0.15 || vel > 400) snapTo(currentIndexRef.current - 1)
     else animate(y, 0, { type: 'spring', stiffness: 500, damping: 30, velocity: vel })
-  }
-
-  const handlePointerLeave = () => {
-    if (!isDragging.current) return
-    isDragging.current = false
-    animate(y, 0, { type: 'spring', stiffness: 500, damping: 30, velocity: y.getVelocity() })
   }
 
   useEffect(() => {
@@ -367,7 +365,7 @@ export default function ReelFeed() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const now = Date.now()
-      if (now - lastTime < 700 || isAnimating.current) return
+      if (isAnimating.current || now - lastTime < 300) return
       lastTime = now
       if (e.deltaY > 0) snapTo(currentIndexRef.current + 1)
       else snapTo(currentIndexRef.current - 1)
@@ -391,7 +389,10 @@ export default function ReelFeed() {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerLeave}
+      onPointerCancel={() => {
+        isDragging.current = false
+        animate(y, 0, { type: 'spring', stiffness: 500, damping: 30 })
+      }}
     >
       {/* Previous card — non-interactive, just visual */}
       {currentIndex > 0 && (

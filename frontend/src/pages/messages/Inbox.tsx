@@ -29,7 +29,7 @@ export default function Inbox() {
   })
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8 lg:max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[var(--c-text)]">Messages</h1>
         <button className="w-9 h-9 rounded-xl bg-[var(--c-raised)] flex items-center justify-center hover:bg-brand-green/10 hover:text-brand-green transition-colors text-[var(--c-text-3)]">

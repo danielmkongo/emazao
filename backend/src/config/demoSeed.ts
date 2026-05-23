@@ -954,7 +954,7 @@ async function main() {
   console.log('💰 Created 10 bids')
 
   // ─── 8. REELS (10) ───────────────────────────────────────────────────────────
-  await Reel.insertMany([
+  const insertedReels = await Reel.insertMany([
     // Farmer 1 — James (3 reels)
     {
       userId: farmer1._id, productId: products[0]._id,
@@ -1213,18 +1213,61 @@ async function main() {
       status: 'PUBLISHED',
     },
   ])
-  const reelDocs = await Reel.find({ status: 'PUBLISHED' }).sort({ createdAt: -1 }).limit(6)
+  // Reset all commentCounts to 0 — we'll only set them where real comments exist
+  await Reel.updateMany({}, { $set: { commentCount: 0 } })
+
+  // Real comments tied to actual reel IDs by insertion index:
+  // [0]  James — tomato harvest       [3]  Amina — coffee harvest
+  // [7]  Mercy — Bugisu coffee        [8]  Emmanuel — Yirgacheffe
+  // [9]  Emmanuel — moringa           [16] Amina — coffee cupping
+  // [17] James — avocado harvest
   await Comment.insertMany([
-    { userId: buyer1._id, reelId: reelDocs[0]?._id, content: 'Amazing quality! We placed a big order last month and the produce was perfect. Highly recommend 🌟', likeCount: 24 },
-    { userId: buyer2._id, reelId: reelDocs[0]?._id, content: 'What is the minimum order quantity for export?', likeCount: 3 },
-    { userId: farmer3._id, reelId: reelDocs[0]?._id, content: 'Great work fellow farmer! 🤝 Solidarity from Ghana!', likeCount: 8 },
-    { userId: buyer3._id, reelId: reelDocs[1]?._id, content: 'This is exactly what we are looking for in Riyadh. How do we place a bulk order?', likeCount: 5 },
-    { userId: buyer1._id, reelId: reelDocs[1]?._id, content: 'The packaging looks world-class. Well done Amina!', likeCount: 12 },
-    { userId: farmer1._id, reelId: reelDocs[2]?._id, content: 'Our partner farms in Uganda are doing incredible work 🙌', likeCount: 7 },
-    { userId: buyer2._id, reelId: reelDocs[3]?._id, content: 'Shipped to Dubai last week — quality was exceptional! Repeat customer here.', likeCount: 31 },
-    { userId: farmer5._id, reelId: reelDocs[4]?._id, content: 'Ethiopian coffee is truly in a class of its own. Proud to see this! 🇪🇹', likeCount: 45 },
+    // Reel 0: James's tomato harvest (3 comments)
+    { userId: buyer1._id, reelId: insertedReels[0]._id, content: 'Amazing quality! We placed a big order last month and the produce was perfect. Highly recommend 🌟', likeCount: 24, createdAt: daysAgo(5) },
+    { userId: buyer2._id, reelId: insertedReels[0]._id, content: 'What is the minimum order for export? We are sourcing 1 tonne weekly for Dubai.', likeCount: 3, createdAt: daysAgo(4) },
+    { userId: farmer3._id, reelId: insertedReels[0]._id, content: 'Great work fellow farmer! 🤝 Solidarity from Ghana!', likeCount: 8, createdAt: daysAgo(3) },
+
+    // Reel 3: Amina's coffee harvest (4 comments)
+    { userId: buyer2._id, reelId: insertedReels[3]._id, content: 'This is exactly what we look for in Dubai. How do we place a bulk order?', likeCount: 5, createdAt: daysAgo(7) },
+    { userId: buyer1._id, reelId: insertedReels[3]._id, content: 'The quality is world-class. Well done Amina!', likeCount: 12, createdAt: daysAgo(6) },
+    { userId: farmer5._id, reelId: insertedReels[3]._id, content: 'We do a similar process in Yirgacheffe! Love to see African coffee represented 🙌 #CoffeeAfrica', likeCount: 19, createdAt: daysAgo(5) },
+    { userId: buyer3._id, reelId: insertedReels[3]._id, content: 'Is Fair Trade certification included in all shipments?', likeCount: 2, createdAt: daysAgo(4) },
+
+    // Reel 7: Mercy's Bugisu coffee (2 comments)
+    { userId: farmer1._id, reelId: insertedReels[7]._id, content: 'Our partner farms in Uganda are doing incredible work 🙌', likeCount: 7, createdAt: daysAgo(3) },
+    { userId: buyer2._id, reelId: insertedReels[7]._id, content: 'Shipped to Dubai last week — quality was exceptional! Repeat customer here.', likeCount: 31, createdAt: daysAgo(2) },
+
+    // Reel 8: Emmanuel's Yirgacheffe (4 comments)
+    { userId: farmer2._id, reelId: insertedReels[8]._id, content: 'Ethiopian coffee is truly in a class of its own. Proud to see this! 🇪🇹', likeCount: 45, createdAt: daysAgo(3) },
+    { userId: buyer1._id, reelId: insertedReels[8]._id, content: 'Just ordered 30kg for our Nairobi café. Cannot wait to taste it!', likeCount: 18, createdAt: daysAgo(2) },
+    { userId: buyer3._id, reelId: insertedReels[8]._id, content: 'Do you have Halal certification? Our Saudi clients require it.', likeCount: 4, createdAt: daysAgo(1) },
+    { userId: farmer4._id, reelId: insertedReels[8]._id, content: 'Yirgacheffe is the king of specialty coffee. Respect from Bugisu! ☕', likeCount: 22, createdAt: daysAgo(1) },
+
+    // Reel 9: Emmanuel's moringa (2 comments)
+    { userId: buyer3._id, reelId: insertedReels[9]._id, content: 'Can you ship to Riyadh? Interested in private labelling for our health food brand.', likeCount: 6, createdAt: daysAgo(1) },
+    { userId: farmer1._id, reelId: insertedReels[9]._id, content: 'Moringa from Ethiopian highlands is the purest. Love your farm! 🌿', likeCount: 9, createdAt: daysAgo(0) },
+
+    // Reel 16: Amina's coffee cupping (3 comments)
+    { userId: buyer2._id, reelId: insertedReels[16]._id, content: 'I can smell this through the screen! Do you ship samples before bulk orders?', likeCount: 14, createdAt: daysAgo(2) },
+    { userId: farmer5._id, reelId: insertedReels[16]._id, content: 'Cupping is essential. This is how we build trust with buyers worldwide ☕', likeCount: 21, createdAt: daysAgo(1) },
+    { userId: buyer1._id, reelId: insertedReels[16]._id, content: 'The SCA score speaks for itself. Will be reaching out for a bulk quote.', likeCount: 8, createdAt: daysAgo(0) },
+
+    // Reel 17: James's avocado harvest (2 comments)
+    { userId: buyer2._id, reelId: insertedReels[17]._id, content: 'Hass avocados from Kenya are incredible. Do you do air freight to Dubai?', likeCount: 11, createdAt: daysAgo(1) },
+    { userId: buyer3._id, reelId: insertedReels[17]._id, content: 'Perfect for our Middle East supermarket chain. Contacting you via DM.', likeCount: 5, createdAt: daysAgo(0) },
   ])
-  console.log('🎬 Created 26 reels + 8 comments')
+
+  // Set commentCounts to match actual comments created above
+  await Promise.all([
+    Reel.findByIdAndUpdate(insertedReels[0]._id, { commentCount: 3 }),
+    Reel.findByIdAndUpdate(insertedReels[3]._id, { commentCount: 4 }),
+    Reel.findByIdAndUpdate(insertedReels[7]._id, { commentCount: 2 }),
+    Reel.findByIdAndUpdate(insertedReels[8]._id, { commentCount: 4 }),
+    Reel.findByIdAndUpdate(insertedReels[9]._id, { commentCount: 2 }),
+    Reel.findByIdAndUpdate(insertedReels[16]._id, { commentCount: 3 }),
+    Reel.findByIdAndUpdate(insertedReels[17]._id, { commentCount: 2 }),
+  ])
+  console.log('🎬 Created 25 reels + 20 comments (all tied to real reels)')
 
   // ─── 9. ORDERS ─────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────
   const addr = (city: string, region: string, country: string) => ({

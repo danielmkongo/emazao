@@ -65,7 +65,7 @@ export default function Notifications() {
   const unread = data?.unreadCount ?? 0
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--c-text)]">Notifications</h1>
