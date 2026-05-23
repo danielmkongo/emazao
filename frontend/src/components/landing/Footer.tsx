@@ -19,7 +19,7 @@ export const Footer = () => (
               <Sprout className="h-4 w-4 text-white" />
             </div>
             <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-              EMAZAO
+              eMazao
             </span>
           </Link>
           <p className="text-sm text-white/30 leading-relaxed">
@@ -47,7 +47,7 @@ export const Footer = () => (
       </div>
 
       <div className="border-t border-white/[0.06] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-        <p className="text-sm text-white/30">© 2026 EMAZAO. All rights reserved.</p>
+        <p className="text-sm text-white/30">© 2026 eMazao. All rights reserved.</p>
         <div className="flex items-center gap-6">
           {['Privacy', 'Terms', 'Cookies'].map((item) => (
             <Link key={item} to="/" className="text-sm text-white/30 hover:text-white transition-colors">

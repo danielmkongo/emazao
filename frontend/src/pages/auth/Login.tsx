@@ -56,7 +56,7 @@ export default function Login() {
             <Sprout className="h-5 w-5 text-white" />
           </div>
           <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            EMAZAO
+            eMazao
           </span>
         </Link>
 

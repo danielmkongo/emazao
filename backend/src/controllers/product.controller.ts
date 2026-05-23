@@ -19,7 +19,10 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       if (minPrice) (filter['price'] as Record<string, number>)['$gte'] = parseFloat(minPrice as string)
       if (maxPrice) (filter['price'] as Record<string, number>)['$lte'] = parseFloat(maxPrice as string)
     }
-    if (q) filter['$text'] = { $search: q as string }
+    if (q) {
+      const re = { $regex: q as string, $options: 'i' }
+      filter['$or'] = [{ title: re }, { tags: re }, { origin: re }, { description: re }]
+    }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
     const sort = { isBoosted: -1, createdAt: -1 } as any

@@ -5,6 +5,27 @@ import Follow from '../models/Follow'
 import { AuthRequest } from '../middleware/auth.middleware'
 import slugify from 'slugify'
 
+// GET /api/users?role=FARMER&q=...&limit=20
+export const listUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { role = 'FARMER', q, limit = '20' } = req.query
+    const filter: Record<string, unknown> = { role, onboardingDone: true }
+    if (q) filter['$or'] = [
+      { name: { $regex: q, $options: 'i' } },
+      { username: { $regex: q, $options: 'i' } },
+      { bio: { $regex: q, $options: 'i' } },
+      { country: { $regex: q, $options: 'i' } },
+    ]
+    const users = await User.find(filter)
+      .select('-passwordHash -refreshToken -otp -otpExpiry')
+      .sort({ followersCount: -1 })
+      .limit(parseInt(limit as string))
+    res.json({ success: true, data: users })
+  } catch (err) {
+    res.status(500).json({ success: false, message: (err as Error).message })
+  }
+}
+
 // GET /api/users/me
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

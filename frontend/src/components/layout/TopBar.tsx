@@ -16,7 +16,7 @@ export const TopBar = () => {
           <Sprout className="h-4 w-4 text-white" />
         </div>
         <span className="text-lg font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-          EMAZAO
+          eMazao
         </span>
       </Link>
 

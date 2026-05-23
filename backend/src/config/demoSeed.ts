@@ -14,8 +14,12 @@ import Product from '../models/Product'
 import Category from '../models/Category'
 import Requirement from '../models/Requirement'
 import Bid from '../models/Bid'
+import Order from '../models/Order'
 import Wallet from '../models/Wallet'
 import Reel from '../models/Reel'
+import Conversation from '../models/Conversation'
+import Message from '../models/Message'
+import Notification from '../models/Notification'
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/emazao'
 
@@ -40,8 +44,12 @@ async function main() {
     Product.deleteMany({}),
     Requirement.deleteMany({}),
     Bid.deleteMany({}),
+    Order.deleteMany({}),
     Wallet.deleteMany({}),
     Reel.deleteMany({}),
+    Conversation.deleteMany({}),
+    Message.deleteMany({}),
+    Notification.deleteMany({}),
   ])
   console.log('🗑️  Cleared old demo data')
 
@@ -133,15 +141,56 @@ async function main() {
   console.log('👥 Created 9 users (5 farmers, 3 buyers, 1 admin)')
 
   // ─── 2. WALLETS ─────────────────────────────────────────────────────────────
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86400000)
   await Wallet.insertMany([
-    { userId: farmer1._id, balance: 4250.00, pendingBalance: 800.00,  currency: 'USD' },
-    { userId: farmer2._id, balance: 1820.50, pendingBalance: 320.00,  currency: 'USD' },
-    { userId: farmer3._id, balance: 320.00,  pendingBalance: 0,       currency: 'USD' },
-    { userId: farmer4._id, balance: 2100.00, pendingBalance: 450.00,  currency: 'USD' },
-    { userId: farmer5._id, balance: 5800.00, pendingBalance: 1200.00, currency: 'USD' },
-    { userId: buyer1._id,  balance: 0,       pendingBalance: 0,       currency: 'USD' },
-    { userId: buyer2._id,  balance: 0,       pendingBalance: 0,       currency: 'USD' },
-    { userId: buyer3._id,  balance: 0,       pendingBalance: 0,       currency: 'USD' },
+    {
+      userId: farmer1._id, balance: 4250.00, pendingBalance: 800.00, currency: 'USD',
+      transactions: [
+        { type: 'CREDIT', amount: 415.00, description: 'Order EM-001 released — Organic Tomatoes', status: 'completed', createdAt: daysAgo(18) },
+        { type: 'CREDIT', amount: 546.00, description: 'Order EM-006 released — White Maize', status: 'completed', createdAt: daysAgo(9) },
+        { type: 'WITHDRAWAL', amount: 200.00, description: 'Withdrawal to M-Pesa +254712XXXXXX', status: 'completed', createdAt: daysAgo(5) },
+        { type: 'CREDIT', amount: 780.00, description: 'Order EM-009 released — French Beans export', status: 'completed', createdAt: daysAgo(2) },
+        { type: 'ESCROW_HOLD', amount: 800.00, description: 'Order EM-010 held in escrow — pending delivery', status: 'completed', createdAt: daysAgo(1) },
+      ],
+    },
+    {
+      userId: farmer2._id, balance: 1820.50, pendingBalance: 320.00, currency: 'USD',
+      transactions: [
+        { type: 'CREDIT', amount: 480.00, description: 'Order released — Cardamom pods', status: 'completed', createdAt: daysAgo(30) },
+        { type: 'CREDIT', amount: 960.00, description: 'Order released — Kilimanjaro Arabica Coffee', status: 'completed', createdAt: daysAgo(14) },
+        { type: 'ESCROW_HOLD', amount: 320.00, description: 'Order EM-002 held in escrow — Coffee to Dubai', status: 'completed', createdAt: daysAgo(3) },
+        { type: 'WITHDRAWAL', amount: 500.00, description: 'Withdrawal to Bank TZS account', status: 'completed', createdAt: daysAgo(7) },
+      ],
+    },
+    {
+      userId: farmer3._id, balance: 320.00, pendingBalance: 0, currency: 'USD',
+      transactions: [
+        { type: 'CREDIT', amount: 275.00, description: 'Order EM-004 released — Ghanaian Cocoa Beans', status: 'completed', createdAt: daysAgo(11) },
+        { type: 'CREDIT', amount: 45.00, description: 'Order released — Plantain', status: 'completed', createdAt: daysAgo(20) },
+      ],
+    },
+    {
+      userId: farmer4._id, balance: 2100.00, pendingBalance: 450.00, currency: 'USD',
+      transactions: [
+        { type: 'CREDIT', amount: 1200.00, description: 'Order released — Vanilla Beans Uganda', status: 'completed', createdAt: daysAgo(25) },
+        { type: 'CREDIT', amount: 450.00, description: 'Order released — Dried Hibiscus', status: 'completed', createdAt: daysAgo(12) },
+        { type: 'ESCROW_HOLD', amount: 450.00, description: 'Order EM-005 held in escrow — Bugisu Coffee', status: 'completed', createdAt: daysAgo(2) },
+        { type: 'WITHDRAWAL', amount: 150.00, description: 'Withdrawal to MTN Mobile Money', status: 'completed', createdAt: daysAgo(8) },
+      ],
+    },
+    {
+      userId: farmer5._id, balance: 5800.00, pendingBalance: 1200.00, currency: 'USD',
+      transactions: [
+        { type: 'CREDIT', amount: 1800.00, description: 'Order released — Yirgacheffe Coffee export', status: 'completed', createdAt: daysAgo(45) },
+        { type: 'CREDIT', amount: 680.00, description: 'Order released — Moringa Powder', status: 'completed', createdAt: daysAgo(20) },
+        { type: 'CREDIT', amount: 234.00, description: 'Order EM-003 released — Moringa to Riyadh', status: 'completed', createdAt: daysAgo(5) },
+        { type: 'ESCROW_HOLD', amount: 1200.00, description: 'Order held in escrow — Yirgacheffe Coffee to Japan', status: 'completed', createdAt: daysAgo(1) },
+        { type: 'WITHDRAWAL', amount: 1200.00, description: 'Withdrawal to CBE Bank Ethiopia', status: 'completed', createdAt: daysAgo(10) },
+      ],
+    },
+    { userId: buyer1._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
+    { userId: buyer2._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
+    { userId: buyer3._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
   ])
 
   // ─── 3. SELLER PROFILES ─────────────────────────────────────────────────────
@@ -889,7 +938,203 @@ async function main() {
   ])
   console.log('🎬 Created 10 reels')
 
-  console.log('\n✅ Demo seed complete!')
+  // ─── 9. ORDERS ─────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────
+  const addr = (city: string, region: string, country: string) => ({
+    street: '42 Market Lane', city, region, country,
+  })
+
+  const [order1, order2, order3, order4, order5, order6] = await Order.insertMany([
+    {
+      orderNumber: 'EM-TOM2401',
+      buyerId: buyer1._id, sellerId: farmer1._id,
+      items: [{
+        productId: products[0]._id,
+        title: 'Premium Organic Tomatoes',
+        image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400',
+        quantity: 500, unit: 'kg', unitPrice: 0.85, totalPrice: 425,
+      }],
+      subtotal: 425, deliveryFee: 15, platformFee: 10.63, total: 450.63, currency: 'USD',
+      deliveryAddress: addr('Nairobi', 'Nairobi', 'Kenya'),
+      notes: 'Deliver to Westlands warehouse gate B. Call on arrival.',
+      status: 'COMPLETED',
+      estimatedDelivery: daysAgo(12),
+      deliveredAt: daysAgo(11),
+      createdAt: daysAgo(18),
+    },
+    {
+      orderNumber: 'EM-COF2402',
+      buyerId: buyer2._id, sellerId: farmer2._id,
+      items: [{
+        productId: products[5]._id,
+        title: 'Kilimanjaro AA Arabica Coffee',
+        image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400',
+        quantity: 50, unit: 'kg', unitPrice: 7.50, totalPrice: 375,
+      }],
+      subtotal: 375, deliveryFee: 50, platformFee: 9.38, total: 434.38, currency: 'USD',
+      deliveryAddress: addr('Dubai', 'Dubai', 'UAE'),
+      status: 'SHIPPED',
+      estimatedDelivery: day(5),
+      createdAt: daysAgo(8),
+    },
+    {
+      orderNumber: 'EM-MOR2403',
+      buyerId: buyer3._id, sellerId: farmer5._id,
+      items: [{
+        productId: products[22]._id,
+        title: 'Moringa Powder Organic',
+        image: 'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=400',
+        quantity: 20, unit: 'kg', unitPrice: 12.00, totalPrice: 240,
+      }],
+      subtotal: 240, deliveryFee: 30, platformFee: 6.00, total: 276.00, currency: 'USD',
+      deliveryAddress: addr('Riyadh', 'Riyadh', 'Saudi Arabia'),
+      status: 'PAYMENT_CONFIRMED',
+      estimatedDelivery: day(12),
+      createdAt: daysAgo(2),
+    },
+    {
+      orderNumber: 'EM-COC2404',
+      buyerId: buyer1._id, sellerId: farmer3._id,
+      items: [{
+        productId: products[10]._id,
+        title: 'Ghanaian Cocoa Beans Grade 1',
+        image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=400',
+        quantity: 100, unit: 'kg', unitPrice: 2.80, totalPrice: 280,
+      }],
+      subtotal: 280, deliveryFee: 30, platformFee: 7.00, total: 317.00, currency: 'USD',
+      deliveryAddress: addr('Nairobi', 'Nairobi', 'Kenya'),
+      status: 'PROCESSING',
+      estimatedDelivery: day(10),
+      createdAt: daysAgo(5),
+    },
+    {
+      orderNumber: 'EM-BUG2405',
+      buyerId: buyer2._id, sellerId: farmer4._id,
+      items: [{
+        productId: products[15]._id,
+        title: 'Bugisu AA Arabica Coffee',
+        image: 'https://images.unsplash.com/photo-1559181567-c3190ca9d8da?w=400',
+        quantity: 30, unit: 'kg', unitPrice: 6.80, totalPrice: 204,
+      }],
+      subtotal: 204, deliveryFee: 40, platformFee: 5.10, total: 249.10, currency: 'USD',
+      deliveryAddress: addr('Dubai', 'Dubai', 'UAE'),
+      status: 'PENDING',
+      estimatedDelivery: day(18),
+      createdAt: daysAgo(1),
+    },
+    {
+      orderNumber: 'EM-MAI2406',
+      buyerId: buyer3._id, sellerId: farmer1._id,
+      items: [{
+        productId: products[1]._id,
+        title: 'White Maize Export Grade',
+        image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
+        quantity: 2, unit: 'tons', unitPrice: 280, totalPrice: 560,
+      }],
+      subtotal: 560, deliveryFee: 80, platformFee: 14.00, total: 654.00, currency: 'USD',
+      deliveryAddress: addr('Riyadh', 'Riyadh', 'Saudi Arabia'),
+      notes: 'Halal certified packing preferred.',
+      status: 'COMPLETED',
+      estimatedDelivery: daysAgo(4),
+      deliveredAt: daysAgo(3),
+      createdAt: daysAgo(14),
+    },
+  ])
+  console.log('🛒 Created 6 orders')
+
+  // ─── 10. CONVERSATIONS & MESSAGES ────────────────────────────────────────────
+  const [conv1, conv2, conv3, conv4, conv5] = await Conversation.insertMany([
+    { participants: [buyer1._id, farmer1._id], type: 'DIRECT', lastMessage: 'Thank you! The tomatoes were perfect.', lastMessageAt: daysAgo(10) },
+    { participants: [buyer2._id, farmer2._id], type: 'DIRECT', lastMessage: 'Shipment confirmed. DHL tracking: 1Z999AA10123456784', lastMessageAt: daysAgo(3) },
+    { participants: [buyer3._id, farmer5._id], type: 'DIRECT', lastMessage: 'Can you do Halal certification for the moringa?', lastMessageAt: daysAgo(1) },
+    { participants: [buyer2._id, farmer5._id], type: 'BID_NEGOTIATION', lastMessage: 'We can do $7.90/kg for your 2 tonne order.', lastMessageAt: daysAgo(2) },
+    { participants: [buyer1._id, farmer4._id], type: 'DIRECT', lastMessage: 'Do you ship to Nairobi regularly?', lastMessageAt: daysAgo(6) },
+  ])
+
+  await Message.insertMany([
+    // conv1 — Sarah ↔ James (tomato order)
+    { conversationId: conv1._id, senderId: buyer1._id,  content: 'Hi James! I saw your organic tomatoes on eMazao. Are you currently supplying to Nairobi?', createdAt: daysAgo(25) },
+    { conversationId: conv1._id, senderId: farmer1._id, content: 'Hello Sarah! Yes, we supply to Nairobi every Monday morning. KEPHIS certified, refrigerated transport. What quantity do you need?', createdAt: daysAgo(24) },
+    { conversationId: conv1._id, senderId: buyer1._id,  content: 'We need about 500kg weekly. Can you guarantee consistent quality and early morning delivery to Westlands?', createdAt: daysAgo(24) },
+    { conversationId: conv1._id, senderId: farmer1._id, content: 'Absolutely. I\'ve been supplying FreshMart and Nakumatt for 8 years. Delivery by 5am every Monday. $0.85/kg for 500kg+. Shall we do a trial run next week?', createdAt: daysAgo(23) },
+    { conversationId: conv1._id, senderId: buyer1._id,  content: 'Perfect! Let\'s do the trial. I\'ll place the order on the platform now.', createdAt: daysAgo(22) },
+    { conversationId: conv1._id, senderId: farmer1._id, content: 'Excellent! Order received and confirmed. See you Monday!', createdAt: daysAgo(19) },
+    { conversationId: conv1._id, senderId: buyer1._id,  content: 'Thank you! The tomatoes were perfect.', createdAt: daysAgo(10) },
+
+    // conv2 — Ali ↔ Amina (coffee to Dubai)
+    { conversationId: conv2._id, senderId: buyer2._id,  content: 'Hello Amina, I came across your Kilimanjaro AA coffee. We import specialty coffee for 5-star hotels in Dubai. What\'s your SCA score?', createdAt: daysAgo(15) },
+    { conversationId: conv2._id, senderId: farmer2._id, content: 'Good day Mohamed! Our latest harvest scored 87.5 on SCA. Fair-trade and Rainforest Alliance certified. We\'ve exported to Japan, Germany and the UK. Can share references.', createdAt: daysAgo(14) },
+    { conversationId: conv2._id, senderId: buyer2._id,  content: 'Impressive. Can you supply 50kg as a trial order? FCA Dar es Salaam terms.', createdAt: daysAgo(13) },
+    { conversationId: conv2._id, senderId: farmer2._id, content: 'Yes! 50kg at $7.50/kg. All export documents included: phytosanitary, COO, quality cert, and fair-trade cert. Ready in 5 days.', createdAt: daysAgo(12) },
+    { conversationId: conv2._id, senderId: buyer2._id,  content: 'Deal. I\'ll place the order now.', createdAt: daysAgo(11) },
+    { conversationId: conv2._id, senderId: farmer2._id, content: 'Order received! I\'ll have it shipped by Friday. Expect tracking details shortly.', createdAt: daysAgo(8) },
+    { conversationId: conv2._id, senderId: farmer2._id, content: 'Shipment confirmed. DHL tracking: 1Z999AA10123456784', createdAt: daysAgo(3) },
+
+    // conv3 — Fatima ↔ Emmanuel (moringa)
+    { conversationId: conv3._id, senderId: buyer3._id,  content: 'Hi Emmanuel, I\'m launching a health food brand in Saudi Arabia. Interested in your organic moringa powder and teff grain.', createdAt: daysAgo(8) },
+    { conversationId: conv3._id, senderId: farmer5._id, content: 'Hello Fatima! Great to hear. Our moringa is cold-processed, 30% protein, brilliant green colour. Teff is white variety, gluten-free. Both organic certified by ECX. What quantities?', createdAt: daysAgo(7) },
+    { conversationId: conv3._id, senderId: buyer3._id,  content: 'We\'ll start with 20kg moringa. Can you arrange private labelling?', createdAt: daysAgo(6) },
+    { conversationId: conv3._id, senderId: farmer5._id, content: 'Yes! We do private labelling in 1kg food-grade sealed bags. Minimum 20kg order. I can also arrange halal certification through a local certification body.', createdAt: daysAgo(5) },
+    { conversationId: conv3._id, senderId: buyer3._id,  content: 'Can you do Halal certification for the moringa?', createdAt: daysAgo(1) },
+
+    // conv4 — Ali ↔ Emmanuel (bid negotiation)
+    { conversationId: conv4._id, senderId: buyer2._id,  content: 'Emmanuel, your bid of $8.10/kg for our 2 tonne Arabica order is slightly over budget at $16,200. Can you do $7.80?', createdAt: daysAgo(5) },
+    { conversationId: conv4._id, senderId: farmer5._id, content: 'Mohamed, I understand. Yirgacheffe G1 with SCA 89 commands a premium. Best I can do is $7.90 — this includes all certifications and phytosanitary. No other Ethiopian G1 beats our profile.', createdAt: daysAgo(4) },
+    { conversationId: conv4._id, senderId: buyer2._id,  content: 'Fair enough. Your SCA score is indeed exceptional. Let me discuss with my team.', createdAt: daysAgo(3) },
+    { conversationId: conv4._id, senderId: farmer5._id, content: 'We can do $7.90/kg for your 2 tonne order.', createdAt: daysAgo(2) },
+
+    // conv5 — Sarah ↔ Mercy (logistics question)
+    { conversationId: conv5._id, senderId: buyer1._id,  content: 'Hi Mercy, I see you have Bugisu AA coffee. We\'re expanding our selection. Do you ship to Nairobi regularly?', createdAt: daysAgo(8) },
+    { conversationId: conv5._id, senderId: farmer4._id, content: 'Hello Sarah! Yes we ship to Nairobi via Malaba border crossing, usually 2-3 days. We currently supply 4 hotels in Nairobi. What quantities are you looking for?', createdAt: daysAgo(7) },
+    { conversationId: conv5._id, senderId: buyer1._id,  content: 'Do you ship to Nairobi regularly?', createdAt: daysAgo(6) },
+  ])
+  console.log('💬 Created 5 conversations with messages')
+
+  // ─── 11. NOTIFICATIONS ───────────────────────────────────────────────────────
+  await Notification.insertMany([
+    // farmer1 — James
+    { userId: farmer1._id, type: 'ORDER', title: 'New order received!', body: 'Sarah Njoroge placed an order for 500kg Organic Tomatoes (EM-TOM2401).', isRead: true, readAt: daysAgo(17), createdAt: daysAgo(18) },
+    { userId: farmer1._id, type: 'PAYMENT', title: 'Payment confirmed', body: 'Payment of $450.63 received for order EM-TOM2401. Funds held in escrow.', isRead: true, readAt: daysAgo(17), createdAt: daysAgo(18) },
+    { userId: farmer1._id, type: 'ORDER', title: 'New order received!', body: 'Fatima Al-Rashid ordered 2 tons of White Maize Export Grade (EM-MAI2406).', isRead: true, readAt: daysAgo(13), createdAt: daysAgo(14) },
+    { userId: farmer1._id, type: 'PAYMENT', title: 'Escrow released!', body: 'Order EM-TOM2401 confirmed as delivered. $415.00 credited to your wallet.', isRead: false, createdAt: daysAgo(11) },
+    { userId: farmer1._id, type: 'FOLLOW', title: 'Mohamed Ali followed you', body: 'Mohamed Ali (Dubai Importer) started following Kamau Fresh Farms.', isRead: false, createdAt: daysAgo(9) },
+    { userId: farmer1._id, type: 'PAYMENT', title: 'Escrow released!', body: 'Order EM-MAI2406 confirmed as delivered. $546.00 credited to your wallet.', isRead: false, createdAt: daysAgo(3) },
+
+    // farmer2 — Amina
+    { userId: farmer2._id, type: 'BID', title: 'Your bid was shortlisted!', body: 'Your bid on "URGENT: 2 Tonnes Arabica Coffee — Dubai Import" has been shortlisted.', isRead: true, readAt: daysAgo(6), createdAt: daysAgo(7) },
+    { userId: farmer2._id, type: 'ORDER', title: 'New order received!', body: 'Mohamed Ali ordered 50kg Kilimanjaro AA Arabica Coffee (EM-COF2402).', isRead: true, readAt: daysAgo(7), createdAt: daysAgo(8) },
+    { userId: farmer2._id, type: 'PAYMENT', title: 'Payment confirmed', body: '$434.38 received for EM-COF2402. Prepare shipment within 5 business days.', isRead: false, createdAt: daysAgo(8) },
+
+    // farmer3 — David
+    { userId: farmer3._id, type: 'ORDER', title: 'New order!', body: 'Sarah Njoroge ordered 100kg Ghanaian Cocoa Beans Grade 1 (EM-COC2404).', isRead: false, createdAt: daysAgo(5) },
+    { userId: farmer3._id, type: 'SYSTEM', title: 'Get verified to unlock more buyers', body: 'Verified sellers get 3x more visibility in the marketplace. Apply for Farm Verification now.', isRead: false, createdAt: daysAgo(3) },
+
+    // farmer4 — Mercy
+    { userId: farmer4._id, type: 'ORDER', title: 'New order received!', body: 'Mohamed Ali placed an order for 30kg Bugisu AA Arabica Coffee (EM-BUG2405).', isRead: false, createdAt: daysAgo(1) },
+    { userId: farmer4._id, type: 'BID', title: 'Bid submitted on your behalf', body: 'Your bid on "10 Tonnes Green Plantain — Riyadh" is now live and visible to the buyer.', isRead: true, readAt: daysAgo(20), createdAt: daysAgo(21) },
+
+    // farmer5 — Emmanuel
+    { userId: farmer5._id, type: 'ORDER', title: 'New order!', body: 'Fatima Al-Rashid ordered 20kg Moringa Powder Organic (EM-MOR2403).', isRead: false, createdAt: daysAgo(2) },
+    { userId: farmer5._id, type: 'PAYMENT', title: 'Payment received', body: '$276.00 confirmed for EM-MOR2403. Now processing your order.', isRead: false, createdAt: daysAgo(2) },
+    { userId: farmer5._id, type: 'LIKE', title: 'Your reel is trending!', body: 'Your Yirgacheffe coffee reel hit 62,000 views and is trending in #specialty coffee.', isRead: false, createdAt: daysAgo(1) },
+
+    // buyer1 — Sarah
+    { userId: buyer1._id, type: 'DELIVERY', title: 'Order delivered!', body: 'Your order EM-TOM2401 (500kg Organic Tomatoes) has been delivered. Please confirm receipt.', isRead: true, readAt: daysAgo(10), createdAt: daysAgo(11) },
+    { userId: buyer1._id, type: 'ORDER', title: 'Order completed', body: 'Order EM-TOM2401 marked complete. Thank you for shopping with Kamau Fresh Farms!', isRead: false, createdAt: daysAgo(10) },
+    { userId: buyer1._id, type: 'BID', title: 'New bid on your requirement', body: '2 farmers bid on "Need 500kg Organic Tomatoes Weekly". Review bids now.', isRead: false, createdAt: daysAgo(14) },
+
+    // buyer2 — Ali
+    { userId: buyer2._id, type: 'BID', title: '3 new bids on your requirement', body: 'Your "URGENT: 2 Tonnes Arabica Coffee" requirement has 3 bids. The top bid scores 94/100!', isRead: false, createdAt: daysAgo(6) },
+    { userId: buyer2._id, type: 'ORDER', title: 'Order shipped!', body: 'Order EM-COF2402 is on its way! DHL tracking: 1Z999AA10123456784. ETA 5 days.', isRead: false, createdAt: daysAgo(3) },
+    { userId: buyer2._id, type: 'MESSAGE', title: 'New message from Emmanuel Tesfaye', body: 'We can do $7.90/kg for your 2 tonne order. No other Ethiopian G1 beats our profile.', isRead: false, createdAt: daysAgo(2) },
+
+    // buyer3 — Fatima
+    { userId: buyer3._id, type: 'ORDER', title: 'Payment confirmed!', body: 'Your payment for EM-MOR2403 is confirmed. Emmanuel Tesfaye will prepare your order.', isRead: false, createdAt: daysAgo(2) },
+    { userId: buyer3._id, type: 'BID', title: '1 new bid on your moringa requirement', body: 'Emmanuel Tesfaye submitted a bid on your "Moringa Powder and Teff Grain" requirement.', isRead: false, createdAt: daysAgo(3) },
+    { userId: buyer3._id, type: 'DELIVERY', title: 'Order delivered!', body: 'Your order EM-MAI2406 (2 tons White Maize) was delivered successfully.', isRead: true, readAt: daysAgo(2), createdAt: daysAgo(3) },
+  ])
+  console.log('🔔 Created 24 notifications')
+
+  console.log('\n✅ Demo seed complete! (9 users, 25 products, 10 reels, 6 requirements, 10 bids, 6 orders, 5 conversations, 24 notifications)')
   console.log('══════════════════════════════════════════════')
   console.log('  Login credentials (password: Demo1234!)')
   console.log('──────────────────────────────────────────────')

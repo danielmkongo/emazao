@@ -38,15 +38,24 @@ export default function Profile() {
   const isOwnProfile = !username || username === me?.username
 
   if (!user) return (
-    <div className="text-center py-20 text-white/40">User not found</div>
+    <div className="text-center py-20 text-[var(--c-text-3)]">User not found</div>
   )
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Cover + Avatar */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-brand-800 rounded-2xl border border-white/[0.06] overflow-hidden mb-4">
-        <div className="h-32 bg-gradient-to-br from-brand-green/30 to-brand-emerald/20" />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden mb-4"
+      >
+        {/* Cover image or gradient */}
+        <div className="h-32 bg-gradient-to-br from-brand-green/20 to-brand-emerald/10 overflow-hidden">
+          {(user as any).coverImage && (
+            <img src={(user as any).coverImage} alt="" className="w-full h-full object-cover opacity-60" />
+          )}
+        </div>
+
         <div className="px-6 pb-6">
           <div className="-mt-12 flex items-end justify-between mb-4">
             <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified} />
@@ -66,40 +75,51 @@ export default function Profile() {
 
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{user.name}</h1>
+              <h1 className="text-xl font-bold text-[var(--c-text)]">{user.name}</h1>
               {user.isVerified && (
                 <Badge variant="default" className="text-xs">{user.verifiedType ?? 'Verified'}</Badge>
               )}
             </div>
-            <p className="text-white/40 text-sm mb-2">@{user.username}</p>
-            {user.bio && <p className="text-white/70 text-sm">{user.bio}</p>}
+            <p className="text-[var(--c-text-3)] text-sm mb-2">@{user.username}</p>
+            {user.bio && <p className="text-[var(--c-text-2)] text-sm leading-relaxed">{user.bio}</p>}
           </div>
 
-          <div className="flex flex-wrap gap-4 text-sm text-white/40 mb-4">
-            {user.location && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{user.location}</span>}
-            <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Joined {formatDate(user.createdAt)}</span>
+          <div className="flex flex-wrap gap-4 text-sm text-[var(--c-text-3)] mb-4">
+            {user.location && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />{user.location}
+              </span>
+            )}
+            {user.country && user.country !== user.location && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />{user.country}
+              </span>
+            )}
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5" />Joined {formatDate(user.createdAt)}
+            </span>
           </div>
 
           <div className="flex gap-6 text-sm">
             <div className="text-center">
-              <p className="font-bold text-white">{formatNumber((user as any).followersCount ?? 0)}</p>
-              <p className="text-white/40 text-xs">Followers</p>
+              <p className="font-bold text-[var(--c-text)]">{formatNumber((user as any).followersCount ?? 0)}</p>
+              <p className="text-[var(--c-text-3)] text-xs">Followers</p>
             </div>
             <div className="text-center">
-              <p className="font-bold text-white">{formatNumber((user as any).followingCount ?? 0)}</p>
-              <p className="text-white/40 text-xs">Following</p>
+              <p className="font-bold text-[var(--c-text)]">{formatNumber((user as any).followingCount ?? 0)}</p>
+              <p className="text-[var(--c-text-3)] text-xs">Following</p>
             </div>
             {user.role === 'FARMER' && seller && (
               <>
                 <div className="text-center">
-                  <p className="font-bold text-white">{formatNumber(seller.totalSales ?? 0)}</p>
-                  <p className="text-white/40 text-xs">Sales</p>
+                  <p className="font-bold text-[var(--c-text)]">{formatNumber(seller.totalSales ?? 0)}</p>
+                  <p className="text-[var(--c-text-3)] text-xs">Sales</p>
                 </div>
                 <div className="text-center">
-                  <p className="font-bold text-white flex items-center gap-1">
+                  <p className="font-bold text-[var(--c-text)] flex items-center gap-1">
                     <Star className="h-3.5 w-3.5 text-gold fill-gold" />{seller.rating?.toFixed(1) ?? '—'}
                   </p>
-                  <p className="text-white/40 text-xs">Rating</p>
+                  <p className="text-[var(--c-text-3)] text-xs">Rating</p>
                 </div>
               </>
             )}
@@ -107,18 +127,26 @@ export default function Profile() {
         </div>
       </motion.div>
 
-      {/* Seller Profile */}
+      {/* Seller / Farm Details */}
       {user.role === 'FARMER' && seller && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="bg-brand-800 rounded-2xl border border-white/[0.06] p-5 mb-4">
-          <h2 className="font-semibold text-white mb-3 flex items-center gap-2">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5 mb-4"
+        >
+          <h2 className="font-semibold text-[var(--c-text)] mb-3 flex items-center gap-2">
             <Package className="h-4 w-4 text-brand-green" /> Farm Details
           </h2>
-          <p className="font-medium text-white mb-1">{seller.farmName}</p>
-          {seller.farmDescription && <p className="text-white/50 text-sm mb-3">{seller.farmDescription}</p>}
+          <p className="font-semibold text-[var(--c-text)] mb-1">{seller.farmName}</p>
+          {seller.farmDescription && (
+            <p className="text-[var(--c-text-2)] text-sm mb-3 leading-relaxed">{seller.farmDescription}</p>
+          )}
           <div className="flex flex-wrap gap-2">
             {seller.specializations?.map(s => (
-              <span key={s} className="text-xs bg-brand-700 text-white/60 px-2.5 py-1 rounded-full">{s}</span>
+              <span key={s} className="text-xs bg-[var(--c-raised)] text-[var(--c-text-2)] px-2.5 py-1 rounded-full border border-[var(--c-border)]">
+                {s}
+              </span>
             ))}
           </div>
           {seller.storeSlug && (

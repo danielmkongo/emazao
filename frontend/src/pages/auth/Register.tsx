@@ -66,14 +66,14 @@ export default function Register() {
             <Sprout className="h-5 w-5 text-white" />
           </div>
           <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            EMAZAO
+            eMazao
           </span>
         </Link>
 
         <div className="glass rounded-2xl p-8 shadow-xl">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">Create your account</h1>
-            <p className="text-[var(--c-text-3)] text-sm">Join 50,000+ farmers and buyers on EMAZAO</p>
+            <p className="text-[var(--c-text-3)] text-sm">Join 50,000+ farmers and buyers on eMazao</p>
           </div>
 
           {error && (

@@ -1,87 +1,183 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ShoppingBag, Search, SlidersHorizontal, Leaf } from 'lucide-react'
+import { ShoppingBag, Search, Leaf, X } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { ProductCardSkeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import type { ApiResponse, Product } from '@/types'
+
+interface Category { _id: string; name: string; slug: string; icon?: string }
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'fruits-vegetables': '🥦',
+  'grains-cereals': '🌾',
+  'coffee-tea': '☕',
+  'spices-herbs': '🌿',
+  'livestock-poultry': '🐄',
+  'nuts-seeds': '🥜',
+  'roots-tubers': '🥔',
+  'sugar-confectionery': '🍫',
+  'oils-fats': '🫒',
+  'beverages': '🧃',
+}
+
+function useDebounce<T>(value: T, ms: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), ms)
+    return () => clearTimeout(timer)
+  }, [value, ms])
+  return debouncedValue
+}
 
 export default function Marketplace() {
   const [search, setSearch] = useState('')
   const [organic, setOrganic] = useState(false)
+  const [categoryId, setCategoryId] = useState('')
+  const debouncedSearch = useDebounce(search, 350)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<Category[]>>('/categories')
+      return res.data.data ?? []
+    },
+    staleTime: 300_000,
+  })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', organic],
+    queryKey: ['products', debouncedSearch, organic, categoryId],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: '40' })
+      const params = new URLSearchParams({ limit: '48' })
+      if (debouncedSearch) params.set('q', debouncedSearch)
       if (organic) params.set('organic', 'true')
+      if (categoryId) params.set('category', categoryId)
       const res = await api.get<ApiResponse<Product[]>>(`/products?${params}`)
-      return res.data.data
+      return res.data.data ?? []
     },
   })
 
-  const filtered = (data ?? []).filter(
-    (p) => !search || p.title.toLowerCase().includes(search.toLowerCase())
-  )
+  const products = data ?? []
+  const hasFilter = debouncedSearch || organic || categoryId
+
+  const clearAll = () => {
+    setSearch('')
+    setOrganic(false)
+    setCategoryId('')
+    inputRef.current?.focus()
+  }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <h1 className="text-2xl font-bold text-[var(--c-text)] flex items-center gap-3" style={{ fontFamily: 'var(--font-display)' }}>
-          <ShoppingBag className="h-7 w-7 text-brand-green" /> Marketplace
+          <ShoppingBag className="h-6 w-6 text-brand-green" /> Marketplace
         </h1>
         <p className="text-[var(--c-text-3)] text-sm mt-1">Fresh products from verified farmers across Africa</p>
       </motion.div>
 
-      {/* Search + filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-8">
+      {/* Search */}
+      <div className="flex gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--c-text-3)]" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--c-text-3)] pointer-events-none" />
           <input
+            ref={inputRef}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products..."
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search products, tags, origins..."
             className="w-full h-11 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl pl-10 pr-4 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none focus:border-brand-green transition-all"
           />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-text-4)] hover:text-[var(--c-text-2)]">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <button
           onClick={() => setOrganic(!organic)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+          className={`flex items-center gap-2 px-4 h-11 rounded-xl border text-sm font-medium transition-all flex-shrink-0 ${
             organic
-              ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600'
-              : 'bg-[var(--c-card)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-emerald-500/30'
+              ? 'bg-brand-green/10 border-brand-green text-brand-green'
+              : 'bg-[var(--c-card)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-brand-green/40'
           }`}
         >
-          <Leaf className="h-4 w-4" /> Organic Only
+          <Leaf className="h-4 w-4" />
+          <span className="hidden sm:inline">Organic</span>
         </button>
-        <Button variant="secondary" size="md" className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" /> Filters
-        </Button>
       </div>
 
-      {/* Count */}
+      {/* Category filter pills */}
+      {categories && categories.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
+          <button
+            onClick={() => setCategoryId('')}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              categoryId === ''
+                ? 'bg-brand-green/12 border-brand-green text-brand-green'
+                : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40 hover:text-[var(--c-text-2)]'
+            }`}
+          >
+            All
+          </button>
+          {categories.map(cat => (
+            <button
+              key={cat._id}
+              onClick={() => setCategoryId(prev => prev === cat._id ? '' : cat._id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                categoryId === cat._id
+                  ? 'bg-brand-green/12 border-brand-green text-brand-green'
+                  : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40 hover:text-[var(--c-text-2)]'
+              }`}
+            >
+              {CATEGORY_ICONS[cat.slug] && <span>{CATEGORY_ICONS[cat.slug]}</span>}
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Results header */}
       {!isLoading && (
-        <p className="text-sm text-[var(--c-text-3)] mb-4">
-          <span className="font-semibold text-[var(--c-text)]">{filtered.length}</span> products found
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-[var(--c-text-3)]">
+            <span className="font-semibold text-[var(--c-text)]">{products.length}</span> products
+            {hasFilter && ' found'}
+          </p>
+          {hasFilter && (
+            <button onClick={clearAll} className="text-xs text-[var(--c-text-3)] hover:text-brand-green transition-colors flex items-center gap-1">
+              <X className="h-3 w-3" /> Clear filters
+            </button>
+          )}
+        </div>
       )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => <ProductCardSkeleton key={i} />)}
         </div>
-      ) : !filtered.length ? (
-        <div className="text-center py-20">
+      ) : !products.length ? (
+        <div className="text-center py-24">
           <span className="text-6xl mb-4 block">🌾</span>
-          <p className="text-[var(--c-text-3)]">No products found. Try adjusting your search.</p>
+          <p className="text-[var(--c-text)] font-semibold mb-1">No products found</p>
+          <p className="text-[var(--c-text-3)] text-sm">Try adjusting your search or removing filters.</p>
+          {hasFilter && (
+            <button onClick={clearAll} className="mt-4 text-brand-green text-sm font-medium hover:underline">
+              Clear all filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((product, i) => (
-            <motion.div key={product._id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+          {products.map((product, i) => (
+            <motion.div
+              key={product._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(i * 0.03, 0.3) }}
+            >
               <FeedProductCard product={product} />
             </motion.div>
           ))}

@@ -26,7 +26,7 @@ export const CTASection = () => (
             className="text-5xl md:text-6xl font-bold text-white mb-6"
             style={{ fontFamily: 'var(--font-display)' }}
           >
-            Join 50,000+ farmers<br />already trading on EMAZAO
+            Join 50,000+ farmers<br />already trading on eMazao
           </h2>
           <p className="text-white/70 text-xl mb-10 max-w-lg mx-auto">
             Build your digital farm, find buyers, and grow your agricultural business today.

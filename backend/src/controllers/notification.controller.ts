@@ -10,7 +10,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-    const unreadCount = await Notification.countDocuments({ userId: req.user!.id, isRead: false })
+    const unreadCount = await Notification.countDocuments({ userId: req.user!.id, isRead: { $ne: true } })
     res.json({ success: true, data: notifications, unreadCount, page })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -19,7 +19,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
 
 export const markAllRead = async (req: AuthRequest, res: Response) => {
   try {
-    await Notification.updateMany({ userId: req.user!.id, isRead: false }, { isRead: true })
+    await Notification.updateMany({ userId: req.user!.id, isRead: { $ne: true } }, { isRead: true, readAt: new Date() })
     res.json({ success: true })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -28,7 +28,7 @@ export const markAllRead = async (req: AuthRequest, res: Response) => {
 
 export const markOneRead = async (req: AuthRequest, res: Response) => {
   try {
-    await Notification.findOneAndUpdate({ _id: req.params.id, userId: req.user!.id }, { isRead: true })
+    await Notification.findOneAndUpdate({ _id: req.params.id, userId: req.user!.id }, { isRead: true, readAt: new Date() })
     res.json({ success: true })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })

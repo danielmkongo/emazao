@@ -1,0 +1,33 @@
+{
+  "name": "eMazao — Agricultural Commerce",
+  "short_name": "eMazao",
+  "description": "The future of agricultural commerce in Africa and beyond.",
+  "start_url": "/feed",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#16A34A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["business", "shopping", "food"],
+  "lang": "en"
+}
