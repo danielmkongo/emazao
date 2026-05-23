@@ -49,6 +49,8 @@ const EditProduct = lazy(() => import('@/pages/dashboard/EditProduct'))
 const DashboardOrders = lazy(() => import('@/pages/dashboard/DashboardOrders'))
 const DashboardBids = lazy(() => import('@/pages/dashboard/Bids'))
 const DashboardWallet = lazy(() => import('@/pages/dashboard/DashboardWallet'))
+const DashboardReels = lazy(() => import('@/pages/dashboard/Reels'))
+const DashboardStorefront = lazy(() => import('@/pages/dashboard/Storefront'))
 
 // Profile & Settings
 const Settings = lazy(() => import('@/pages/profile/Settings'))
@@ -136,6 +138,8 @@ export const router = createBrowserRouter([
       { path: '/dashboard/products/new', element: wrap(AddProduct) },
       { path: '/dashboard/products/:id/edit', element: wrap(EditProduct) },
       { path: '/dashboard/orders', element: wrap(DashboardOrders) },
+      { path: '/dashboard/reels', element: wrap(DashboardReels) },
+      { path: '/dashboard/storefront', element: wrap(DashboardStorefront) },
       { path: '/dashboard/bids', element: wrap(DashboardBids) },
       { path: '/dashboard/wallet', element: wrap(DashboardWallet) },
 

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, Eye, ShoppingBag, DollarSign, Package, Star, ArrowUpRight, Zap } from 'lucide-react'
+import { TrendingUp, Eye, ShoppingBag, DollarSign, Package, ArrowUpRight, Zap, Video, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatNumber } from '@/lib/utils'
@@ -10,13 +10,12 @@ import api from '@/lib/api'
 
 interface AnalyticsOverview {
   totalRevenue: number
+  revenueThisMonth: number
+  revenueGrowth: number
   totalOrders: number
   totalViews: number
-  avgRating: number
-  productCount: number
-  revenueGrowth: number
-  viewsGrowth: number
-  ordersGrowth: number
+  totalProducts: number
+  totalReels: number
 }
 
 const MetricCard = ({ icon: Icon, label, value, growth, color }: {
@@ -60,22 +59,21 @@ export default function Dashboard() {
       return res.data.data
     },
     placeholderData: {
-      totalRevenue: 45820,
-      totalOrders: 124,
-      totalViews: 8340,
-      avgRating: 4.7,
-      productCount: 18,
-      revenueGrowth: 23,
-      viewsGrowth: 41,
-      ordersGrowth: 15,
+      totalRevenue: 0,
+      revenueThisMonth: 0,
+      revenueGrowth: 0,
+      totalOrders: 0,
+      totalViews: 0,
+      totalProducts: 0,
+      totalReels: 0,
     },
   })
 
   const metrics = [
-    { icon: DollarSign, label: 'Total Revenue', value: formatCurrency(data?.totalRevenue ?? 0), growth: data?.revenueGrowth, color: 'bg-brand-green/15 text-brand-green' },
-    { icon: ShoppingBag, label: 'Total Orders', value: formatNumber(data?.totalOrders ?? 0), growth: data?.ordersGrowth, color: 'bg-gold/15 text-gold' },
-    { icon: Eye, label: 'Product Views', value: formatNumber(data?.totalViews ?? 0), growth: data?.viewsGrowth, color: 'bg-brand-lime/15 text-brand-lime' },
-    { icon: Star, label: 'Avg. Rating', value: (data?.avgRating ?? 0).toFixed(1) + ' / 5', color: 'bg-purple-500/15 text-purple-400' },
+    { icon: DollarSign, label: 'This Month', value: formatCurrency(data?.revenueThisMonth ?? 0), growth: data?.revenueGrowth, color: 'bg-brand-green/15 text-brand-green' },
+    { icon: ShoppingBag, label: 'Total Orders', value: formatNumber(data?.totalOrders ?? 0), color: 'bg-gold/15 text-gold' },
+    { icon: Eye, label: 'Product Views', value: formatNumber(data?.totalViews ?? 0), color: 'bg-brand-lime/15 text-brand-lime' },
+    { icon: Package, label: 'Active Products', value: formatNumber(data?.totalProducts ?? 0), color: 'bg-purple-500/15 text-purple-400' },
   ]
 
   return (
@@ -143,6 +141,8 @@ export default function Dashboard() {
           <div className="space-y-2">
             {[
               { label: 'Manage Products', href: '/dashboard/products', icon: Package, color: 'text-brand-green' },
+              { label: 'My Reels', href: '/dashboard/reels', icon: Video, color: 'text-pink-400' },
+              { label: 'Storefront', href: '/dashboard/storefront', icon: Store, color: 'text-blue-400' },
               { label: 'View Orders', href: '/dashboard/orders', icon: ShoppingBag, color: 'text-gold' },
               { label: 'Check Bids', href: '/dashboard/bids', icon: TrendingUp, color: 'text-brand-lime' },
               { label: 'Full Analytics', href: '/dashboard/analytics', icon: Eye, color: 'text-purple-400' },

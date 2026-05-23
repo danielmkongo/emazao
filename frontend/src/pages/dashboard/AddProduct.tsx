@@ -91,15 +91,15 @@ export default function AddProduct() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/40 hover:text-white mb-6 transition-colors">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-[var(--c-text-3)] hover:text-[var(--c-text)] mb-6 transition-colors">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
-      <h1 className="text-2xl font-bold text-white mb-8">Add New Product</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-8">Add New Product</h1>
 
       <form onSubmit={handleSubmit(d => mutation.mutate(d as FormData))} className="space-y-6">
         {/* Images */}
         <div>
-          <p className="text-sm font-medium text-white/70 mb-3">Product Images</p>
+          <p className="text-sm font-medium text-[var(--c-text-2)] mb-3">Product Images</p>
           <div className="flex flex-wrap gap-3">
             {images.map((url, i) => (
               <div key={i} className="relative h-24 w-24 rounded-xl overflow-hidden">
@@ -111,9 +111,9 @@ export default function AddProduct() {
               </div>
             ))}
             {images.length < 6 && (
-              <label className="h-24 w-24 rounded-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-brand-green transition-colors">
-                <Upload className="h-5 w-5 text-white/40" />
-                <span className="text-xs text-white/40 mt-1">{uploading ? 'Uploading...' : 'Add photo'}</span>
+              <label className="h-24 w-24 rounded-xl border-2 border-dashed border-[var(--c-border)] flex flex-col items-center justify-center cursor-pointer hover:border-brand-green transition-colors">
+                <Upload className="h-5 w-5 text-[var(--c-text-4)]" />
+                <span className="text-xs text-[var(--c-text-4)] mt-1">{uploading ? 'Uploading...' : 'Add photo'}</span>
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={uploading} />
               </label>
             )}
@@ -123,18 +123,18 @@ export default function AddProduct() {
         <Input label="Product Title" placeholder="e.g. Fresh Organic Tomatoes" error={errors.title?.message} {...register('title')} />
 
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-1.5">Description</label>
+          <label className="block text-sm font-medium text-[var(--c-text-2)] mb-1.5">Description</label>
           <textarea {...register('description')} rows={3}
             placeholder="Describe your product, quality, growing conditions..."
-            className="w-full bg-brand-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-brand-green resize-none" />
+            className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] focus:outline-none focus:border-brand-green resize-none transition-colors" />
           {errors.description && <p className="text-red-400 text-xs mt-1">{errors.description.message}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <Input label="Price" type="number" step="0.01" placeholder="0.00" error={errors.price?.message} {...register('price')} />
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-1.5">Price Unit</label>
-            <select {...register('priceUnit')} className="w-full bg-brand-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-green">
+            <label className="block text-sm font-medium text-[var(--c-text-2)] mb-1.5">Price Unit</label>
+            <select {...register('priceUnit')} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-[var(--c-text)] focus:outline-none focus:border-brand-green transition-colors">
               {PRICE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
@@ -148,16 +148,16 @@ export default function AddProduct() {
         <div className="grid grid-cols-2 gap-4">
           <Input label="Minimum Order" type="number" placeholder="1" error={errors.minimumOrder?.message} {...register('minimumOrder')} />
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-1.5">Condition</label>
-            <select {...register('condition')} className="w-full bg-brand-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-green">
+            <label className="block text-sm font-medium text-[var(--c-text-2)] mb-1.5">Condition</label>
+            <select {...register('condition')} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-[var(--c-text)] focus:outline-none focus:border-brand-green transition-colors">
               {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-1.5">Category</label>
-          <select {...register('categoryId')} className="w-full bg-brand-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-green">
+          <label className="block text-sm font-medium text-[var(--c-text-2)] mb-1.5">Category</label>
+          <select {...register('categoryId')} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-4 py-3 text-[var(--c-text)] focus:outline-none focus:border-brand-green transition-colors">
             <option value="">Select category...</option>
             {categories?.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
@@ -173,7 +173,7 @@ export default function AddProduct() {
             className={`w-12 h-6 rounded-full transition-colors flex items-center px-1 ${isOrganic ? 'bg-brand-green' : 'bg-white/10'}`}>
             <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isOrganic ? 'translate-x-6' : ''}`} />
           </div>
-          <span className="text-white flex items-center gap-2"><Leaf className="h-4 w-4 text-brand-green" />Certified Organic</span>
+          <span className="text-[var(--c-text)] flex items-center gap-2"><Leaf className="h-4 w-4 text-brand-green" />Certified Organic</span>
         </label>
 
         {mutation.isError && (
