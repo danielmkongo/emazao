@@ -3,6 +3,7 @@ import Requirement from '../models/Requirement'
 import Bid from '../models/Bid'
 import User from '../models/User'
 import { AuthRequest } from '../middleware/auth.middleware'
+import { sendNotification } from '../services/notification.service'
 
 // GET /api/requirements
 export const getRequirements = async (req: Request, res: Response): Promise<void> => {
@@ -106,6 +107,17 @@ export const submitBid = async (req: AuthRequest, res: Response): Promise<void> 
     })
 
     await Requirement.findByIdAndUpdate(requirementId, { $inc: { bidCount: 1 } })
+
+    // Notify the buyer that a new bid arrived
+    await sendNotification({
+      userId: requirement.buyerId.toString(),
+      type: 'NEW_BID',
+      title: 'New bid on your requirement',
+      body: `${farmer.name} submitted a bid for "${requirement.title}"`,
+      link: `/requirements/${requirementId}`,
+      data: { requirementId, bidId: bid._id.toString() },
+    })
+
     res.status(201).json({ success: true, data: bid })
   } catch (err) {
     if ((err as { code?: number }).code === 11000) {
@@ -134,6 +146,24 @@ export const updateBidStatus = async (req: AuthRequest, res: Response): Promise<
     if (status === 'ACCEPTED') {
       await Requirement.findByIdAndUpdate(requirement._id, { status: 'AWARDED' })
     }
+
+    // Notify the farmer of bid decision
+    const notifTitle = status === 'ACCEPTED' ? 'Bid accepted!' : status === 'SHORTLISTED' ? 'Bid shortlisted' : 'Bid not selected'
+    const notifBody = status === 'ACCEPTED'
+      ? `Your bid on "${requirement.title}" was accepted. Contact the buyer to proceed.`
+      : status === 'SHORTLISTED'
+      ? `Your bid on "${requirement.title}" has been shortlisted.`
+      : `Your bid on "${requirement.title}" was not selected this time.`
+    const notifType = status === 'ACCEPTED' ? 'BID_ACCEPTED' : status === 'SHORTLISTED' ? 'BID_SHORTLISTED' : 'BID_REJECTED'
+
+    await sendNotification({
+      userId: bid.farmerId.toString(),
+      type: notifType as 'BID_ACCEPTED' | 'BID_SHORTLISTED' | 'BID_REJECTED',
+      title: notifTitle,
+      body: notifBody,
+      link: `/requirements/${requirement._id}`,
+      data: { requirementId: requirement._id.toString(), bidId: bid._id.toString() },
+    })
 
     res.json({ success: true, data: bid })
   } catch (err) {

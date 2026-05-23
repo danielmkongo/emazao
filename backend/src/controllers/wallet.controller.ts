@@ -35,6 +35,13 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response) => {
     }
 
     wallet.balance -= amount
+    wallet.transactions.push({
+      type: 'WITHDRAWAL',
+      amount,
+      description: `Withdrawal via ${method || 'mobile_money'}`,
+      status: 'completed',
+      createdAt: new Date(),
+    })
     await wallet.save()
 
     res.json({ success: true, message: 'Withdrawal request submitted', data: { amount, method, status: 'PENDING' } })

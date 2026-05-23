@@ -313,21 +313,29 @@ export default function ProductDetail() {
   const [showBuyModal, setShowBuyModal] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [saved, setSaved] = useState(false)
+  const [savedInitialized, setSavedInitialized] = useState(false)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['product', slug],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Product>>(`/products/${slug}`)
+      const res = await api.get<ApiResponse<Product & { userSaved?: boolean }>>(`/products/${slug}`)
       return res.data.data
     },
     retry: 1,
   })
 
+  // Initialize saved state from server once data loads
+  if (data && !savedInitialized) {
+    setSaved(!!(data as any).userSaved)
+    setSavedInitialized(true)
+  }
+
   const handleSave = async () => {
     if (!isAuthenticated) { navigate('/login'); return }
     setSaved(s => !s)
     try {
-      await api.post('/social/save', { productId: data?._id })
+      const res = await api.post<{ success: boolean; saved: boolean }>('/social/save', { productId: data?._id })
+      setSaved(res.data.saved)
     } catch {
       setSaved(s => !s)
     }

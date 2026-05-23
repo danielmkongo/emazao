@@ -8,9 +8,9 @@ const router = Router()
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { cursor, limit } = req.query
+    const { cursor, limit, sort } = req.query
     const userId = (req as AuthRequest).user?.id
-    const feed = await buildFeed(userId, cursor as string | undefined, parseInt(limit as string) || 20)
+    const feed = await buildFeed(userId, cursor as string | undefined, parseInt(limit as string) || 20, sort as string)
     const nextCursor = feed.length > 0 ? feed[feed.length - 1]!.createdAt.toISOString() : null
     res.json({ success: true, data: feed, nextCursor })
   } catch (err) {

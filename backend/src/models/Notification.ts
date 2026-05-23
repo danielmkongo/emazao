@@ -1,14 +1,17 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
 export type NotificationType =
-  | 'ORDER' | 'BID' | 'MESSAGE' | 'LIKE' | 'FOLLOW'
-  | 'COMMENT' | 'PAYMENT' | 'DELIVERY' | 'PROMOTION' | 'SYSTEM'
+  | 'ORDER' | 'NEW_ORDER' | 'ORDER_SHIPPED' | 'ESCROW_RELEASED'
+  | 'BID' | 'NEW_BID' | 'BID_ACCEPTED' | 'BID_REJECTED' | 'BID_SHORTLISTED'
+  | 'MESSAGE' | 'LIKE' | 'FOLLOW' | 'COMMENT'
+  | 'PAYMENT' | 'DELIVERY' | 'PROMOTION' | 'SYSTEM'
 
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId
   type: NotificationType
   title: string
   body: string
+  link?: string
   data?: Record<string, unknown>
   isRead: boolean
   readAt?: Date
@@ -20,10 +23,16 @@ const NotificationSchema = new Schema<INotification>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
-      enum: ['ORDER', 'BID', 'MESSAGE', 'LIKE', 'FOLLOW', 'COMMENT', 'PAYMENT', 'DELIVERY', 'PROMOTION', 'SYSTEM'],
+      enum: [
+        'ORDER', 'NEW_ORDER', 'ORDER_SHIPPED', 'ESCROW_RELEASED',
+        'BID', 'NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'BID_SHORTLISTED',
+        'MESSAGE', 'LIKE', 'FOLLOW', 'COMMENT',
+        'PAYMENT', 'DELIVERY', 'PROMOTION', 'SYSTEM',
+      ],
     },
     title: { type: String, required: true },
     body: { type: String, required: true },
+    link: { type: String },
     data: { type: Schema.Types.Mixed },
     isRead: { type: Boolean, default: false },
     readAt: { type: Date },

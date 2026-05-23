@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -288,7 +288,11 @@ function ReelCard({
           </div>
         )}
         {product && (
-          <div className="flex items-center gap-3 bg-black/50 backdrop-blur rounded-xl p-3">
+          <Link
+            to={`/marketplace/product/${(product as any).slug || (product as any)._id}`}
+            className="flex items-center gap-3 bg-black/50 backdrop-blur rounded-xl p-3"
+            onPointerDown={e => e.stopPropagation()}
+          >
             <div className="h-10 w-10 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
               {(product as any).images?.[0] && <img src={(product as any).images[0]} alt="" className="w-full h-full object-cover" />}
             </div>
@@ -296,10 +300,10 @@ function ReelCard({
               <p className="text-white text-xs font-medium truncate">{(product as any).title}</p>
               <p className="text-brand-green text-xs font-semibold">{formatCurrency((product as any).price)} {(product as any).priceUnit}</p>
             </div>
-            <button className="bg-brand-green text-white text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 flex-shrink-0">
+            <span className="bg-brand-green text-white text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 flex-shrink-0">
               <ShoppingBag className="h-3 w-3" /> Buy
-            </button>
-          </div>
+            </span>
+          </Link>
         )}
       </div>
 

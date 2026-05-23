@@ -7,7 +7,7 @@ import api from '@/lib/api'
 
 export default function VerifyOtp() {
   const navigate = useNavigate()
-  const { updateUser } = useAuthStore()
+  const { updateUser, user } = useAuthStore()
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,7 +32,7 @@ export default function VerifyOtp() {
     try {
       await api.post('/auth/verify-otp', { otp: code })
       updateUser({ isVerified: true })
-      navigate('/feed')
+      navigate(user?.onboardingDone ? '/feed' : '/onboarding')
     } catch {
       setError('Invalid OTP. Try again.')
     } finally {
@@ -41,18 +41,18 @@ export default function VerifyOtp() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-dark flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[var(--c-bg)] flex items-center justify-center p-6 transition-colors duration-200">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm"
       >
-        <div className="glass rounded-2xl p-8 text-center">
+        <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl p-8 text-center shadow-lg">
           <div className="h-16 w-16 rounded-2xl bg-brand-green/15 flex items-center justify-center mx-auto mb-6">
             <span className="text-3xl">📱</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Verify your account</h1>
-          <p className="text-white/50 text-sm mb-8">Enter the 6-digit code sent to your email</p>
+          <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">Verify your account</h1>
+          <p className="text-[var(--c-text-3)] text-sm mb-8">Enter the 6-digit code sent to your email</p>
 
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
@@ -67,7 +67,7 @@ export default function VerifyOtp() {
                 value={digit}
                 onChange={(e) => handleChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className="h-14 w-11 text-center text-xl font-bold bg-brand-800 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green/40 transition-all"
+                className="h-14 w-11 text-center text-xl font-bold bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl text-[var(--c-text)] focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green/40 transition-all"
               />
             ))}
           </div>

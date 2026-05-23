@@ -15,7 +15,7 @@ export default function AdminVerification() {
   const { data, isLoading } = useQuery({
     queryKey: ['verification-pending'],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<User[]>>('/users?isVerified=false&role=FARMER&limit=50')
+      const res = await api.get<ApiResponse<User[]>>('/admin/users?isVerified=false&role=FARMER&limit=50')
       return res.data.data
     },
   })

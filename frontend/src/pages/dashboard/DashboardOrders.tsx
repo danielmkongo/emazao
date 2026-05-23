@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ShoppingBag } from 'lucide-react'
@@ -39,8 +40,9 @@ export default function DashboardOrders() {
       ) : (
         <div className="space-y-3">
           {data.map((order, i) => (
-            <motion.div key={order._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="flex items-center gap-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-4">
+            <motion.div key={order._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+            <Link to={`/orders/${order._id}`}>
+            <div className="flex items-center gap-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-4 hover:border-brand-green/30 hover:shadow-sm transition-all group">
               <div className="h-12 w-12 rounded-xl overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                 {order.items[0]?.image
                   ? <img src={order.items[0].image} alt="" className="w-full h-full object-cover" />
@@ -57,6 +59,8 @@ export default function DashboardOrders() {
               </div>
               <Badge variant={STATUS_VARIANT[order.status] ?? 'outline'}>{order.status.replace('_', ' ')}</Badge>
               <p className="text-[var(--c-text)] font-semibold font-mono text-sm">{formatCurrency(order.total)}</p>
+            </div>
+            </Link>
             </motion.div>
           ))}
         </div>

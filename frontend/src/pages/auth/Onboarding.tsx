@@ -47,14 +47,14 @@ export default function Onboarding() {
       content: (
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-white/60 mb-2 block">Country</label>
+            <label className="text-sm text-[var(--c-text-3)] mb-2 block">Country</label>
             <div className="grid grid-cols-2 gap-2">
               {countries.map((c) => (
                 <button
                   key={c}
                   onClick={() => setCountry(c)}
                   className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                    country === c ? 'bg-brand-green/15 border-brand-green text-white' : 'border-white/10 text-white/50 hover:border-white/20'
+                    country === c ? 'bg-brand-green/15 border-brand-green text-brand-green' : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40'
                   }`}
                 >
                   {c}
@@ -82,7 +82,7 @@ export default function Onboarding() {
               key={cat}
               onClick={() => toggleInterest(cat)}
               className={`px-3 py-3 rounded-xl text-sm font-medium transition-all border text-left ${
-                interests.includes(cat) ? 'bg-brand-green/15 border-brand-green text-white' : 'border-white/10 text-white/50 hover:border-white/20'
+                interests.includes(cat) ? 'bg-brand-green/15 border-brand-green text-brand-green' : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40'
               }`}
             >
               {cat}
@@ -103,7 +103,7 @@ export default function Onboarding() {
             onChange={(e) => setFarmName(e.target.value)}
             leftIcon={<Globe className="h-4 w-4" />}
           />
-          <p className="text-sm text-white/40">This is your storefront name visible to all buyers.</p>
+          <p className="text-sm text-[var(--c-text-4)]">This is your storefront name visible to all buyers.</p>
         </div>
       ),
       canNext: farmName.length >= 3,
@@ -113,7 +113,7 @@ export default function Onboarding() {
   const currentStep = steps[step]!
 
   return (
-    <div className="min-h-screen bg-brand-dark flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[var(--c-bg)] flex items-center justify-center p-6 transition-colors duration-200">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-brand-green/8 rounded-full blur-3xl" />
       </div>
@@ -128,7 +128,7 @@ export default function Onboarding() {
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`h-1.5 flex-1 rounded-full transition-all ${i <= step ? 'bg-brand-green' : 'bg-white/10'}`}
+              className={`h-1.5 flex-1 rounded-full transition-all ${i <= step ? 'bg-brand-green' : 'bg-[var(--c-border)]'}`}
             />
           ))}
         </div>
@@ -136,7 +136,7 @@ export default function Onboarding() {
         <div className="glass rounded-2xl p-8">
           <div className="mb-8">
             <p className="text-brand-lime text-sm mb-2">Step {step + 1} of {totalSteps}</p>
-            <h1 className="text-2xl font-bold text-white">{currentStep.title}</h1>
+            <h1 className="text-2xl font-bold text-[var(--c-text)]">{currentStep.title}</h1>
           </div>
 
           <AnimatePresence mode="wait">

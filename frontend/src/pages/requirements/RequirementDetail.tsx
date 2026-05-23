@@ -196,11 +196,13 @@ export default function RequirementDetail() {
                 </p>
               </div>
             </div>
-            <Link to={`/messages`}>
-              <Button size="sm" variant="outline">
-                <MessageSquare className="h-3.5 w-3.5" /> Message
-              </Button>
-            </Link>
+            {buyer && (
+              <Link to={`/messages/new?recipientId=${buyer._id}`} state={{ recipient: buyer }}>
+                <Button size="sm" variant="outline">
+                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </motion.div>
@@ -365,9 +367,11 @@ export default function RequirementDetail() {
                         <div>
                           <p className="font-semibold text-[var(--c-text)]">{farmer?.name}</p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="flex items-center gap-0.5 text-xs text-[var(--c-text-3)]">
-                              <Star className="h-3 w-3 fill-gold text-gold" /> 4.8
-                            </span>
+                            {(farmer as any)?.rating > 0 && (
+                              <span className="flex items-center gap-0.5 text-xs text-[var(--c-text-3)]">
+                                <Star className="h-3 w-3 fill-gold text-gold" /> {(farmer as any).rating.toFixed(1)}
+                              </span>
+                            )}
                             {farmer?.isVerified && (
                               <span className="text-xs text-brand-green font-medium">✓ Verified</span>
                             )}

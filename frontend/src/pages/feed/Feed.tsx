@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Filter, Flame, Clock, MapPin, Play, TrendingUp, ChevronRight } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
@@ -22,13 +22,19 @@ const TRENDING_TAGS = ['organic', 'coffee', 'maize', 'cocoa', 'spices', 'moringa
 
 export default function Feed() {
   const [activeFilter, setActiveFilter] = useState('trending')
+  const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['feed', activeFilter],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>('/feed?limit=20')
+      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>(`/feed?limit=20&sort=${activeFilter}`)
       return res.data
     },
+  })
+
+  const followMutation = useMutation({
+    mutationFn: (userId: string) => api.post(`/users/${userId}/follow`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suggested-farmers'] }),
   })
 
   const { data: farmersData } = useQuery({
@@ -167,7 +173,14 @@ export default function Feed() {
                         <p className="font-medium text-[var(--c-text)] text-xs group-hover:text-brand-green transition-colors truncate">{farmer.name}</p>
                         <p className="text-[var(--c-text-4)] text-xs">{farmer.country}</p>
                       </div>
-                      <Button size="xs" variant="outline" className="text-xs flex-shrink-0">Follow</Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="text-xs flex-shrink-0"
+                        onClick={e => { e.preventDefault(); followMutation.mutate(farmer._id) }}
+                      >
+                        Follow
+                      </Button>
                     </div>
                   </Link>
                 ))}

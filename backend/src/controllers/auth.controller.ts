@@ -6,6 +6,7 @@ import { env } from '../config/env'
 import User from '../models/User'
 import Wallet from '../models/Wallet'
 import { AuthRequest } from '../middleware/auth.middleware'
+import { sendOtpEmail } from '../services/email.service'
 
 const signAccess = (id: string, role: string, email: string) =>
   jwt.sign({ id, role, email }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions)
@@ -153,8 +154,7 @@ export const sendOtp = async (req: AuthRequest, res: Response): Promise<void> =>
 
     await User.findByIdAndUpdate(req.user!.id, { otp, otpExpiry })
 
-    // In production: send via email/SMS
-    console.log(`OTP for ${req.user!.email}: ${otp}`)
+    await sendOtpEmail(req.user!.email, otp)
 
     res.json({ success: true, message: 'OTP sent' })
   } catch (err) {

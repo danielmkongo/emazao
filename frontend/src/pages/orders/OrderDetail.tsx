@@ -101,7 +101,7 @@ export default function OrderDetail() {
   const isSeller = user?._id === (typeof order.sellerId === 'string' ? order.sellerId : seller?._id)
   const canConfirm = isBuyer && order.status === 'SHIPPED'
   const canDispute = isBuyer && ['SHIPPED', 'DELIVERED'].includes(order.status)
-  const canMarkShipped = isSeller && order.status === 'PROCESSING'
+  const canMarkShipped = isSeller && (order.status === 'PAYMENT_CONFIRMED' || order.status === 'PROCESSING')
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-8">

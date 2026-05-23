@@ -10,6 +10,7 @@ import fs from 'fs'
 import { env } from './config/env'
 import { connectDB } from './config/db'
 import { initSocket } from './socket'
+import { setIo } from './services/notification.service'
 import { errorHandler, notFound } from './middleware/errorHandler'
 
 // Routes
@@ -40,6 +41,7 @@ const io = new SocketServer(httpServer, {
   cors: { origin: env.CLIENT_URL, methods: ['GET', 'POST'] },
 })
 initSocket(io)
+setIo(io)
 
 // Middleware
 app.use(helmet({

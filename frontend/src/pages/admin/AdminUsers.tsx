@@ -22,7 +22,7 @@ export default function AdminUsers() {
       if (search) params.set('search', search)
       if (roleFilter) params.set('role', roleFilter)
       params.set('limit', '50')
-      const res = await api.get<ApiResponse<User[]>>(`/users?${params}`)
+      const res = await api.get<ApiResponse<User[]>>(`/admin/users?${params}`)
       return res.data.data
     },
   })

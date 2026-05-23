@@ -43,11 +43,44 @@ const MetricCard = ({ icon: Icon, label, value, growth, color }: {
   </motion.div>
 )
 
-const aiInsights = [
-  { icon: '🔥', text: 'Your tomato listing performed 45% better than average this week.' },
-  { icon: '⏰', text: 'Post between 6–8 PM for 2× more engagement.' },
-  { icon: '📈', text: 'Maize demand is rising in your region. Consider adding stock.' },
-]
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  if (h < 21) return 'Good evening'
+  return 'Good night'
+}
+
+function deriveInsights(data: AnalyticsOverview) {
+  const insights: { icon: string; text: string }[] = []
+
+  if (data.revenueGrowth > 0) {
+    insights.push({ icon: '📈', text: `Revenue grew ${data.revenueGrowth}% this month vs last. Your farm is trending upward.` })
+  } else if (data.revenueGrowth < 0) {
+    insights.push({ icon: '📊', text: `Revenue is down ${Math.abs(data.revenueGrowth)}% from last month. Consider promoting your top products.` })
+  }
+
+  if (data.totalViews > 0 && data.totalOrders > 0) {
+    const convRate = ((data.totalOrders / data.totalViews) * 100).toFixed(1)
+    insights.push({ icon: '🎯', text: `Conversion rate: ${convRate}% of product views lead to orders. Add quality photos to improve this.` })
+  }
+
+  if (data.totalProducts === 0) {
+    insights.push({ icon: '🌾', text: 'Add your first product to start selling. Listings with photos get 3× more views.' })
+  } else if (data.totalProducts < 3) {
+    insights.push({ icon: '🏪', text: `You have ${data.totalProducts} product${data.totalProducts !== 1 ? 's' : ''}. Farms with 5+ listings earn 40% more on average.` })
+  } else {
+    insights.push({ icon: '🔥', text: `${data.totalProducts} active products with ${data.totalViews.toLocaleString()} total views. Keep your stock updated.` })
+  }
+
+  if (data.totalReels === 0) {
+    insights.push({ icon: '🎬', text: 'Farmers who post reels get 5× more profile visits. Upload your first farm video today.' })
+  } else {
+    insights.push({ icon: '⏰', text: 'Post new products between 6–8 AM for maximum visibility in buyer feeds.' })
+  }
+
+  return insights.slice(0, 3)
+}
 
 export default function Dashboard() {
   const { user } = useAuthStore()
@@ -85,7 +118,7 @@ export default function Dashboard() {
       >
         <div>
           <h1 className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            Good morning, {user?.name?.split(' ')[0]} 👋
+            {getGreeting()}, {user?.name?.split(' ')[0]} 👋
           </h1>
           <p className="text-[var(--c-text-3)] text-sm mt-1">Here's how your farm is performing</p>
         </div>
@@ -121,7 +154,7 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="space-y-3">
-            {aiInsights.map((insight, i) => (
+            {(data ? deriveInsights(data) : []).map((insight, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -16 }}

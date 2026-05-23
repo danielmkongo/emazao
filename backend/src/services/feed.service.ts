@@ -40,7 +40,7 @@ const computeScore = (params: {
   return recency * 0.2 + engagement * 0.25 + personalization * 0.3 + verified + boost + proximity
 }
 
-export const buildFeed = async (userId?: string, cursor?: string, limit = 20): Promise<FeedItem[]> => {
+export const buildFeed = async (userId?: string, cursor?: string, limit = 20, sort = 'trending'): Promise<FeedItem[]> => {
   const [products, reels] = await Promise.all([
     Product.find({ status: 'ACTIVE' })
       .populate('sellerId', 'name username avatar isVerified country region')
@@ -94,7 +94,23 @@ export const buildFeed = async (userId?: string, cursor?: string, limit = 20): P
     })
   }
 
-  feedItems.sort((a, b) => b.score - a.score)
+  if (sort === 'latest') {
+    feedItems.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  } else if (sort === 'nearby') {
+    // Prioritize items from the same region first, then fall back to score
+    feedItems.sort((a, b) => {
+      const aData = a.data as { sellerId?: { region?: string }; userId?: { region?: string } }
+      const bData = b.data as { sellerId?: { region?: string }; userId?: { region?: string } }
+      const aRegion = (aData.sellerId as any)?.region || (aData.userId as any)?.region
+      const bRegion = (bData.sellerId as any)?.region || (bData.userId as any)?.region
+      const sameA = aRegion && aRegion === (b as any).__userRegion ? 1 : 0
+      const sameB = bRegion && bRegion === (a as any).__userRegion ? 1 : 0
+      if (sameA !== sameB) return sameB - sameA
+      return b.score - a.score
+    })
+  } else {
+    feedItems.sort((a, b) => b.score - a.score)
+  }
 
   // Apply cursor pagination
   let startIdx = 0

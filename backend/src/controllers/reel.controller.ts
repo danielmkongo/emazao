@@ -10,7 +10,7 @@ export const getReels = async (req: AuthRequest, res: Response) => {
     const limit = 10
     const reels = await Reel.find({ status: 'PUBLISHED' })
       .populate('userId', 'name username avatar isVerified')
-      .populate('productId', 'title price priceUnit images')
+      .populate('productId', 'title price priceUnit images slug')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)

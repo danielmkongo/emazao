@@ -32,7 +32,7 @@ export default function Login() {
       const res = await api.post('/auth/login', data)
       const { user, accessToken, refreshToken } = res.data.data
       setAuth(user, accessToken, refreshToken)
-      navigate('/feed')
+      navigate(user.onboardingDone ? '/feed' : '/onboarding')
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } }
       setError(e.response?.data?.message || 'Login failed')

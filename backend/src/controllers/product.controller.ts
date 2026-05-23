@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Product from '../models/Product'
+import Save from '../models/Save'
 import { AuthRequest } from '../middleware/auth.middleware'
 import slugify from 'slugify'
 import { nanoid } from 'nanoid'
@@ -82,6 +83,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 // GET /api/products/:id
 export const getProduct = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as AuthRequest
     const id = req.params['id']
     const filter = mongoose.isValidObjectId(id)
       ? { $or: [{ _id: id }, { slug: id }] }
@@ -92,7 +94,14 @@ export const getProduct = async (req: Request, res: Response): Promise<void> => 
 
     if (!product) { res.status(404).json({ success: false, message: 'Product not found' }); return }
     await Product.findByIdAndUpdate(product._id, { $inc: { viewCount: 1 } })
-    res.json({ success: true, data: product })
+
+    let userSaved = false
+    if (authReq.user?.id) {
+      const save = await Save.findOne({ userId: authReq.user.id, productId: product._id })
+      userSaved = !!save
+    }
+
+    res.json({ success: true, data: { ...product.toObject(), userSaved } })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })
   }

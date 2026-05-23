@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Wallet, TrendingUp, ArrowUpRight, RefreshCw } from 'lucide-react'
@@ -55,9 +56,11 @@ export default function DashboardWallet() {
               </p>
             )}
             <div className="flex gap-3">
-              <Button size="sm" className="bg-white text-brand-green hover:bg-white/90 font-semibold">
-                <ArrowUpRight className="h-3.5 w-3.5" /> Withdraw
-              </Button>
+              <Link to="/wallet">
+                <Button size="sm" className="bg-white text-brand-green hover:bg-white/90 font-semibold">
+                  <ArrowUpRight className="h-3.5 w-3.5" /> Withdraw
+                </Button>
+              </Link>
               <Button size="sm" variant="glass" onClick={() => refetch()}>
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>

@@ -181,7 +181,9 @@ export interface Notification {
   type: string
   title: string
   body: string
+  isRead: boolean
   data?: Record<string, unknown>
+  link?: string
   readAt?: string
   createdAt: string
 }
