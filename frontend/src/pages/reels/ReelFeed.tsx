@@ -118,6 +118,7 @@ function ReelCard({
   const [playing, setPlaying] = useState(false)
   const [buffering, setBuffering] = useState(false)
   const [showComments, setShowComments] = useState(false)
+  const [shareToast, setShareToast] = useState(false)
   const startTimeRef = useRef<number>(0)
   const { user } = useAuthStore()
 
@@ -191,13 +192,47 @@ function ReelCard({
   }
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/reels?id=${reel._id}`
-    try {
-      if (navigator.share) await navigator.share({ title: reel.title, text: reel.caption, url })
-      else await navigator.clipboard.writeText(url)
+    const url = `${window.location.origin}/reels`
+    let shared = false
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: reel.title, text: reel.caption ?? '', url })
+        shared = true
+      } catch (e: any) {
+        // AbortError = user cancelled the share sheet — don't count
+        if (e?.name !== 'AbortError') shared = await copyToClipboard(url)
+      }
+    } else {
+      shared = await copyToClipboard(url)
+    }
+
+    if (shared) {
       setShareCount(prev => prev + 1)
+      setShareToast(true)
+      setTimeout(() => setShareToast(false), 2000)
       api.post(`/reels/${reel._id}/share`).catch(() => {})
-    } catch {}
+    }
+  }
+
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return true
+      }
+      // HTTP fallback: execCommand works without HTTPS
+      const el = document.createElement('textarea')
+      el.value = text
+      el.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
+      document.body.appendChild(el)
+      el.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(el)
+      return ok
+    } catch {
+      return false
+    }
   }
 
   const togglePlay = () => {
@@ -320,6 +355,17 @@ function ReelCard({
             onClose={() => setShowComments(false)}
             onCommentAdded={() => setCommentCount(n => n + 1)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {shareToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
+            className="absolute bottom-36 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white text-sm px-5 py-2 rounded-full z-30 pointer-events-none whitespace-nowrap"
+          >
+            Link copied!
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

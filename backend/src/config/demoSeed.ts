@@ -18,6 +18,10 @@ import Order from '../models/Order'
 import Wallet from '../models/Wallet'
 import Reel from '../models/Reel'
 import Comment from '../models/Comment'
+import Follow from '../models/Follow'
+import Like from '../models/Like'
+import Save from '../models/Save'
+import Review from '../models/Review'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import Notification from '../models/Notification'
@@ -53,6 +57,10 @@ async function main() {
     Wallet.deleteMany({}),
     Reel.deleteMany({}),
     Comment.deleteMany({}),
+    Follow.deleteMany({}),
+    Like.deleteMany({}),
+    Save.deleteMany({}),
+    Review.deleteMany({}),
     Conversation.deleteMany({}),
     Message.deleteMany({}),
     Notification.deleteMany({}),
@@ -1372,7 +1380,102 @@ async function main() {
   ])
   console.log('🛒 Created 6 orders')
 
-  // ─── 10. CONVERSATIONS & MESSAGES ────────────────────────────────────────────
+  // ─── 10. SOCIAL GRAPH — Follow, Like, Save, Review ──────────────────────────
+  // Follow relationships: buyers follow farmers they interact with; farmers follow peers
+  await Follow.insertMany([
+    // Sarah (buyer1) follows farmers she buys from / discovers
+    { followerId: buyer1._id, followingId: farmer1._id },
+    { followerId: buyer1._id, followingId: farmer2._id },
+    { followerId: buyer1._id, followingId: farmer4._id },
+    // Ali (buyer2) follows his coffee suppliers
+    { followerId: buyer2._id, followingId: farmer2._id },
+    { followerId: buyer2._id, followingId: farmer5._id },
+    { followerId: buyer2._id, followingId: farmer1._id },
+    // Fatima (buyer3) follows Ethiopian and spice farmers
+    { followerId: buyer3._id, followingId: farmer5._id },
+    { followerId: buyer3._id, followingId: farmer2._id },
+    // Farmers following peers — community feel
+    { followerId: farmer1._id, followingId: farmer2._id },
+    { followerId: farmer1._id, followingId: farmer5._id },
+    { followerId: farmer3._id, followingId: farmer2._id },
+    { followerId: farmer4._id, followingId: farmer5._id },
+    { followerId: farmer4._id, followingId: farmer2._id },
+    { followerId: farmer5._id, followingId: farmer2._id },
+    { followerId: farmer2._id, followingId: farmer5._id },
+  ])
+  console.log('👥 Created 15 follow relationships')
+
+  // Likes on reels — seed users liking content they interact with
+  await Like.insertMany([
+    // Sarah likes reels from farmers she buys from
+    { userId: buyer1._id, targetId: insertedReels[0]._id, targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: buyer1._id, targetId: insertedReels[15]._id, targetType: 'Reel' }, // avocado
+    // Ali likes coffee reels
+    { userId: buyer2._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[7]._id, targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: buyer2._id, targetId: insertedReels[16]._id, targetType: 'Reel' }, // cupping
+    // Fatima likes health/superfood reels
+    { userId: buyer3._id, targetId: insertedReels[9]._id, targetType: 'Reel' },
+    { userId: buyer3._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: buyer3._id, targetId: insertedReels[4]._id, targetType: 'Reel' }, // vanilla
+    // Farmers liking each other's reels — peer support
+    { userId: farmer1._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: farmer1._id, targetId: insertedReels[7]._id, targetType: 'Reel' },
+    { userId: farmer4._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: farmer3._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
+    { userId: farmer2._id, targetId: insertedReels[8]._id, targetType: 'Reel' },
+    { userId: farmer5._id, targetId: insertedReels[3]._id, targetType: 'Reel' },
+    // Likes on products
+    { userId: buyer1._id, targetId: products[0]._id, targetType: 'Product' },
+    { userId: buyer1._id, targetId: products[5]._id, targetType: 'Product' },
+    { userId: buyer2._id, targetId: products[5]._id, targetType: 'Product' },
+    { userId: buyer2._id, targetId: products[20]._id, targetType: 'Product' },
+    { userId: buyer3._id, targetId: products[22]._id, targetType: 'Product' },
+    { userId: buyer3._id, targetId: products[7]._id, targetType: 'Product' },
+    { userId: farmer4._id, targetId: products[20]._id, targetType: 'Product' },
+  ])
+  console.log('❤️  Created 23 likes (reels + products)')
+
+  // Saved products — buyers bookmarking items they intend to buy
+  await Save.insertMany([
+    { userId: buyer1._id, productId: products[0]._id },  // sarah: organic tomatoes
+    { userId: buyer1._id, productId: products[2]._id },  // sarah: french beans
+    { userId: buyer1._id, productId: products[5]._id },  // sarah: kilimanjaro coffee
+    { userId: buyer2._id, productId: products[5]._id },  // ali: kilimanjaro coffee
+    { userId: buyer2._id, productId: products[20]._id }, // ali: yirgacheffe
+    { userId: buyer2._id, productId: products[15]._id }, // ali: bugisu
+    { userId: buyer3._id, productId: products[22]._id }, // fatima: moringa
+    { userId: buyer3._id, productId: products[21]._id }, // fatima: teff
+    { userId: buyer3._id, productId: products[7]._id },  // fatima: vanilla beans
+    { userId: buyer3._id, productId: products[11]._id }, // fatima: cocoa
+  ])
+  console.log('🔖 Created 10 saved products')
+
+  // Reviews on completed orders — real purchase-verified reviews
+  await Review.insertMany([
+    {
+      authorId: buyer1._id, targetId: farmer1._id,
+      productId: products[0]._id, orderId: order1._id,
+      rating: 5,
+      title: 'Exceptional quality — exactly as described',
+      content: 'James delivered 500kg of the most perfect tomatoes I have sourced in years. Every single one met our supermarket grading spec. On-time delivery before 5AM, KEPHIS certified, beautifully packed in 15kg nets. The Brix levels were consistent batch to batch. Already placed a repeat weekly order. Highest possible recommendation for any buyer needing reliable, certified fresh produce from Kenya.',
+      isVerifiedPurchase: true,
+    },
+    {
+      authorId: buyer3._id, targetId: farmer1._id,
+      productId: products[1]._id, orderId: order6._id,
+      rating: 5,
+      title: 'Excellent white maize — will reorder monthly',
+      content: 'Moisture content spot-on below 13.5%, aflatoxin levels well within limits, clean and well-graded. The Halal-certified packing was arranged without any additional fuss — very professional. Shipped from Mombasa on schedule. Riyadh Food Co. will be making this a regular monthly contract.',
+      isVerifiedPurchase: true,
+    },
+  ])
+  console.log('⭐ Created 2 verified reviews')
+
+  // ─── 11. CONVERSATIONS & MESSAGES ────────────────────────────────────────────
   const [conv1, conv2, conv3, conv4, conv5] = await Conversation.insertMany([
     { participants: [buyer1._id, farmer1._id], type: 'DIRECT', lastMessage: 'Thank you! The tomatoes were perfect.', lastMessageAt: daysAgo(10) },
     { participants: [buyer2._id, farmer2._id], type: 'DIRECT', lastMessage: 'Shipment confirmed. DHL tracking: 1Z999AA10123456784', lastMessageAt: daysAgo(3) },
@@ -1420,7 +1523,7 @@ async function main() {
   ])
   console.log('💬 Created 5 conversations with messages')
 
-  // ─── 11. NOTIFICATIONS ───────────────────────────────────────────────────────
+  // ─── 12. NOTIFICATIONS ───────────────────────────────────────────────────────
   await Notification.insertMany([
     // farmer1 — James
     { userId: farmer1._id, type: 'ORDER', title: 'New order received!', body: 'Sarah Njoroge placed an order for 500kg Organic Tomatoes (EM-TOM2401).', isRead: true, readAt: daysAgo(17), createdAt: daysAgo(18) },
@@ -1465,7 +1568,7 @@ async function main() {
   ])
   console.log('🔔 Created 24 notifications')
 
-  console.log('\n✅ Demo seed complete! (9 users, 25 products, 10 reels, 6 requirements, 10 bids, 6 orders, 5 conversations, 24 notifications)')
+  console.log('\n✅ Demo seed complete! (9 users, 25 products, 25 reels, 6 requirements, 10 bids, 6 orders, 15 follows, 23 likes, 10 saves, 2 reviews, 5 conversations, 24 notifications)')
   console.log('══════════════════════════════════════════════')
   console.log('  Login credentials (password: Demo1234!)')
   console.log('──────────────────────────────────────────────')
