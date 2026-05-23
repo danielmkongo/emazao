@@ -60,16 +60,17 @@ export default function Explore() {
     staleTime: 20_000,
   })
 
-  const { data: farmersData, isLoading: farmersLoading } = useQuery({
+  const { data: farmersData, isLoading: farmersLoading, error: farmersError } = useQuery({
     queryKey: ['explore-farmers', debouncedQuery],
     queryFn: async () => {
-      const params = new URLSearchParams({ role: 'FARMER', limit: '20' })
+      const params = new URLSearchParams({ role: 'FARMER', limit: '24' })
       if (debouncedQuery) params.set('q', debouncedQuery)
       const res = await api.get<ApiResponse<User[]>>(`/users?${params}`)
       return res.data.data ?? []
     },
     staleTime: 20_000,
     enabled: activeTab === 'farmers',
+    retry: 2,
   })
 
   const products = productsData ?? []
@@ -202,9 +203,16 @@ export default function Explore() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
             </div>
+          ) : farmersError ? (
+            <div className="text-center py-20">
+              <p className="text-red-400 font-medium mb-1">Failed to load farmers</p>
+              <p className="text-[var(--c-text-4)] text-sm">{(farmersError as Error).message}</p>
+            </div>
           ) : farmers.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-[var(--c-text-3)] font-medium">No farmers found</p>
+              <p className="text-[var(--c-text-3)] font-medium">
+                {debouncedQuery ? `No farmers found for "${debouncedQuery}"` : 'No farmers yet'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

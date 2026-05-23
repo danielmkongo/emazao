@@ -36,17 +36,9 @@ export default function Storefront() {
     onError: () => setFollowing(f => !f),
   })
 
-  const handleMessage = async () => {
+  const handleMessage = () => {
     if (!isAuthenticated) { navigate('/login'); return }
-    try {
-      const res = await api.post<ApiResponse<{ conversationId: string }>>('/messages', {
-        recipientId: data!.user._id,
-        content: `Hi ${data!.user.name}! I saw your products on eMazao.`,
-      })
-      navigate(`/messages/${res.data.data.conversationId}`)
-    } catch {
-      navigate('/messages')
-    }
+    navigate(`/messages/new?recipientId=${data!.user._id}`, { state: { recipient: data!.user } })
   }
 
   if (isLoading) return (

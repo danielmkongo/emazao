@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, X, Send, Radio } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -14,7 +14,11 @@ interface ReelPage { data: Reel[]; page: number }
 interface CommentData { _id: string; userId: User; content: string; likeCount: number; createdAt: string }
 
 // ─── Comments drawer ───────────────────────────────────────────────────────────
-function CommentsDrawer({ reelId, count, onClose }: { reelId: string; count: number; onClose: () => void }) {
+function CommentsDrawer({
+  reelId, count, onClose, onCommentAdded,
+}: {
+  reelId: string; count: number; onClose: () => void; onCommentAdded: () => void
+}) {
   const { user } = useAuthStore()
   const [text, setText] = useState('')
   const queryClient = useQueryClient()
@@ -23,7 +27,7 @@ function CommentsDrawer({ reelId, count, onClose }: { reelId: string; count: num
     queryKey: ['reel-comments', reelId],
     queryFn: async () => {
       const res = await api.get<ApiResponse<CommentData[]>>(`/reels/${reelId}/comments`)
-      return res.data.data
+      return (res.data.data ?? []).filter(Boolean) as CommentData[]
     },
   })
 
@@ -33,7 +37,11 @@ function CommentsDrawer({ reelId, count, onClose }: { reelId: string; count: num
       return res.data.data
     },
     onSuccess: (comment) => {
-      queryClient.setQueryData(['reel-comments', reelId], (old: CommentData[] = []) => [comment, ...old])
+      if (!comment) return
+      queryClient.setQueryData(['reel-comments', reelId], (old: CommentData[] = []) =>
+        [comment, ...old.filter(c => c && c._id !== comment._id)]
+      )
+      onCommentAdded()
       setText('')
     },
   })
@@ -58,16 +66,19 @@ function CommentsDrawer({ reelId, count, onClose }: { reelId: string; count: num
           <div className="text-center text-white/30 text-sm py-8">Loading...</div>
         ) : !comments?.length ? (
           <div className="text-center text-white/30 text-sm py-8">No comments yet. Be the first!</div>
-        ) : comments.map(c => (
-          <div key={c._id} className="flex items-start gap-3">
-            <Avatar src={c.userId?.avatar} name={c.userId?.name} size="xs" />
-            <div className="flex-1">
-              <p className="text-white/80 text-xs font-semibold mb-0.5">@{c.userId?.username}</p>
-              <p className="text-white text-sm leading-relaxed">{c.content}</p>
-              <p className="text-white/30 text-xs mt-1">{timeAgo(c.createdAt)}</p>
+        ) : comments.filter(c => c?._id).map(c => {
+          const author = c.userId as unknown as { name?: string; username?: string; avatar?: string } | null
+          return (
+            <div key={c._id} className="flex items-start gap-3">
+              <Avatar src={author?.avatar} name={author?.name} size="xs" />
+              <div className="flex-1">
+                <p className="text-white/80 text-xs font-semibold mb-0.5">@{author?.username ?? 'user'}</p>
+                <p className="text-white text-sm leading-relaxed">{c.content}</p>
+                <p className="text-white/30 text-xs mt-1">{c.createdAt ? timeAgo(c.createdAt) : ''}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {user && (
@@ -95,9 +106,9 @@ function CommentsDrawer({ reelId, count, onClose }: { reelId: string; count: num
 
 // ─── Individual reel card ──────────────────────────────────────────────────────
 function ReelCard({
-  reel, isActive, muted, onMuteToggle,
+  reel, isActive, muted, onMuteToggle, preloadHint = 'metadata',
 }: {
-  reel: Reel; isActive: boolean; muted: boolean; onMuteToggle: () => void
+  reel: Reel; isActive: boolean; muted: boolean; onMuteToggle: () => void; preloadHint?: 'auto' | 'metadata' | 'none'
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [liked, setLiked] = useState(reel.userLiked ?? false)
@@ -105,6 +116,7 @@ function ReelCard({
   const [shareCount, setShareCount] = useState(reel.shareCount)
   const [commentCount, setCommentCount] = useState(reel.commentCount)
   const [playing, setPlaying] = useState(false)
+  const [buffering, setBuffering] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const startTimeRef = useRef<number>(0)
   const { user } = useAuthStore()
@@ -116,31 +128,49 @@ function ReelCard({
     mutationFn: (watchTime: number) => api.post(`/reels/${reel._id}/view`, { watchTime }),
   })
 
+  // Sync mute without causing re-play
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
     video.muted = muted
   }, [muted])
 
+  // Auto-play when active; pause + reset when inactive
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
+
     if (isActive) {
       video.muted = muted
-      video.play().then(() => { setPlaying(true); startTimeRef.current = Date.now() }).catch(() => {})
+
+      const tryPlay = () => {
+        setBuffering(false)
+        video.play()
+          .then(() => { setPlaying(true); startTimeRef.current = Date.now() })
+          .catch(() => { setPlaying(false) })
+      }
+
+      // If enough data is already buffered, play immediately; otherwise wait
+      if (video.readyState >= 3) {
+        tryPlay()
+      } else {
+        setBuffering(true)
+        video.addEventListener('canplay', tryPlay, { once: true })
+        return () => video.removeEventListener('canplay', tryPlay)
+      }
     } else {
       video.pause()
       video.currentTime = 0
       setPlaying(false)
+      setBuffering(false)
       setShowComments(false)
       if (startTimeRef.current) {
         viewMutation.mutate(Math.round((Date.now() - startTimeRef.current) / 1000))
         startTimeRef.current = 0
       }
     }
-  }, [isActive])
+  }, [isActive]) // intentionally exclude muted — handled by its own effect
 
-  // Sync liked state when reel data changes (e.g., after data refresh)
   useEffect(() => {
     if (reel.userLiked !== undefined) setLiked(reel.userLiked)
   }, [reel.userLiked])
@@ -178,10 +208,16 @@ function ReelCard({
         <video
           ref={videoRef}
           src={reel.videoUrl}
-          loop muted={muted} playsInline
+          loop
+          muted={muted}
+          playsInline
+          preload={isActive ? 'auto' : preloadHint}
           className="absolute inset-0 w-full h-full object-cover"
+          style={{ willChange: 'transform' }}
           onClick={togglePlay}
           onPointerDown={e => { if ((e.target as HTMLElement).tagName === 'VIDEO') e.stopPropagation() }}
+          onWaiting={() => isActive && setBuffering(true)}
+          onPlaying={() => setBuffering(false)}
         />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-brand-green/20 to-black flex items-center justify-center">
@@ -191,9 +227,16 @@ function ReelCard({
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
+      {/* Overlay: buffering spinner OR paused play button */}
       <AnimatePresence>
-        {!playing && isActive && (
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+        {isActive && buffering && (
+          <motion.div key="buf" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <Loader2 className="h-10 w-10 text-white/70 animate-spin" />
+          </motion.div>
+        )}
+        {isActive && !playing && !buffering && (
+          <motion.div key="pause" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
             className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center">
               <Play className="h-8 w-8 text-white ml-1" />
@@ -266,6 +309,7 @@ function ReelCard({
             reelId={reel._id}
             count={commentCount}
             onClose={() => setShowComments(false)}
+            onCommentAdded={() => setCommentCount(n => n + 1)}
           />
         )}
       </AnimatePresence>
@@ -287,6 +331,7 @@ export default function ReelFeed() {
   const animatingRef = useRef(false)
 
   const y = useMotionValue(0)
+  // Adjacent cards follow y in lockstep so they're always visible during the drag
   const prevCardY = useTransform(y, v => v - window.innerHeight)
   const nextCardY = useTransform(y, v => v + window.innerHeight)
 
@@ -309,16 +354,22 @@ export default function ReelFeed() {
     const rls = reelsRef.current
 
     if (targetIndex < 0 || targetIndex >= rls.length) {
-      animate(y, 0, { type: 'spring', stiffness: 500, damping: 35 })
+      // Elastic bounce back
+      animate(y, 0, { type: 'spring', stiffness: 500, damping: 40 })
       return
     }
 
     animatingRef.current = true
     const h = window.innerHeight
     const targetY = targetIndex > currentIdx ? -h : h
+    const currentVel = y.getVelocity()
 
     animate(y, targetY, {
-      type: 'spring', stiffness: 400, damping: 35,
+      type: 'spring',
+      stiffness: 550,
+      damping: 48,
+      mass: 0.85,
+      velocity: currentVel, // carry through finger velocity for natural feel
       onComplete: () => {
         currentIndexRef.current = targetIndex
         setCurrentIndex(targetIndex)
@@ -335,12 +386,13 @@ export default function ReelFeed() {
     const delta = y.get()
     const h = window.innerHeight
     const vel = y.getVelocity()
-    if (delta < -h * 0.15 || vel < -350) snapTo(currentIndexRef.current + 1)
-    else if (delta > h * 0.15 || vel > 350) snapTo(currentIndexRef.current - 1)
-    else animate(y, 0, { type: 'spring', stiffness: 500, damping: 35, velocity: vel })
+
+    if (delta < -h * 0.15 || vel < -300) snapTo(currentIndexRef.current + 1)
+    else if (delta > h * 0.15 || vel > 300) snapTo(currentIndexRef.current - 1)
+    else animate(y, 0, { type: 'spring', stiffness: 500, damping: 38, velocity: vel })
   }, [y, snapTo])
 
-  // Touch events — registered manually so touchmove can be non-passive
+  // Touch — non-passive touchmove so we can prevent page scroll
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -356,9 +408,9 @@ export default function ReelFeed() {
       if (animatingRef.current) return
       if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
       const delta = e.touches[0].clientY - startYRef.current
-      if (!draggingRef.current && Math.abs(delta) < 8) return
+      if (!draggingRef.current && Math.abs(delta) < 5) return
       draggingRef.current = true
-      e.preventDefault() // stop page scroll — works because listener is non-passive
+      e.preventDefault()
       y.set(delta)
     }
 
@@ -375,7 +427,7 @@ export default function ReelFeed() {
     }
   }, [settle, y])
 
-  // Mouse events for desktop drag
+  // Mouse drag for desktop
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -390,21 +442,19 @@ export default function ReelFeed() {
     const onMouseMove = (e: MouseEvent) => {
       if (animatingRef.current || !e.buttons) return
       const delta = e.clientY - startYRef.current
-      if (!draggingRef.current && Math.abs(delta) < 8) return
+      if (!draggingRef.current && Math.abs(delta) < 5) return
       draggingRef.current = true
       y.set(delta)
     }
 
     const onMouseLeave = () => {
       if (!draggingRef.current) return
-      // If the drag had enough momentum, complete the snap rather than snapping back
       const delta = y.get()
-      const h = window.innerHeight
       const vel = y.getVelocity()
-      if (Math.abs(delta) > h * 0.20 || Math.abs(vel) > 500) settle()
+      if (Math.abs(delta) > window.innerHeight * 0.20 || Math.abs(vel) > 400) settle()
       else {
         draggingRef.current = false
-        animate(y, 0, { type: 'spring', stiffness: 500, damping: 35 })
+        animate(y, 0, { type: 'spring', stiffness: 500, damping: 38 })
       }
     }
 
@@ -421,7 +471,7 @@ export default function ReelFeed() {
     }
   }, [settle, y])
 
-  // Wheel events
+  // Wheel — one snap per debounce window
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -429,7 +479,7 @@ export default function ReelFeed() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const now = Date.now()
-      if (animatingRef.current || now - lastTime < 350) return
+      if (animatingRef.current || now - lastTime < 300) return
       lastTime = now
       if (e.deltaY > 0) snapTo(currentIndexRef.current + 1)
       else snapTo(currentIndexRef.current - 1)
@@ -450,27 +500,55 @@ export default function ReelFeed() {
     <div
       ref={containerRef}
       className="h-screen bg-black overflow-hidden relative select-none"
+      style={{ willChange: 'transform' }}
     >
-      {/* Previous card — non-interactive, just visual */}
+      {/* Previous card */}
       {currentIndex > 0 && (
-        <motion.div className="absolute inset-0 pointer-events-none" style={{ y: prevCardY }}>
-          <ReelCard reel={reels[currentIndex - 1]} isActive={false} muted={muted} onMuteToggle={() => {}} />
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{ y: prevCardY, willChange: 'transform' }}
+        >
+          <ReelCard
+            reel={reels[currentIndex - 1]}
+            isActive={false}
+            muted={muted}
+            onMuteToggle={() => {}}
+            preloadHint="metadata"
+          />
         </motion.div>
       )}
 
       {/* Current card */}
-      <motion.div className="absolute inset-0" style={{ y }}>
-        <ReelCard reel={reels[currentIndex]} isActive={true} muted={muted} onMuteToggle={() => setMuted(m => !m)} />
+      <motion.div
+        className="absolute inset-0"
+        style={{ y, willChange: 'transform' }}
+      >
+        <ReelCard
+          reel={reels[currentIndex]}
+          isActive={true}
+          muted={muted}
+          onMuteToggle={() => setMuted(m => !m)}
+          preloadHint="auto"
+        />
       </motion.div>
 
-      {/* Next card — non-interactive, just visual */}
+      {/* Next card — preload auto so it's ready before they swipe */}
       {currentIndex < reels.length - 1 && (
-        <motion.div className="absolute inset-0 pointer-events-none" style={{ y: nextCardY }}>
-          <ReelCard reel={reels[currentIndex + 1]} isActive={false} muted={muted} onMuteToggle={() => {}} />
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{ y: nextCardY, willChange: 'transform' }}
+        >
+          <ReelCard
+            reel={reels[currentIndex + 1]}
+            isActive={false}
+            muted={muted}
+            onMuteToggle={() => {}}
+            preloadHint="auto"
+          />
         </motion.div>
       )}
 
-      {/* Go Live — farmers only, top-left */}
+      {/* Go Live — farmers only */}
       {user?.role === 'FARMER' && (
         <div className="absolute top-4 left-4 z-20">
           <button
@@ -483,7 +561,7 @@ export default function ReelFeed() {
         </div>
       )}
 
-      {/* Global mute badge top-right */}
+      {/* Mute toggle */}
       <div className="absolute top-4 right-4 z-20">
         <button
           onClick={() => setMuted(m => !m)}
@@ -494,7 +572,7 @@ export default function ReelFeed() {
         </button>
       </div>
 
-      {/* Scroll progress dots */}
+      {/* Progress dots */}
       <div className="absolute right-2 bottom-28 flex flex-col gap-1 z-10 pointer-events-none">
         {reels.slice(Math.max(0, currentIndex - 2), currentIndex + 3).map((_, i) => {
           const isActive = i === Math.min(2, currentIndex)
