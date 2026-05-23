@@ -27,7 +27,7 @@ export const listUsers = async (req: AuthRequest, res: Response) => {
 export const verifyUser = async (req: AuthRequest, res: Response) => {
   try {
     const { verifiedType } = req.body
-    const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true, verifiedType }, { new: true })
+    const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true, verifiedType }, { returnDocument: 'after' })
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
     res.json({ success: true, data: user })
   } catch (err: any) {
@@ -37,7 +37,7 @@ export const verifyUser = async (req: AuthRequest, res: Response) => {
 
 export const suspendUser = async (req: AuthRequest, res: Response) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { isSuspended: true }, { new: true })
+    const user = await User.findByIdAndUpdate(req.params.id, { isSuspended: true }, { returnDocument: 'after' })
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
     res.json({ success: true, data: user })
   } catch (err: any) {

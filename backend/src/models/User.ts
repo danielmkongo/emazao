@@ -68,8 +68,6 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 )
 
-UserSchema.index({ username: 1 })
-UserSchema.index({ email: 1 })
 UserSchema.index({ role: 1 })
 UserSchema.index({ country: 1, region: 1 })
 

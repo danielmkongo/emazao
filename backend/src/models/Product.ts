@@ -78,7 +78,6 @@ ProductSchema.index({ sellerId: 1 })
 ProductSchema.index({ categoryId: 1 })
 ProductSchema.index({ tags: 1 })
 ProductSchema.index({ status: 1, isBoosted: 1 })
-ProductSchema.index({ slug: 1 })
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' })
 
 export default mongoose.model<IProduct>('Product', ProductSchema)

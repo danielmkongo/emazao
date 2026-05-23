@@ -45,7 +45,6 @@ const SellerProfileSchema = new Schema<ISellerProfile>(
   { timestamps: true }
 )
 
-SellerProfileSchema.index({ storeSlug: 1 })
 SellerProfileSchema.index({ farmLocation: 1 })
 SellerProfileSchema.index({ specializations: 1 })
 

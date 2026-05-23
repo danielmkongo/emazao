@@ -58,7 +58,7 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key]
     }
-    const user = await User.findByIdAndUpdate(req.user!.id, updates, { new: true })
+    const user = await User.findByIdAndUpdate(req.user!.id, updates, { returnDocument: 'after' })
       .select('-passwordHash -refreshToken -otp -otpExpiry')
     res.json({ success: true, data: user })
   } catch (err) {
@@ -141,7 +141,7 @@ export const upsertSellerProfile = async (req: AuthRequest, res: Response): Prom
     const profile = await SellerProfile.findOneAndUpdate(
       { userId: req.user!.id },
       { farmName, farmDescription, farmSize, farmLocation, specializations, deliveryRadius, certifications, storeSlug },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     )
 
     // Also update role to FARMER

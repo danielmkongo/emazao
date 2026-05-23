@@ -119,7 +119,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
       if (req.body[key] !== undefined) updates[key] = req.body[key]
     }
 
-    const updated = await Product.findByIdAndUpdate(product._id, updates, { new: true })
+    const updated = await Product.findByIdAndUpdate(product._id, updates, { returnDocument: 'after' })
     res.json({ success: true, data: updated })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })
