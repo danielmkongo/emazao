@@ -80,12 +80,14 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
   }
 }
 
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i
+
 // GET /api/products/:id
 export const getProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as AuthRequest
-    const id = req.params['id']
-    const filter = mongoose.isValidObjectId(id)
+    const id = String(req.params['id'] ?? '')
+    const filter = OBJECT_ID_RE.test(id)
       ? { $or: [{ _id: id }, { slug: id }] }
       : { slug: id }
     const product = await Product.findOne(filter)

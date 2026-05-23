@@ -384,6 +384,9 @@ export default function ReelFeed() {
   const startYRef = useRef(0)
   const draggingRef = useRef(false)
   const animatingRef = useRef(false)
+  const springBackRef = useRef<{ stop: () => void } | null>(null)
+  const touchVelRef = useRef(0)  // px/ms, tracked in onTouchMove before the 5px gate
+  const lastTouchRef = useRef({ y: 0, t: 0 })
 
   const y = useMotionValue(0)
   // Adjacent cards follow y in lockstep so they're always visible during the drag
@@ -448,15 +451,21 @@ export default function ReelFeed() {
   }, [y, hasNextPage, fetchNextPage])
 
   const settle = useCallback(() => {
-    if (!draggingRef.current) return
+    if (animatingRef.current) return
+    const wasDragging = draggingRef.current
     draggingRef.current = false
     const delta = y.get()
     const h = window.innerHeight
     const vel = y.getVelocity()
+    // Fast flicks may not move y at all (< 5px threshold), so fall back to raw touch velocity
+    const effectiveVel = Math.abs(vel) >= 1 ? vel : touchVelRef.current * 1000
+    touchVelRef.current = 0
 
-    if (delta < -h * 0.15 || vel < -300) snapTo(currentIndexRef.current + 1)
-    else if (delta > h * 0.15 || vel > 300) snapTo(currentIndexRef.current - 1)
-    else animate(y, 0, { type: 'spring', stiffness: 500, damping: 38, velocity: vel })
+    if (delta < -h * 0.15 || effectiveVel < -300) snapTo(currentIndexRef.current + 1)
+    else if (delta > h * 0.15 || effectiveVel > 300) snapTo(currentIndexRef.current - 1)
+    else if (wasDragging) {
+      springBackRef.current = animate(y, 0, { type: 'spring', stiffness: 500, damping: 38, velocity: vel })
+    }
   }, [y, snapTo])
 
   // Touch — non-passive touchmove so we can prevent page scroll
@@ -465,16 +474,27 @@ export default function ReelFeed() {
     if (!el) return
 
     const onTouchStart = (e: TouchEvent) => {
+      // Cancel any in-progress spring-back so it doesn't fight with the new touch
+      springBackRef.current?.stop()
+      springBackRef.current = null
       if (animatingRef.current) return
       if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
       startYRef.current = e.touches[0].clientY
+      lastTouchRef.current = { y: e.touches[0].clientY, t: Date.now() }
+      touchVelRef.current = 0
       draggingRef.current = false
     }
 
     const onTouchMove = (e: TouchEvent) => {
       if (animatingRef.current) return
       if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
-      const delta = e.touches[0].clientY - startYRef.current
+      const currentY = e.touches[0].clientY
+      const now = Date.now()
+      // Track raw velocity before the 5px gate so fast flicks are captured
+      const dt = now - lastTouchRef.current.t
+      if (dt > 0) touchVelRef.current = (currentY - lastTouchRef.current.y) / dt
+      lastTouchRef.current = { y: currentY, t: now }
+      const delta = currentY - startYRef.current
       if (!draggingRef.current && Math.abs(delta) < 5) return
       draggingRef.current = true
       e.preventDefault()
@@ -500,6 +520,8 @@ export default function ReelFeed() {
     if (!el) return
 
     const onMouseDown = (e: MouseEvent) => {
+      springBackRef.current?.stop()
+      springBackRef.current = null
       if (animatingRef.current) return
       if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
       startYRef.current = e.clientY
@@ -521,7 +543,7 @@ export default function ReelFeed() {
       if (Math.abs(delta) > window.innerHeight * 0.20 || Math.abs(vel) > 400) settle()
       else {
         draggingRef.current = false
-        animate(y, 0, { type: 'spring', stiffness: 500, damping: 38 })
+        springBackRef.current = animate(y, 0, { type: 'spring', stiffness: 500, damping: 38 })
       }
     }
 
