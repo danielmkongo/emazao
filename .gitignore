@@ -1,0 +1,26 @@
+# Claude Code developer tooling — not project files
+.claude/skills/
+.claude/plugins/
+.claude/settings.local.json
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build outputs
+frontend/dist/
+backend/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
