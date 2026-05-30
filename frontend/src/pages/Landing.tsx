@@ -15,7 +15,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/">
-            <img src="/emazaologo.png" alt="eMazao" className="h-10 w-auto object-contain" />
+            <img src="/emazaologo.png" alt="eMazao" className="h-10 w-auto object-contain mix-blend-screen" />
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm text-white/50">
