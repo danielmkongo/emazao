@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Filter, Flame, Clock, MapPin, Play, TrendingUp, Sprout } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
+import { LiveNowRow } from '@/components/feed/LiveNowRow'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
@@ -66,6 +67,9 @@ export default function Feed() {
 
         {/* ── Main feed column ── */}
         <div className="flex-1 min-w-0">
+          {/* Live now row */}
+          <LiveNowRow />
+
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}

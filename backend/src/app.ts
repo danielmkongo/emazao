@@ -31,6 +31,7 @@ import socialRoutes from './routes/social.routes'
 import reelRoutes from './routes/reel.routes'
 import adminRoutes from './routes/admin.routes'
 import categoryRoutes from './routes/category.routes'
+import liveRoutes from './routes/live.routes'
 import { seedCategories } from './config/seed'
 
 const app = express()
@@ -79,6 +80,7 @@ app.use('/api/social', socialRoutes)
 app.use('/api/reels', reelRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/categories', categoryRoutes)
+app.use('/api/live', liveRoutes)
 
 // Serve frontend static files if built
 const frontendDist = path.join(__dirname, '../../frontend/dist')

@@ -1,4 +1,7 @@
 import { Server, Socket } from 'socket.io'
+import LiveSession from '../models/LiveSession'
+import User from '../models/User'
+import Follow from '../models/Follow'
 
 const onlineUsers = new Map<string, string>() // userId → socketId
 
@@ -62,14 +65,48 @@ export const initSocket = (io: Server): void => {
     })
 
     // ── Live Streaming ─────────────────────────────────────────────────────────
-    socket.on('live:start', (data: { broadcasterId: string; title: string }) => {
+    socket.on('live:start', async (data: { broadcasterId: string; title: string }) => {
       socket.join(`live:${data.broadcasterId}`)
-      io.emit('live:new', { broadcasterId: data.broadcasterId, title: data.title })
+
+      // Persist session to DB
+      const session = await LiveSession.findOneAndUpdate(
+        { broadcasterId: data.broadcasterId },
+        { broadcasterId: data.broadcasterId, title: data.title, startedAt: new Date(), viewerCount: 0 },
+        { upsert: true, new: true }
+      ).populate('broadcasterId', 'name username avatar isVerified')
+
+      const payload = {
+        _id: session._id,
+        broadcasterId: session.broadcasterId,
+        title: data.title,
+        viewerCount: 0,
+        startedAt: session.startedAt,
+      }
+
+      // Emit to all connected clients for global discovery
+      io.emit('live:new', payload)
+
+      // Push targeted notification to each follower's room
+      const follows = await Follow.find({ followingId: data.broadcasterId }).select('followerId').lean()
+      const broadcaster = await User.findById(data.broadcasterId).select('name').lean()
+      for (const f of follows) {
+        io.to(`user:${f.followerId}`).emit('notification:new', {
+          type: 'LIVE',
+          title: `${broadcaster?.name ?? 'A farmer'} is live!`,
+          body: data.title || 'Tap to join the stream',
+          link: `/live/${data.broadcasterId}`,
+        })
+      }
     })
 
     socket.on('live:join', (data: { broadcasterId: string; viewerId: string }) => {
       socket.join(`live:${data.broadcasterId}`)
       io.to(`user:${data.broadcasterId}`).emit('live:viewer-joined', { viewerId: data.viewerId })
+      // Increment viewer count in DB
+      LiveSession.findOneAndUpdate(
+        { broadcasterId: data.broadcasterId },
+        { $inc: { viewerCount: 1 } }
+      ).catch(() => {})
     })
 
     socket.on('live:offer', (data: { to: string; from: string; sdp: unknown }) => {
@@ -88,13 +125,22 @@ export const initSocket = (io: Server): void => {
       io.to(`live:${data.broadcasterId}`).emit('live:comment', data)
     })
 
-    socket.on('live:end', (data: { broadcasterId: string }) => {
+    socket.on('live:end', async (data: { broadcasterId: string }) => {
+      await LiveSession.deleteOne({ broadcasterId: data.broadcasterId })
       io.to(`live:${data.broadcasterId}`).emit('live:ended')
       io.emit('live:removed', { broadcasterId: data.broadcasterId })
     })
 
-    socket.on('disconnect', () => {
-      if (userId) onlineUsers.delete(userId)
+    socket.on('disconnect', async () => {
+      if (userId) {
+        onlineUsers.delete(userId)
+        // Clean up any active live session when broadcaster disconnects
+        const deleted = await LiveSession.findOneAndDelete({ broadcasterId: userId })
+        if (deleted) {
+          io.to(`live:${userId}`).emit('live:ended')
+          io.emit('live:removed', { broadcasterId: userId })
+        }
+      }
     })
   })
 }
