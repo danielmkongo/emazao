@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bell, Search, Sprout, Sun, Moon } from 'lucide-react'
+import { Bell, Search, Sprout, Sun, Moon, Settings } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
@@ -23,13 +23,8 @@ export const TopBar = () => {
 
   return (
     <header className="lg:hidden fixed top-0 left-0 right-0 z-30 glass-dark border-b border-[var(--c-border)] px-4 py-3 flex items-center gap-3 transition-colors duration-200">
-      <Link to="/feed" className="flex items-center gap-2 mr-auto">
-        <div className="h-8 w-8 rounded-xl bg-brand-green flex items-center justify-center">
-          <Sprout className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-lg font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-          eMazao
-        </span>
+      <Link to="/feed" className="flex items-center mr-auto">
+        <img src="/emazaologo.png" alt="eMazao" className="h-8 w-auto object-contain" />
       </Link>
 
       <Button variant="ghost" size="icon-sm" onClick={() => setSearchOpen(true)}>
@@ -49,6 +44,12 @@ export const TopBar = () => {
           {(notifData?.unreadCount ?? 0) > 0 && (
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-brand-green" />
           )}
+        </Button>
+      </Link>
+
+      <Link to="/settings">
+        <Button variant="ghost" size="icon-sm">
+          <Settings className="h-5 w-5 text-[var(--c-text-2)]" />
         </Button>
       </Link>
 

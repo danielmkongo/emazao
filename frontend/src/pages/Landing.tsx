@@ -14,13 +14,8 @@ export default function Landing() {
       {/* Public nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-brand-green flex items-center justify-center">
-              <Sprout className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-              eMazao
-            </span>
+          <Link to="/">
+            <img src="/emazaologo.png" alt="eMazao" className="h-8 w-auto object-contain" />
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm text-white/50">

@@ -56,13 +56,8 @@ export const Sidebar = () => {
       className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 bg-[var(--c-card)] border-r border-[var(--c-border)] z-30 py-6 px-4 transition-colors duration-200"
     >
       {/* Logo */}
-      <NavLink to="/feed" className="flex items-center gap-2.5 px-2 mb-7 cursor-pointer">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-lime to-brand-green flex items-center justify-center shadow-lg shadow-brand-green/30 flex-shrink-0">
-          <Sprout className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-xl font-bold gradient-text" style={{ fontFamily: 'var(--font-display)' }}>
-          eMazao
-        </span>
+      <NavLink to="/feed" className="flex items-center px-2 mb-7 cursor-pointer">
+        <img src="/emazaologo.png" alt="eMazao" className="h-10 w-auto object-contain" />
       </NavLink>
 
       {/* Nav groups */}

@@ -155,7 +155,7 @@ export default function Thread() {
   })
 
   return (
-    <div className="flex flex-col h-[calc(100vh-60px)] lg:h-screen bg-[var(--c-bg)]">
+    <div className="flex flex-col h-[calc(100dvh-130px)] lg:h-screen bg-[var(--c-bg)]">
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--c-border)] bg-[var(--c-card)] z-10 shrink-0">
         <button onClick={() => navigate(-1)} className="text-[var(--c-text-3)] hover:text-[var(--c-text)] transition-colors lg:hidden">

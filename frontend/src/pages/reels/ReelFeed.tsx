@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -560,7 +560,7 @@ export default function ReelFeed() {
     }
   }, [settle, y])
 
-  // Wheel — one snap per debounce window
+  // Wheel — one snap per debounce window (shorter = snappier on PC)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -568,7 +568,7 @@ export default function ReelFeed() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const now = Date.now()
-      if (animatingRef.current || now - lastTime < 300) return
+      if (animatingRef.current || now - lastTime < 180) return
       lastTime = now
       if (e.deltaY > 0) snapTo(currentIndexRef.current + 1)
       else snapTo(currentIndexRef.current - 1)
@@ -576,6 +576,17 @@ export default function ReelFeed() {
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [snapTo])
+
+  // Keyboard navigation (PC)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); snapTo(currentIndexRef.current + 1) }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); snapTo(currentIndexRef.current - 1) }
+      if (e.key === 'Escape')    navigate('/feed')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [snapTo, navigate])
 
   if (!reels.length) return (
     <div className="h-screen bg-black flex items-center justify-center flex-col gap-4">
@@ -637,9 +648,16 @@ export default function ReelFeed() {
         </motion.div>
       )}
 
-      {/* Go Live — farmers only */}
-      {user?.role === 'FARMER' && (
-        <div className="absolute top-4 left-4 z-20">
+      {/* Top-left: exit (desktop) + Go Live (farmers) */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <button
+          onClick={() => navigate('/feed')}
+          className="hidden lg:flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium border border-white/10 hover:bg-black/70 active:scale-95 transition-all"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Exit
+        </button>
+        {user?.role === 'FARMER' && (
           <button
             onClick={() => navigate('/live')}
             className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-full text-white text-xs font-bold border border-red-400/30 active:scale-95 transition-all shadow-lg"
@@ -647,8 +665,8 @@ export default function ReelFeed() {
             <Radio className="h-3.5 w-3.5" />
             Go Live
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Mute toggle */}
       <div className="absolute top-4 right-4 z-20">

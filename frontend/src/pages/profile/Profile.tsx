@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { MapPin, Calendar, Package, Star, MessageSquare, Phone, Video, UserCheck, UserPlus } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MapPin, Calendar, Package, Star, MessageSquare, Phone, Video, UserCheck, UserPlus, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,79 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User, SellerProfile } from '@/types'
 
+function FollowModal({
+  username, type, onClose,
+}: { username: string; type: 'followers' | 'following'; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['follow-list', username, type],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<User[]>>(`/users/${username}/${type}`)
+      return res.data.data ?? []
+    },
+  })
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="bg-[var(--c-card)] rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md flex flex-col"
+        style={{ maxHeight: '80vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--c-border)] flex-shrink-0">
+          <h3 className="font-semibold text-[var(--c-text)] capitalize">{type}</h3>
+          <button onClick={onClose} className="text-[var(--c-text-3)] hover:text-[var(--c-text)] transition-colors cursor-pointer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-3 space-y-1">
+          {isLoading ? (
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-32 rounded" />
+                  <Skeleton className="h-3 w-20 rounded" />
+                </div>
+              </div>
+            ))
+          ) : !data?.length ? (
+            <p className="text-center text-[var(--c-text-3)] text-sm py-10">No {type} yet</p>
+          ) : data.map(u => (
+            <Link key={u._id} to={`/profile/${u.username}`} onClick={onClose}>
+              <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--c-raised)] transition-colors cursor-pointer">
+                <Avatar src={u.avatar} name={u.name} size="sm" verified={u.isVerified} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[var(--c-text)] text-sm truncate">{u.name}</p>
+                  <p className="text-[var(--c-text-3)] text-xs">@{u.username}</p>
+                </div>
+                {u.country && <span className="text-xs text-[var(--c-text-4)] flex-shrink-0">{u.country}</span>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function Profile() {
   const { username } = useParams<{ username?: string }>()
   const { user: me } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [followed, setFollowed] = useState(false)
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
 
   const targetUsername = username ?? me?.username
 
@@ -92,7 +159,7 @@ export default function Profile() {
             <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified} />
             {isOwnProfile ? (
               <Link to="/settings">
-                <Button size="sm" variant="outline">Edit Profile / Settings</Button>
+                <Button size="sm" variant="outline">Edit Profile</Button>
               </Link>
             ) : (
               <div className="flex gap-2 flex-wrap justify-end">
@@ -124,7 +191,7 @@ export default function Profile() {
             {user.bio && <p className="text-[var(--c-text-2)] text-sm leading-relaxed">{user.bio}</p>}
           </div>
 
-          <div className="flex flex-wrap gap-4 text-sm text-[var(--c-text-3)] mb-4">
+          <div className="flex flex-wrap gap-4 text-sm text-[var(--c-text-3)] mb-5">
             {user.location && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />{user.location}
@@ -140,15 +207,22 @@ export default function Profile() {
             </span>
           </div>
 
+          {/* Clickable stats */}
           <div className="flex gap-6 text-sm">
-            <div className="text-center">
-              <p className="font-bold text-[var(--c-text)]">{formatNumber(followerCount + (followed ? 1 : 0))}</p>
+            <button
+              onClick={() => setFollowModal('followers')}
+              className="text-center cursor-pointer hover:opacity-70 transition-opacity"
+            >
+              <p className="font-bold text-[var(--c-text)]">{formatNumber(followerCount + (followed && !isOwnProfile ? 1 : 0))}</p>
               <p className="text-[var(--c-text-3)] text-xs">Followers</p>
-            </div>
-            <div className="text-center">
+            </button>
+            <button
+              onClick={() => setFollowModal('following')}
+              className="text-center cursor-pointer hover:opacity-70 transition-opacity"
+            >
               <p className="font-bold text-[var(--c-text)]">{formatNumber((user as any).followingCount ?? 0)}</p>
               <p className="text-[var(--c-text-3)] text-xs">Following</p>
-            </div>
+            </button>
             {user.role === 'FARMER' && seller && (
               <>
                 <div className="text-center">
@@ -193,6 +267,17 @@ export default function Profile() {
           </Link>
         </motion.div>
       )}
+
+      {/* Followers / Following modal */}
+      <AnimatePresence>
+        {followModal && (
+          <FollowModal
+            username={targetUsername!}
+            type={followModal}
+            onClose={() => setFollowModal(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

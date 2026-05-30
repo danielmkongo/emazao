@@ -71,16 +71,20 @@ export const FeaturesSection = () => (
         {features.map(({ icon: Icon, title, desc, color }, i) => (
           <motion.div
             key={title}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.08 }}
-            whileHover={{ y: -4, scale: 1.01 }}
-            className={`bg-gradient-to-br ${colorMap[color]} border rounded-2xl p-6 cursor-default`}
+            initial={{ opacity: 0, y: 40, scale: 0.95, filter: 'blur(8px)' }}
+            whileInView={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ delay: i * 0.08, duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -6, scale: 1.02 }}
+            className={`bg-gradient-to-br ${colorMap[color]} border rounded-2xl p-6 cursor-default group transition-shadow duration-300 hover:shadow-2xl`}
           >
-            <div className={`h-12 w-12 rounded-xl bg-brand-dark flex items-center justify-center mb-5 ${colorMap[color].split(' ')[3]}`}>
+            <motion.div
+              className={`h-12 w-12 rounded-xl bg-brand-dark flex items-center justify-center mb-5 ${colorMap[color].split(' ')[3]}`}
+              whileHover={{ rotate: [0, -8, 8, 0] }}
+              transition={{ duration: 0.4 }}
+            >
               <Icon className="h-6 w-6" />
-            </div>
+            </motion.div>
             <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
             <p className="text-white/50 text-sm leading-relaxed">{desc}</p>
           </motion.div>
