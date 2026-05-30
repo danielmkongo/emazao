@@ -9,27 +9,45 @@ import { useUIStore } from '@/store/uiStore'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
-const navItems = [
-  { icon: Home,         label: 'Feed',         href: '/feed' },
-  { icon: Search,       label: 'Explore',       href: '/explore' },
-  { icon: Play,         label: 'Reels',         href: '/reels' },
-  { icon: ShoppingBag,  label: 'Market',        href: '/marketplace' },
-  { icon: FileText,     label: 'Requirements',  href: '/requirements' },
-  { icon: MessageSquare,label: 'Messages',      href: '/messages' },
-  { icon: Package,      label: 'Orders',        href: '/orders' },
-  { icon: Wallet,       label: 'Wallet',        href: '/wallet' },
-  { icon: Bell,         label: 'Alerts',        href: '/notifications' },
+const navGroups = [
+  {
+    label: 'Discover',
+    items: [
+      { icon: Home,        label: 'Feed',        href: '/feed' },
+      { icon: Search,      label: 'Explore',     href: '/explore' },
+      { icon: Play,        label: 'Reels',       href: '/reels' },
+      { icon: ShoppingBag, label: 'Marketplace', href: '/marketplace' },
+    ],
+  },
+  {
+    label: 'Trade',
+    items: [
+      { icon: FileText, label: 'Requirements', href: '/requirements' },
+      { icon: Package,  label: 'Orders',       href: '/orders' },
+      { icon: Wallet,   label: 'Wallet',       href: '/wallet' },
+    ],
+  },
+  {
+    label: 'Connect',
+    items: [
+      { icon: MessageSquare, label: 'Messages', href: '/messages' },
+      { icon: Bell,          label: 'Alerts',   href: '/notifications' },
+    ],
+  },
 ]
+
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border-l-[3px]',
+    isActive
+      ? 'bg-brand-green/12 text-brand-green border-brand-green pl-[calc(0.75rem-3px)]'
+      : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] border-transparent'
+  )
 
 export const Sidebar = () => {
   const { user, clearAuth } = useAuthStore()
   const { theme, toggleTheme } = useUIStore()
   const navigate = useNavigate()
-
-  const handleLogout = () => {
-    clearAuth()
-    navigate('/login')
-  }
 
   return (
     <motion.aside
@@ -38,97 +56,99 @@ export const Sidebar = () => {
       className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 bg-[var(--c-card)] border-r border-[var(--c-border)] z-30 py-6 px-4 transition-colors duration-200"
     >
       {/* Logo */}
-      <NavLink to="/feed" className="flex items-center gap-2 px-2 mb-8">
-        <div className="h-9 w-9 rounded-xl bg-brand-green flex items-center justify-center shadow-lg shadow-brand-green/20">
+      <NavLink to="/feed" className="flex items-center gap-2.5 px-2 mb-7 cursor-pointer">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-lime to-brand-green flex items-center justify-center shadow-lg shadow-brand-green/30 flex-shrink-0">
           <Sprout className="h-5 w-5 text-white" />
         </div>
-        <span className="text-xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
+        <span className="text-xl font-bold gradient-text" style={{ fontFamily: 'var(--font-display)' }}>
           eMazao
         </span>
       </NavLink>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar">
-        {navItems.map(({ icon: Icon, label, href }) => (
-          <NavLink
-            key={href}
-            to={href}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-                isActive
-                  ? 'bg-brand-green/12 text-brand-green'
-                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)]'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-brand-green' : '')} />
-                {label}
-              </>
-            )}
-          </NavLink>
+      {/* Nav groups */}
+      <nav className="flex-1 space-y-5 overflow-y-auto no-scrollbar">
+        {navGroups.map(({ label, items }) => (
+          <div key={label}>
+            <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--c-text-4)]">
+              {label}
+            </p>
+            <div className="space-y-0.5">
+              {items.map(({ icon: Icon, label: itemLabel, href }) => (
+                <NavLink key={href} to={href} className={linkClass}>
+                  {({ isActive }) => (
+                    <>
+                      <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-brand-green' : '')} />
+                      {itemLabel}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
 
+        {/* Farmer-only tools */}
         {user?.role === 'FARMER' && (
-          <NavLink
-            to="/live"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-                isActive
-                  ? 'bg-red-500/12 text-red-400'
-                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)]'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Radio className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-red-400' : '')} />
-                Go Live
-              </>
-            )}
-          </NavLink>
-        )}
-
-        {user?.role === 'FARMER' && (
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-                isActive
-                  ? 'bg-gold/12 text-gold'
-                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)]'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <LayoutDashboard className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-gold' : '')} />
-                Dashboard
-              </>
-            )}
-          </NavLink>
+          <div>
+            <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--c-text-4)]">
+              Farm Tools
+            </p>
+            <div className="space-y-0.5">
+              <NavLink
+                to="/live"
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border-l-[3px]',
+                    isActive
+                      ? 'bg-red-500/10 text-red-400 border-red-400 pl-[calc(0.75rem-3px)]'
+                      : 'text-[var(--c-text-2)] hover:text-red-400 hover:bg-red-500/5 border-transparent'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Radio className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-red-400' : 'text-red-400/50')} />
+                    Go Live
+                    <span className="ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  </>
+                )}
+              </NavLink>
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border-l-[3px]',
+                    isActive
+                      ? 'bg-gold/12 text-gold border-gold pl-[calc(0.75rem-3px)]'
+                      : 'text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] border-transparent'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <LayoutDashboard className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-gold' : '')} />
+                    Dashboard
+                  </>
+                )}
+              </NavLink>
+            </div>
+          </div>
         )}
       </nav>
 
       {/* Bottom actions */}
       <div className="border-t border-[var(--c-border)] pt-4 space-y-1">
-        {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-all"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-all cursor-pointer"
         >
           {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         </button>
 
-        {/* Profile link */}
         <NavLink
           to="/profile"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--c-raised)] transition-colors"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--c-raised)] transition-colors cursor-pointer"
         >
           <Avatar src={user?.avatar} name={user?.name} size="sm" verified={user?.isVerified} />
           <div className="flex-1 min-w-0">
@@ -139,8 +159,8 @@ export const Sidebar = () => {
         </NavLink>
 
         <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--c-text-3)] hover:text-red-500 hover:bg-red-500/5 transition-all"
+          onClick={() => { clearAuth(); navigate('/login') }}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--c-text-3)] hover:text-red-500 hover:bg-red-500/5 transition-all cursor-pointer"
         >
           <LogOut className="h-5 w-5" />
           Sign Out

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Filter, Flame, Clock, MapPin, Play, TrendingUp, ChevronRight } from 'lucide-react'
+import { Filter, Flame, Clock, MapPin, Play, TrendingUp, Sprout } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -86,14 +86,21 @@ export default function Feed() {
               <button
                 key={value}
                 onClick={() => setActiveFilter(value)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   activeFilter === value
-                    ? 'bg-brand-green text-white shadow-md shadow-brand-green/20'
+                    ? 'text-white'
                     : 'bg-[var(--c-card)] text-[var(--c-text-2)] border border-[var(--c-border)] hover:border-brand-green/40'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {label}
+                {activeFilter === value && (
+                  <motion.div
+                    layoutId="feed-filter-pill"
+                    className="absolute inset-0 bg-brand-green rounded-full shadow-md shadow-brand-green/25"
+                    transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                  />
+                )}
+                <Icon className="h-4 w-4 relative z-10" />
+                <span className="relative z-10">{label}</span>
               </button>
             ))}
           </div>
@@ -105,7 +112,9 @@ export default function Feed() {
             </div>
           ) : feedItems.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24">
-              <span className="text-6xl mb-4 block">🌾</span>
+              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
+                <Sprout className="h-8 w-8 text-brand-green/60" />
+              </div>
               <h3 className="text-lg font-semibold text-[var(--c-text)] mb-2">Your feed is empty</h3>
               <p className="text-[var(--c-text-3)] text-sm">Follow some farmers to see their products and reels here.</p>
               <Link to="/explore" className="mt-6 inline-block">
