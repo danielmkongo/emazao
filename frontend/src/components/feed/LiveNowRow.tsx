@@ -40,7 +40,8 @@ export const LiveNowRow = () => {
 
     socket.on('live:new', (session: LiveSession) => {
       setSessions(prev => {
-        const alreadyIn = prev.some(s => s.broadcasterId._id === (session.broadcasterId as any)?._id ?? session.broadcasterId)
+        const incomingId = (session.broadcasterId as any)?._id ?? session.broadcasterId
+        const alreadyIn = prev.some(s => s.broadcasterId._id === incomingId)
         return alreadyIn ? prev : [session, ...prev]
       })
     })
