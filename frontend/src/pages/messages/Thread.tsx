@@ -154,6 +154,13 @@ export default function Thread() {
     return { msg, isMe, prevSame, nextSame, isLast, showDay }
   })
 
+  const startCall = (video: boolean) => {
+    if (!other?._id) return
+    window.dispatchEvent(new CustomEvent('emazao:call-out', {
+      detail: { calleeId: other._id, calleeName: other.name, calleeAvatar: other.avatar, video },
+    }))
+  }
+
   return (
     <div className="flex flex-col h-[calc(100dvh-130px)] lg:h-screen bg-[var(--c-bg)]">
       {/* ── Header ── */}
@@ -171,10 +178,10 @@ export default function Thread() {
           {other?.username && <p className="text-[var(--c-text-4)] text-xs">@{other.username}</p>}
         </div>
         <div className="flex items-center gap-1">
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors">
+          <button onClick={() => startCall(false)} disabled={!other} aria-label="Voice call" className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors disabled:opacity-40">
             <Phone className="h-4 w-4" />
           </button>
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors">
+          <button onClick={() => startCall(true)} disabled={!other} aria-label="Video call" className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors disabled:opacity-40">
             <Video className="h-4 w-4" />
           </button>
           <button className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors">

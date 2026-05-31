@@ -20,6 +20,11 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    // Free public TURN relay so calls also connect across different networks
+    // (mobile data ↔ wifi / strict NATs), where STUN alone fails.
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
 }
 
@@ -185,10 +190,15 @@ export default function CallModal({
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center"
       >
-        {/* Remote video (full screen) */}
-        {call.video && call.type === 'connected' && (
+        {/* Remote media. For video calls it fills the screen; for audio calls the
+            same element is kept offscreen but still plays the remote sound (a
+            display:none element can be muted by some browsers, so we hide it via
+            size/opacity instead). */}
+        {call.type === 'connected' && (
           <video ref={remoteVideoRef} autoPlay playsInline
-            className="absolute inset-0 w-full h-full object-cover" />
+            className={call.video
+              ? 'absolute inset-0 w-full h-full object-cover'
+              : 'absolute w-px h-px opacity-0 pointer-events-none'} />
         )}
 
         {/* Local video (pip) */}
