@@ -84,6 +84,26 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
+  /* App-wide: interactive elements get a pointer; disabled ones don't */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary,
+  a[href] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Visible keyboard focus ring app-wide (mouse clicks stay clean via :focus-visible) */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-green);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   ::-webkit-scrollbar       { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--c-scroll-track); }
   ::-webkit-scrollbar-thumb { background: var(--c-scroll-thumb); border-radius: 3px; }
