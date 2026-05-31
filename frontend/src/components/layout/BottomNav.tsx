@@ -18,6 +18,28 @@ const farmerTabs = [
   { icon: MessageSquare, label: 'Messages', href: '/messages' },
 ]
 
+function Tab({ icon: Icon, label, href }: { icon: typeof Home; label: string; href: string }) {
+  return (
+    <NavLink to={href} className="relative flex-1">
+      {({ isActive }) => (
+        <div className="relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[48px]">
+          {isActive && (
+            <motion.div
+              layoutId="bottom-nav-pill"
+              className="absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-gradient-to-b from-brand-green/20 to-brand-emerald/10 border border-brand-green/20"
+              transition={{ type: 'spring', stiffness: 500, damping: 42 }}
+            />
+          )}
+          <Icon className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
+          <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
+            {label}
+          </span>
+        </div>
+      )}
+    </NavLink>
+  )
+}
+
 export const BottomNav = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -25,85 +47,49 @@ export const BottomNav = () => {
   const tabs = isFarmer ? farmerTabs : buyerTabs
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-dark border-t border-[var(--c-border)] safe-area-pb transition-colors duration-200">
-      <div className="flex items-center justify-around px-2 py-1.5">
-        {tabs.map(({ icon: Icon, label, href }) => (
-          <NavLink key={href} to={href}>
-            {({ isActive }) => (
-              <div className="relative flex flex-col items-center gap-0.5 px-3.5 py-2 rounded-xl cursor-pointer min-w-[48px]">
-                {isActive && (
-                  <motion.div
-                    layoutId="bottom-nav-pill"
-                    className="absolute inset-0 bg-brand-green/12 rounded-xl"
-                    transition={{ type: 'spring', stiffness: 500, damping: 42 }}
-                  />
-                )}
-                <Icon className={cn(
-                  'h-5 w-5 relative z-10 transition-colors',
-                  isActive
-                    ? 'text-brand-green drop-shadow-[0_0_8px_rgba(22,163,74,0.5)]'
-                    : 'text-[var(--c-text-3)]'
-                )} />
-                <span className={cn(
-                  'text-[10px] font-medium relative z-10 transition-colors',
-                  isActive ? 'text-brand-green' : 'text-[var(--c-text-4)]'
-                )}>
-                  {label}
-                </span>
-              </div>
-            )}
-          </NavLink>
-        ))}
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1 pointer-events-none">
+      <nav className="pointer-events-auto glass-dark rounded-[22px] border border-[var(--c-border)] shadow-xl shadow-black/10 flex items-center px-1.5">
+        {tabs.map(t => <Tab key={t.href} {...t} />)}
 
-        {/* Go Live — farmers get a prominent centre button */}
+        {/* Go Live — farmers get a prominent centre action */}
         {isFarmer && (
           <button
             onClick={() => navigate('/live')}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl cursor-pointer active:scale-95 transition-transform"
+            aria-label="Go live"
+            className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 active:scale-95 transition-transform flex-shrink-0"
           >
-            <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center shadow-lg shadow-red-500/30">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/40">
               <Radio className="h-4 w-4 text-white" />
             </div>
             <span className="text-[10px] font-bold text-red-400">Live</span>
           </button>
         )}
 
-        {/* Profile tab */}
-        <NavLink to="/profile">
+        {/* Profile */}
+        <NavLink to="/profile" className="relative flex-1">
           {({ isActive }) => (
-            <div className="relative flex flex-col items-center gap-0.5 px-3.5 py-2 rounded-xl cursor-pointer min-w-[48px]">
+            <div className="relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[48px]">
               {isActive && (
                 <motion.div
                   layoutId="bottom-nav-pill"
-                  className="absolute inset-0 bg-brand-green/12 rounded-xl"
+                  className="absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-gradient-to-b from-brand-green/20 to-brand-emerald/10 border border-brand-green/20"
                   transition={{ type: 'spring', stiffness: 500, damping: 42 }}
                 />
               )}
               {user?.avatar ? (
-                <div className={cn(
-                  'relative z-10 rounded-full transition-all',
-                  isActive ? 'ring-2 ring-brand-green ring-offset-1 ring-offset-transparent' : ''
-                )}>
+                <div className={cn('relative z-10 rounded-full transition-all', isActive && 'ring-2 ring-brand-green ring-offset-1 ring-offset-[var(--c-card)]')}>
                   <Avatar src={user.avatar} name={user.name} size="xs" />
                 </div>
               ) : (
-                <User className={cn(
-                  'h-5 w-5 relative z-10 transition-colors',
-                  isActive
-                    ? 'text-brand-green drop-shadow-[0_0_8px_rgba(22,163,74,0.5)]'
-                    : 'text-[var(--c-text-3)]'
-                )} />
+                <User className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
               )}
-              <span className={cn(
-                'text-[10px] font-medium relative z-10 transition-colors',
-                isActive ? 'text-brand-green' : 'text-[var(--c-text-4)]'
-              )}>
+              <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
                 Profile
               </span>
             </div>
           )}
         </NavLink>
-      </div>
-    </nav>
+      </nav>
+    </div>
   )
 }
