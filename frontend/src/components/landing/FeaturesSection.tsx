@@ -47,8 +47,8 @@ const colorMap: Record<string, string> = {
 }
 
 export const FeaturesSection = () => (
-  <section className="py-32 px-6">
-    <div className="max-w-6xl mx-auto">
+  <section className="py-32 px-6 lg:px-10">
+    <div className="max-w-7xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}

@@ -86,10 +86,10 @@ export const Sidebar = () => {
     <motion.aside
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 z-30 bg-[var(--c-card)] border-r border-[var(--c-border)] transition-colors duration-200"
+      className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 z-30 bg-[var(--c-rail)] border-r border-[var(--c-border)] transition-colors duration-200"
     >
-      {/* Logo header (size unchanged) */}
-      <NavLink to="/feed" className="flex items-center justify-start pl-4 pt-5 pb-6 flex-shrink-0">
+      {/* Logo header (size unchanged), centered */}
+      <NavLink to="/feed" className="flex items-center justify-center pt-5 pb-6 flex-shrink-0">
         <Logo className="h-44 w-auto" />
       </NavLink>
 

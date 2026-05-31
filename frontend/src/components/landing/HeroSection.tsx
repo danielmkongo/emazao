@@ -10,8 +10,6 @@ const stats = [
   { icon: Users,      label: 'Farmers to Reach',   value: '500M+' },
 ]
 
-const TICKER = ['Tomatoes', 'Coffee', 'Cocoa', 'Vanilla', 'Maize', 'Avocado', 'Cardamom', 'Moringa', 'Teff', 'Cashew', 'Macadamia', 'Palm Oil', 'Saffron', 'Plantain', 'Ginger', 'Turmeric']
-
 const floatingCards = [
   { icon: Leaf, label: 'Organic Coffee', sub: 'James Farm · Kenya', price: '$4.20/kg', color: 'from-brand-green/20 to-brand-green/5', x: '72%', y: '18%', delay: 0 },
   { icon: ShoppingBag, label: 'Hass Avocado', sub: '1,200 units available', price: '$0.85/pc', color: 'from-gold/20 to-gold/5', x: '68%', y: '55%', delay: 0.4 },
@@ -62,7 +60,7 @@ export const HeroSection = () => {
 
       {/* Main content */}
       <motion.div style={{ opacity: contentOpacity, y: contentY }}
-        className="relative z-10 max-w-6xl mx-auto px-6 pt-32 pb-24 w-full">
+        className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 pt-32 pb-24 w-full">
 
         <div className="max-w-3xl">
           {/* Live pill */}
@@ -185,22 +183,6 @@ export const HeroSection = () => {
           ))}
         </div>
       </motion.div>
-
-      {/* Crop ticker strip */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 overflow-hidden border-t border-white/[0.06] bg-black/40 backdrop-blur-sm py-3">
-        <motion.div
-          className="flex gap-10 whitespace-nowrap w-max"
-          animate={{ x: ['0%', '-50%'] }}
-          transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
-        >
-          {[...TICKER, ...TICKER].map((crop, i) => (
-            <span key={i} className="text-xs text-white/30 font-medium tracking-wider uppercase flex items-center gap-3">
-              <span className="h-1 w-1 rounded-full bg-brand-green/50 flex-shrink-0" />
-              {crop}
-            </span>
-          ))}
-        </motion.div>
-      </div>
 
       {/* Scroll indicator */}
       <motion.div

@@ -14,7 +14,7 @@ export default function Landing() {
     <div className="min-h-screen bg-brand-dark" data-theme="dark">
       {/* Public nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-white/[0.06]">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <Link to="/">
             <Logo className="h-14 w-auto" />
           </Link>

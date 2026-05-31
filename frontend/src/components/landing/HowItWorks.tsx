@@ -35,8 +35,8 @@ const colorClass: Record<string, string> = {
 }
 
 export const HowItWorks = () => (
-  <section className="py-32 px-6 bg-brand-800/30 overflow-hidden">
-    <div className="max-w-6xl mx-auto">
+  <section className="py-32 px-6 lg:px-10 bg-brand-800/30 overflow-hidden">
+    <div className="max-w-7xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}

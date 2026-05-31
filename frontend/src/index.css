@@ -27,6 +27,7 @@
 :root {
   --c-bg:          #f8fafc;
   --c-card:        #ffffff;
+  --c-rail:        #ffffff;   /* left sidebar + right info panel */
   --c-input:       #f1f5f9;
   --c-raised:      #e9f0fb;
   --c-border:      #e2e8f0;
@@ -43,6 +44,7 @@
 [data-theme="dark"] {
   --c-bg:          #0A0F0D;
   --c-card:        #111827;
+  --c-rail:        #121519;   /* side panels — dark silver / gunmetal vs the black canvas */
   --c-input:       #1F2937;
   --c-raised:      #1F2937;
   --c-border:      rgba(255, 255, 255, 0.06);

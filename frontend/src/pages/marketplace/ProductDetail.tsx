@@ -526,7 +526,7 @@ export default function ProductDetail() {
             )}
 
             {/* Actions — sticky on mobile */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-[var(--c-bg)]/95 backdrop-blur border-t border-[var(--c-border)] flex gap-3 md:relative md:bottom-auto md:left-auto md:right-auto md:p-0 md:bg-transparent md:backdrop-blur-none md:border-none z-30">
+            <div className="fixed bottom-[calc(84px_+_env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-[var(--c-bg)]/95 backdrop-blur border-t border-[var(--c-border)] flex gap-3 md:relative md:bottom-auto md:left-auto md:right-auto md:p-0 md:bg-transparent md:backdrop-blur-none md:border-none z-40">
               <Button
                 size="lg"
                 className="flex-1"

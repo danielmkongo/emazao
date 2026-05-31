@@ -70,7 +70,7 @@ export const RightPanel = () => {
   const products = hotProducts ?? []
 
   return (
-    <aside className="hidden xl:flex flex-col fixed right-0 top-0 bottom-0 w-80 z-20 border-l border-[var(--c-border)] bg-[var(--c-bg)] transition-colors duration-200">
+    <aside className="hidden xl:flex flex-col fixed right-0 top-0 bottom-0 w-80 z-20 border-l border-[var(--c-border)] bg-[var(--c-rail)] transition-colors duration-200">
       <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
 
         {/* Search */}
