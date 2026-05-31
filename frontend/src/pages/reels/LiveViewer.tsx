@@ -1,14 +1,25 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Users, Heart, Share2 } from 'lucide-react'
+import { X, Send, Users, Heart, Share2, Volume2, VolumeX, Loader2, WifiOff } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
 import { formatNumber } from '@/lib/utils'
 
 interface LiveComment { username: string; text: string; id: string }
 
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] }
+// STUN + free TURN fallback for cross-network connections
+const ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+}
+
+type ConnState = 'connecting' | 'connected' | 'failed'
 
 export default function LiveViewer() {
   const { broadcasterId } = useParams<{ broadcasterId: string }>()
@@ -18,7 +29,8 @@ export default function LiveViewer() {
   const [comments, setComments] = useState<LiveComment[]>([])
   const [viewerCount, setViewerCount] = useState(1)
   const [streamEnded, setStreamEnded] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  const [muted, setMuted] = useState(true)          // start muted to satisfy browser autoplay
+  const [connState, setConnState] = useState<ConnState>('connecting')
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
@@ -31,7 +43,18 @@ export default function LiveViewer() {
     pcRef.current = pc
 
     pc.ontrack = e => {
-      if (videoRef.current) videoRef.current.srcObject = e.streams[0]
+      if (videoRef.current) {
+        videoRef.current.srcObject = e.streams[0]
+        setConnState('connected')
+      }
+    }
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        setConnState('failed')
+      } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        setConnState('connected')
+      }
     }
 
     pc.onicecandidate = e => {
@@ -90,8 +113,28 @@ export default function LiveViewer() {
 
   return (
     <div className="h-screen bg-black overflow-hidden relative">
-      {/* Full-screen video */}
-      <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+      {/* Full-screen video — starts muted to satisfy browser autoplay policy */}
+      <video ref={videoRef} autoPlay playsInline muted={muted} className="absolute inset-0 w-full h-full object-cover" />
+
+      {/* Connection state overlay */}
+      {connState === 'connecting' && !streamEnded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20 pointer-events-none">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-10 w-10 text-white/70 animate-spin" />
+            <p className="text-white/60 text-sm">Connecting to stream…</p>
+          </div>
+        </div>
+      )}
+      {connState === 'failed' && !streamEnded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-20">
+          <div className="flex flex-col items-center gap-4 text-center px-6">
+            <WifiOff className="h-12 w-12 text-red-400" />
+            <p className="text-white font-semibold">Connection failed</p>
+            <p className="text-white/50 text-sm">Could not reach the stream. The broadcaster may be on a restricted network.</p>
+            <button onClick={() => window.location.reload()} className="text-brand-green text-sm underline">Try again</button>
+          </div>
+        </div>
+      )}
 
       {/* Stream ended overlay */}
       {streamEnded && (
@@ -111,6 +154,14 @@ export default function LiveViewer() {
           <Users className="h-3 w-3" />{formatNumber(viewerCount)}
         </div>
         <div className="flex-1" />
+        {/* Unmute button — browsers block audio autoplay until user interaction */}
+        <button
+          onClick={() => setMuted(m => !m)}
+          className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium border border-white/20 mr-1"
+        >
+          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          {muted ? 'Unmute' : 'Mute'}
+        </button>
         <button
           onClick={async () => {
             const url = `${window.location.origin}/live/${broadcasterId}`
