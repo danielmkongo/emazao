@@ -2,8 +2,9 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
-  Package, Wallet, Bell, User, LayoutDashboard, LogOut, Sprout, Sun, Moon, Radio
+  Package, Wallet, Bell, User, LayoutDashboard, LogOut, Sun, Moon, Radio
 } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { Avatar } from '@/components/ui/avatar'
@@ -57,7 +58,7 @@ export const Sidebar = () => {
     >
       {/* Logo */}
       <NavLink to="/feed" className="flex items-center px-2 mb-7 cursor-pointer">
-        <img src="/emazao.png" alt="eMazao" className="h-14 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
+        <Logo className="h-14 w-auto" />
       </NavLink>
 
       {/* Nav groups */}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Bell, Search, Sprout, Sun, Moon, Settings } from 'lucide-react'
+import { Bell, Search, Sun, Moon, Settings } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
@@ -24,7 +25,7 @@ export const TopBar = () => {
   return (
     <header className="lg:hidden fixed top-0 left-0 right-0 z-30 glass-dark border-b border-[var(--c-border)] px-4 py-3 flex items-center gap-3 transition-colors duration-200">
       <Link to="/feed" className="flex items-center mr-auto">
-        <img src="/emazao.png" alt="eMazao" className="h-10 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
+        <Logo className="h-10 w-auto" />
       </Link>
 
       <Button variant="ghost" size="icon-sm" onClick={() => setSearchOpen(true)}>
