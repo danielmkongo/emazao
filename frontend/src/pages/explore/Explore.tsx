@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Search, TrendingUp, MapPin, X, MessageSquare } from 'lucide-react'
+import { Search, TrendingUp, MapPin, X, MessageSquare, Radio } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,7 +29,15 @@ function useDebounce<T>(value: T, ms: number): T {
   return d
 }
 
-type Tab = 'products' | 'farmers'
+type Tab = 'products' | 'farmers' | 'live'
+
+interface LiveSession {
+  _id: string
+  broadcasterId: { _id: string; name: string; username: string; avatar?: string; isVerified?: boolean; country?: string }
+  title: string
+  viewerCount: number
+  startedAt: string
+}
 
 export default function Explore() {
   const [query, setQuery] = useState('')
@@ -73,8 +81,19 @@ export default function Explore() {
     retry: 2,
   })
 
+  const { data: liveData, isLoading: liveLoading } = useQuery({
+    queryKey: ['live-sessions-explore'],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<LiveSession[]>>('/live')
+      return res.data.data ?? []
+    },
+    refetchInterval: 15_000,
+    enabled: activeTab === 'live',
+  })
+
   const products = productsData ?? []
   const farmers = farmersData ?? []
+  const liveSessions = liveData ?? []
 
   const tabClass = (t: Tab) =>
     `px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -143,6 +162,9 @@ export default function Explore() {
       <div className="flex gap-1 mb-6">
         <button className={tabClass('products')} onClick={() => setActiveTab('products')}>Products</button>
         <button className={tabClass('farmers')} onClick={() => setActiveTab('farmers')}>Farmers</button>
+        <button className={`${tabClass('live')} flex items-center gap-1.5`} onClick={() => setActiveTab('live')}>
+          <Radio className="h-3.5 w-3.5" /> Live
+        </button>
       </div>
 
       {/* Trending tags (when idle) */}
@@ -192,6 +214,60 @@ export default function Explore() {
                 ))}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* Live tab */}
+      {activeTab === 'live' && (
+        <div>
+          {liveLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+            </div>
+          ) : liveSessions.length === 0 ? (
+            <div className="text-center py-24">
+              <div className="w-16 h-16 rounded-2xl bg-[var(--c-raised)] flex items-center justify-center mx-auto mb-4">
+                <Radio className="h-7 w-7 text-[var(--c-text-4)]" />
+              </div>
+              <p className="text-[var(--c-text)] font-semibold mb-1">No one is live right now</p>
+              <p className="text-[var(--c-text-3)] text-sm">Check back soon — farmers go live to show harvests, answer questions and sell in real time.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {liveSessions.map((session, i) => {
+                const b = session.broadcasterId
+                return (
+                  <motion.div key={session._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                    <Link to={`/live/${b._id}`}>
+                      <div className="group bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] hover:border-red-500/40 hover:shadow-md transition-all overflow-hidden">
+                        <div className="p-4 flex items-center gap-3">
+                          <div className="relative flex-shrink-0">
+                            <div className="absolute inset-0 rounded-full border-2 border-red-500 animate-ping opacity-50" />
+                            <div className="relative rounded-full border-2 border-red-500 p-0.5">
+                              <Avatar src={b.avatar} name={b.name} size="lg" verified={b.isVerified} />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="flex items-center gap-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                <Radio className="h-2.5 w-2.5" /> LIVE
+                              </span>
+                            </div>
+                            <p className="font-semibold text-[var(--c-text)] text-sm group-hover:text-red-400 transition-colors truncate">{b.name}</p>
+                            {session.title && <p className="text-[var(--c-text-3)] text-xs truncate mt-0.5">{session.title}</p>}
+                            <p className="text-[var(--c-text-4)] text-xs mt-1">{b.country}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs text-[var(--c-text-3)]">{session.viewerCount} watching</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                )
+              })}
+            </div>
           )}
         </div>
       )}
