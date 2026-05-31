@@ -9,39 +9,67 @@ import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
 import type { ApiResponse } from '@/types'
 
-interface LiveSession {
-  _id: string
-  broadcasterId: { _id: string; name: string; username: string; avatar?: string; isVerified?: boolean }
-  title: string
-  viewerCount: number
+interface Broadcaster { _id: string; name: string; username: string; avatar?: string; isVerified?: boolean }
+interface LiveSession { _id: string; broadcasterId: Broadcaster; title: string; viewerCount: number }
+
+// Resolve a socket payload that may have broadcasterId as string (old backend) or object (new)
+async function resolveSession(data: any): Promise<LiveSession | null> {
+  if (!data?.broadcasterId) return null
+
+  if (typeof data.broadcasterId === 'object' && data.broadcasterId._id) {
+    // New backend format — already populated
+    return data as LiveSession
+  }
+
+  // Old backend format — broadcasterId is a plain string, fetch user
+  const id = typeof data.broadcasterId === 'string' ? data.broadcasterId : String(data.broadcasterId)
+  try {
+    const res = await api.get<ApiResponse<Broadcaster>>(`/users/by-id/${id}`)
+    const u = res.data.data
+    if (!u) return null
+    return {
+      _id: data._id ?? id,
+      broadcasterId: { _id: id, name: u.name, username: u.username, avatar: u.avatar, isVerified: u.isVerified },
+      title: data.title ?? '',
+      viewerCount: data.viewerCount ?? 0,
+    }
+  } catch {
+    return null
+  }
 }
 
 export const LiveNowRow = () => {
   const { user } = useAuthStore()
   const [sessions, setSessions] = useState<LiveSession[]>([])
 
+  // Initial fetch — tolerates 404 when /api/live doesn't exist yet
   const { data } = useQuery({
     queryKey: ['live-sessions'],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<LiveSession[]>>('/live')
-      return res.data.data ?? []
+      try {
+        const res = await api.get<ApiResponse<LiveSession[]>>('/live')
+        return res.data.data ?? []
+      } catch {
+        return []
+      }
     },
-    refetchInterval: 30_000,
+    refetchInterval: 20_000,
   })
 
   useEffect(() => {
     if (data) setSessions(data)
   }, [data])
 
-  // Real-time: add/remove sessions as they start/end
+  // Real-time: handle both old and new socket payload formats
   useEffect(() => {
     if (!user?._id) return
     const socket = getSocket(user._id)
 
-    socket.on('live:new', (session: LiveSession) => {
+    socket.on('live:new', async (raw: any) => {
+      const session = await resolveSession(raw)
+      if (!session) return
       setSessions(prev => {
-        const incomingId = (session.broadcasterId as any)?._id ?? session.broadcasterId
-        const alreadyIn = prev.some(s => s.broadcasterId._id === incomingId)
+        const alreadyIn = prev.some(s => s.broadcasterId._id === session.broadcasterId._id)
         return alreadyIn ? prev : [session, ...prev]
       })
     })
@@ -90,19 +118,16 @@ export const LiveNowRow = () => {
               >
                 <Link to={`/live/${b._id}`} className="flex flex-col items-center gap-1.5 cursor-pointer">
                   <div className="relative">
-                    {/* Pulsing outer ring */}
                     <div className="absolute inset-[-3px] rounded-full border-2 border-red-500/50 animate-ping" />
-                    {/* Solid red border */}
                     <div className="relative rounded-full border-[2.5px] border-red-500 p-0.5">
                       <Avatar src={b.avatar} name={b.name} size="md" verified={b.isVerified} />
                     </div>
-                    {/* LIVE badge */}
                     <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 whitespace-nowrap shadow-md">
                       <Radio className="h-2 w-2" /> LIVE
                     </div>
                   </div>
                   <p className="text-[11px] text-[var(--c-text-2)] max-w-[64px] text-center truncate mt-1.5">
-                    {b.name.split(' ')[0]}
+                    {b.name?.split(' ')[0] ?? 'Farmer'}
                   </p>
                 </Link>
               </motion.div>
