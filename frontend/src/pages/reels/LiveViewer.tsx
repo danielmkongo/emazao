@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Users, Heart } from 'lucide-react'
+import { X, Send, Users, Heart, Share2 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
 import { formatNumber } from '@/lib/utils'
 
 interface LiveComment { username: string; text: string; id: string }
 
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] }
 
 export default function LiveViewer() {
   const { broadcasterId } = useParams<{ broadcasterId: string }>()
@@ -18,6 +18,7 @@ export default function LiveViewer() {
   const [comments, setComments] = useState<LiveComment[]>([])
   const [viewerCount, setViewerCount] = useState(1)
   const [streamEnded, setStreamEnded] = useState(false)
+  const [showComments, setShowComments] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
@@ -49,7 +50,7 @@ export default function LiveViewer() {
 
     socket.on('live:ice-candidate', async ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
       if (from !== broadcasterId) return
-      await pc.addIceCandidate(new RTCIceCandidate(candidate))
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)) } catch {}
     })
 
     socket.on('live:comment', (data: { username: string; text: string }) => {
@@ -74,75 +75,136 @@ export default function LiveViewer() {
     setCommentText('')
   }
 
+  const CommentItem = ({ c }: { c: LiveComment }) => (
+    <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="flex items-start gap-2">
+      <div className="w-6 h-6 rounded-full bg-brand-green/20 flex items-center justify-center flex-shrink-0 text-xs text-brand-green font-bold">
+        {c.username[0]?.toUpperCase()}
+      </div>
+      <div>
+        <span className="text-brand-lime text-xs font-semibold">@{c.username} </span>
+        <span className="text-white/80 text-xs">{c.text}</span>
+      </div>
+    </motion.div>
+  )
+
   return (
-    <div className="h-screen bg-black flex overflow-hidden">
-      <div className="relative flex-1">
-        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+    <div className="h-screen bg-black overflow-hidden relative">
+      {/* Full-screen video */}
+      <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
 
-        {streamEnded && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center flex-col gap-4">
-            <p className="text-white text-xl font-bold">Live stream ended</p>
-            <button onClick={() => navigate('/reels')} className="text-brand-green text-sm underline">Back to Reels</button>
-          </div>
-        )}
-
-        <div className="absolute top-4 left-4 flex items-center gap-3">
-          <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
-            className="flex items-center gap-2 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-            <div className="w-2 h-2 rounded-full bg-white" />
-            LIVE
-          </motion.div>
-          <div className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
-            <Users className="h-3 w-3" />{formatNumber(viewerCount)}
-          </div>
+      {/* Stream ended overlay */}
+      {streamEnded && (
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center flex-col gap-4 z-20">
+          <p className="text-white text-xl font-bold">Live stream ended</p>
+          <button onClick={() => navigate('/reels')} className="text-brand-green text-sm underline">Back to Reels</button>
         </div>
+      )}
 
-        <button onClick={() => navigate(-1)}
-          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60">
-          <X className="h-5 w-5" />
-        </button>
-
-        <motion.button whileTap={{ scale: 1.4 }}
-          onClick={() => {
-            if (broadcasterId && socket && user) {
-              socket.emit('live:comment', { broadcasterId, username: user.username, text: '❤️' })
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 p-4 bg-gradient-to-b from-black/60 to-transparent">
+        <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
+          className="flex items-center gap-2 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+          <div className="w-2 h-2 rounded-full bg-white" /> LIVE
+        </motion.div>
+        <div className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
+          <Users className="h-3 w-3" />{formatNumber(viewerCount)}
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={async () => {
+            const url = `${window.location.origin}/live/${broadcasterId}`
+            if (navigator.share) {
+              try { await navigator.share({ title: 'Watch live on eMazao', url }) } catch {}
+            } else {
+              const el = document.createElement('textarea')
+              el.value = url
+              el.style.cssText = 'position:fixed;opacity:0'
+              document.body.appendChild(el); el.select()
+              document.execCommand('copy'); document.body.removeChild(el)
             }
           }}
-          className="absolute bottom-6 right-4 w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
-          <Heart className="h-6 w-6 text-red-400" />
-        </motion.button>
+          className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors mr-1"
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
+        <button onClick={() => navigate(-1)}
+          className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
-      <div className="w-72 bg-[#111827] flex flex-col border-l border-white/10">
-        <div className="px-4 py-3 border-b border-white/10">
-          <h3 className="text-white font-semibold text-sm">Comments</h3>
+      {/* ── Desktop: side-by-side comments panel ── */}
+      <div className="hidden lg:flex absolute inset-0 z-10 pointer-events-none">
+        <div className="flex-1" />
+        <div className="w-80 bg-[#111827]/90 backdrop-blur-sm flex flex-col border-l border-white/10 pointer-events-auto">
+          <div className="px-4 py-3 border-b border-white/10 flex-shrink-0">
+            <h3 className="text-white font-semibold text-sm">Comments</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 flex flex-col-reverse">
+            <AnimatePresence>{comments.map(c => <CommentItem key={c.id} c={c} />)}</AnimatePresence>
+          </div>
+          <div className="p-3 border-t border-white/10 flex gap-2 flex-shrink-0">
+            <input value={commentText} onChange={e => setCommentText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendComment()}
+              placeholder="Say something…"
+              className="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-white/30 focus:outline-none" />
+            <button onClick={sendComment}
+              className="w-8 h-8 bg-brand-green rounded-xl flex items-center justify-center text-white flex-shrink-0">
+              <Send className="h-3 w-3" />
+            </button>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 flex flex-col-reverse">
+      </div>
+
+      {/* ── Mobile: floating comments + bottom input ── */}
+      <div className="lg:hidden absolute bottom-0 left-0 right-0 z-10">
+        {/* Scrolling comment feed over video */}
+        <div className="px-4 pb-2 space-y-2 max-h-48 overflow-hidden flex flex-col-reverse pointer-events-none">
           <AnimatePresence>
-            {comments.map(c => (
-              <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-brand-green/20 flex items-center justify-center flex-shrink-0 text-xs text-brand-green font-bold">
+            {comments.slice(0, 8).map(c => (
+              <motion.div key={c.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                className="flex items-start gap-2 bg-black/50 backdrop-blur-sm rounded-xl px-3 py-1.5 w-fit max-w-[85%]">
+                <div className="w-5 h-5 rounded-full bg-brand-green/30 flex items-center justify-center flex-shrink-0 text-[10px] text-brand-green font-bold">
                   {c.username[0]?.toUpperCase()}
                 </div>
                 <div>
-                  <span className="text-brand-lime text-xs font-semibold">@{c.username} </span>
-                  <span className="text-white/80 text-xs">{c.text}</span>
+                  <span className="text-brand-lime text-[11px] font-semibold">@{c.username} </span>
+                  <span className="text-white/90 text-[11px]">{c.text}</span>
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
-        <div className="p-3 border-t border-white/10 flex gap-2">
-          <input value={commentText} onChange={e => setCommentText(e.target.value)}
+
+        {/* Mobile input bar */}
+        <div className="flex items-center gap-2 px-4 py-3 bg-black/60 backdrop-blur-sm border-t border-white/10">
+          <input
+            value={commentText}
+            onChange={e => setCommentText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendComment()}
-            placeholder="Say something..."
-            className="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-white/30 focus:outline-none" />
-          <button onClick={sendComment} className="w-8 h-8 bg-brand-green rounded-xl flex items-center justify-center text-white">
-            <Send className="h-3 w-3" />
+            placeholder="Say something…"
+            className="flex-1 bg-white/10 rounded-full px-4 py-2 text-white text-sm placeholder:text-white/40 focus:outline-none"
+          />
+          <button onClick={sendComment}
+            className="w-9 h-9 bg-brand-green rounded-full flex items-center justify-center text-white flex-shrink-0">
+            <Send className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
+
+      {/* Mobile heart button */}
+      <motion.button
+        whileTap={{ scale: 1.4 }}
+        onClick={() => {
+          if (broadcasterId && socket && user) {
+            socket.emit('live:comment', { broadcasterId, username: user.username, text: '❤️' })
+          }
+        }}
+        className="lg:hidden absolute bottom-20 right-4 z-10 w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center"
+      >
+        <Heart className="h-6 w-6 text-red-400" />
+      </motion.button>
     </div>
   )
 }

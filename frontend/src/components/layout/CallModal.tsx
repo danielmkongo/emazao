@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, PhoneIncoming } from 'lucide-react'
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, FlipHorizontal } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/store/authStore'
@@ -40,6 +40,7 @@ export default function CallModal({
   const { user } = useAuthStore()
   const [micMuted, setMicMuted] = useState(false)
   const [camOff, setCamOff] = useState(false)
+  const [mirrored, setMirrored] = useState(true)
   const [duration, setDuration] = useState(0)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
@@ -193,7 +194,11 @@ export default function CallModal({
         {/* Local video (pip) */}
         {call.video && (
           <video ref={localVideoRef} autoPlay playsInline muted
-            className="absolute bottom-28 right-4 w-28 h-40 rounded-xl object-cover border-2 border-white/20 z-10" />
+            className="absolute bottom-28 right-4 w-28 h-40 rounded-xl object-cover border-2 border-white/20 z-10 cursor-pointer"
+            style={{ transform: mirrored ? 'scaleX(-1)' : 'none' }}
+            onClick={() => setMirrored(m => !m)}
+            title="Tap to mirror"
+          />
         )}
 
         {/* Overlay UI */}
@@ -248,6 +253,16 @@ export default function CallModal({
                     {camOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
                   </button>
                   <span className="text-white/40 text-xs">{camOff ? 'Camera on' : 'Camera off'}</span>
+                </div>
+              )}
+
+              {call.video && (
+                <div className="flex flex-col items-center gap-2">
+                  <button onClick={() => setMirrored(m => !m)}
+                    className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white">
+                    <FlipHorizontal className="h-6 w-6" />
+                  </button>
+                  <span className="text-white/40 text-xs">Flip</span>
                 </div>
               )}
 
