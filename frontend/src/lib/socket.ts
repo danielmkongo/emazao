@@ -4,7 +4,9 @@ let socket: Socket | null = null
 
 export const getSocket = (userId?: string): Socket => {
   if (!socket) {
-    socket = io('http://localhost:5000', {
+    // In dev: connect directly to backend (port 9000). In prod: same origin via nginx.
+    const url = import.meta.env.DEV ? 'http://localhost:9000' : window.location.origin
+    socket = io(url, {
       auth: { userId },
       autoConnect: true,
       reconnection: true,
