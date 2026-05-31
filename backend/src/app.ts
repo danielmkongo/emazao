@@ -37,9 +37,11 @@ import { seedCategories } from './config/seed'
 const app = express()
 const httpServer = createServer(app)
 
-// Socket.io
+// Socket.io — long ping timeout keeps live streams alive through nginx
 const io = new SocketServer(httpServer, {
   cors: { origin: env.CLIENT_URL, methods: ['GET', 'POST'] },
+  pingTimeout: 60000,   // wait 60s for pong before disconnecting
+  pingInterval: 25000,  // ping every 25s (well under nginx's 60s read timeout)
 })
 initSocket(io)
 setIo(io)

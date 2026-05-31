@@ -83,6 +83,7 @@ export default function LiveViewer() {
     socket.on('live:ended', () => setStreamEnded(true))
 
     return () => {
+      socket.emit('live:leave', { broadcasterId, viewerId: user._id })
       pc.close()
       socket.off('live:offer')
       socket.off('live:ice-candidate')
@@ -98,18 +99,25 @@ export default function LiveViewer() {
     setCommentText('')
   }
 
-  const CommentItem = ({ c }: { c: LiveComment }) => (
-    <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="flex items-start gap-2">
-      <div className="w-6 h-6 rounded-full bg-brand-green/20 flex items-center justify-center flex-shrink-0 text-xs text-brand-green font-bold">
-        {c.username[0]?.toUpperCase()}
-      </div>
-      <div>
-        <span className="text-brand-lime text-xs font-semibold">@{c.username} </span>
-        <span className="text-white/80 text-xs">{c.text}</span>
-      </div>
-    </motion.div>
-  )
+  const CommentItem = ({ c }: { c: LiveComment }) => {
+    const isMe = c.username === user?.username
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isMe ? 'bg-brand-green text-white' : 'bg-white/15 text-white'}`}>
+          {c.username[0]?.toUpperCase()}
+        </div>
+        <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
+          <span className={`text-xs font-semibold ${isMe ? 'text-brand-lime' : 'text-brand-lime'}`}>
+            {isMe ? 'You' : `@${c.username}`}
+          </span>
+          <span className={`text-xs px-2 py-1 rounded-xl mt-0.5 ${isMe ? 'bg-brand-green/25 text-white' : 'text-white/80'}`}>
+            {c.text}
+          </span>
+        </div>
+      </motion.div>
+    )
+  }
 
   return (
     <div className="h-screen bg-black overflow-hidden relative">

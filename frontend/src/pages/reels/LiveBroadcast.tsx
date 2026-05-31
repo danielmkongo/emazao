@@ -114,8 +114,14 @@ export default function LiveBroadcast() {
   useEffect(() => {
     if (!socket || !user) return
     socket.on('live:viewer-joined', ({ viewerId }: { viewerId: string }) => {
-      setViewerCount(c => c + 1)
       createPeerForViewer(viewerId)
+    })
+    socket.on('live:viewer-count', ({ count }: { count: number }) => {
+      setViewerCount(count)
+    })
+    socket.on('live:viewer-left', ({ viewerId }: { viewerId: string }) => {
+      const pc = peers.current.get(viewerId)
+      if (pc) { pc.close(); peers.current.delete(viewerId) }
     })
     socket.on('live:answer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
       const pc = peers.current.get(from)
@@ -130,6 +136,8 @@ export default function LiveBroadcast() {
     })
     return () => {
       socket.off('live:viewer-joined')
+      socket.off('live:viewer-count')
+      socket.off('live:viewer-left')
       socket.off('live:answer')
       socket.off('live:ice-candidate')
       socket.off('live:comment')
@@ -328,18 +336,25 @@ export default function LiveBroadcast() {
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-3 flex flex-col-reverse">
             <AnimatePresence>
-              {comments.map(c => (
-                <motion.div key={c.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  className="flex items-start gap-2">
-                  <div className="w-6 h-6 rounded-full bg-brand-green/20 flex items-center justify-center flex-shrink-0 text-xs text-brand-green font-bold">
-                    {c.username[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <span className="text-brand-lime text-xs font-semibold">@{c.username} </span>
-                    <span className="text-white/80 text-xs">{c.text}</span>
-                  </div>
-                </motion.div>
-              ))}
+              {comments.map(c => {
+                const isMe = c.username === user?.username
+                return (
+                  <motion.div key={c.id} initial={{ opacity: 0, x: isMe ? 10 : -10 }} animate={{ opacity: 1, x: 0 }}
+                    className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isMe ? 'bg-brand-green text-white' : 'bg-brand-green/20 text-brand-green'}`}>
+                      {c.username[0]?.toUpperCase()}
+                    </div>
+                    <div className={`max-w-[80%] ${isMe ? 'items-end text-right' : ''} flex flex-col`}>
+                      <span className={`text-xs font-semibold ${isMe ? 'text-brand-green' : 'text-brand-lime'}`}>
+                        {isMe ? 'You (host)' : `@${c.username}`}
+                      </span>
+                      <span className={`text-xs px-2 py-1 rounded-xl mt-0.5 inline-block ${isMe ? 'bg-brand-green/20 text-white' : 'text-white/80'}`}>
+                        {c.text}
+                      </span>
+                    </div>
+                  </motion.div>
+                )
+              })}
             </AnimatePresence>
           </div>
           <div className="p-3 border-t border-white/10 flex gap-2">

@@ -58,7 +58,7 @@ export const Sidebar = () => {
     >
       {/* Logo */}
       <NavLink to="/feed" className="flex items-center px-2 mb-7 cursor-pointer">
-        <Logo className="h-14 w-auto" />
+        <Logo className="h-24 w-auto" />
       </NavLink>
 
       {/* Nav groups */}
