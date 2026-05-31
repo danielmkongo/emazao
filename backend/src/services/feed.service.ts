@@ -24,7 +24,7 @@ const computeScore = (params: {
 }) => {
   const hoursOld = (Date.now() - params.createdAt.getTime()) / 3_600_000
   const recency = 1 / (1 + hoursOld / 24)
-
+ 
   const engagementNumerator =
     params.likeCount +
     (params.saveCount ?? 0) * 2 +
