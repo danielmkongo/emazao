@@ -2,9 +2,39 @@ import { Request, Response } from 'express'
 import User from '../models/User'
 import SellerProfile from '../models/SellerProfile'
 import Follow from '../models/Follow'
+import CreatorScore from '../models/CreatorScore'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { sendNotification } from '../services/notification.service'
 import slugify from 'slugify'
+
+// GET /api/users/top-farmers — leaderboard ranked by measured credibility
+export const getTopFarmers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(String(req.query['limit'] ?? '20')) || 20, 50)
+    const scores = await CreatorScore.find()
+      .sort({ credibility: -1 })
+      .limit(limit)
+      .populate('creatorId', 'name username avatar isVerified country bio')
+      .lean()
+
+    const data = scores
+      .filter((s: any) => s.creatorId)
+      .map((s: any, i: number) => ({
+        rank: i + 1,
+        user: s.creatorId,
+        credibility: Math.round(s.credibility * 100),       // 0..100 for display
+        completionRate: Math.round(s.avgCompletionRate * 100),
+        engagementRate: Math.round(s.avgEngagementRate * 100),
+        reach: s.totalReach,
+        followsGenerated: s.followsGenerated,
+        rating: s.rating,
+        salesCount: s.salesCount,
+      }))
+    res.json({ success: true, data })
+  } catch (err) {
+    res.status(500).json({ success: false, message: (err as Error).message })
+  }
+}
 
 // GET /api/users?role=FARMER|ALL&q=...&limit=20
 export const listUsers = async (req: Request, res: Response): Promise<void> => {

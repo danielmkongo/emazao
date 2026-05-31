@@ -24,7 +24,9 @@ export const Logo = ({ className, iconOnly = false }: LogoProps) => {
 
   return (
     <img
-      src="/emazao.png"
+      // ?v bust: the PWA service worker caches by URL, so bump this when the
+      // logo file changes to force clients to fetch the new asset (no hard-refresh).
+      src="/emazao.png?v=3"
       alt="eMazao"
       className={cn('object-contain', className)}
       onError={() => setFailed(true)}

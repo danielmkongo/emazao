@@ -4,6 +4,15 @@ import Like from '../models/Like'
 import Save from '../models/Save'
 import Product from '../models/Product'
 import Reel from '../models/Reel'
+import { recordInteraction } from '../services/recommendation/signals'
+import type { ContentType } from '../models/InteractionEvent'
+
+// Resolve the creator of a liked/saved item so signals carry creator affinity
+async function creatorOf(targetType: string, targetId: string): Promise<string | undefined> {
+  if (targetType === 'Reel') return (await Reel.findById(targetId).select('userId'))?.userId?.toString()
+  if (targetType === 'Product') return (await Product.findById(targetId).select('sellerId'))?.sellerId?.toString()
+  return undefined
+}
 
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
@@ -22,6 +31,9 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
     if (targetType === 'Product') await Product.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
     if (targetType === 'Reel') await Reel.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
     res.json({ success: true, liked: true })
+
+    const creatorId = await creatorOf(targetType, targetId)
+    void recordInteraction({ userId, contentId: targetId, contentType: targetType as ContentType, creatorId, event: 'like' })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -42,6 +54,9 @@ export const toggleSave = async (req: AuthRequest, res: Response) => {
     await Save.create({ userId, productId })
     await Product.findByIdAndUpdate(productId, { $inc: { saveCount: 1 } })
     res.json({ success: true, saved: true })
+
+    const creatorId = (await Product.findById(productId).select('sellerId'))?.sellerId?.toString()
+    void recordInteraction({ userId, contentId: productId, contentType: 'PRODUCT', creatorId, event: 'save', source: 'marketplace' })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

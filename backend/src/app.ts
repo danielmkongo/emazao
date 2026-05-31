@@ -32,7 +32,10 @@ import reelRoutes from './routes/reel.routes'
 import adminRoutes from './routes/admin.routes'
 import categoryRoutes from './routes/category.routes'
 import liveRoutes from './routes/live.routes'
+import eventRoutes from './routes/event.routes'
+import recommendationRoutes from './routes/recommendation.routes'
 import { seedCategories } from './config/seed'
+import { startRecommendationJobs } from './services/recommendation/jobs'
 
 const app = express()
 const httpServer = createServer(app)
@@ -83,6 +86,8 @@ app.use('/api/reels', reelRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/live', liveRoutes)
+app.use('/api/events', eventRoutes)
+app.use('/api/recommendation', recommendationRoutes)
 
 // Serve frontend static files if built
 const frontendDist = path.join(__dirname, '../../frontend/dist')
@@ -101,6 +106,7 @@ if (fs.existsSync(frontendDist)) {
 const start = async () => {
   await connectDB()
   await seedCategories()
+  startRecommendationJobs()
   httpServer.listen(parseInt(env.PORT), () => {
     console.log(`🚀 EMAZAO API running on port ${env.PORT}`)
     console.log(`🌐 Environment: ${env.NODE_ENV}`)

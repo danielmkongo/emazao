@@ -6,8 +6,8 @@ const router = Router()
 
 router.get('/', optionalProtect, getReels)
 router.get('/user/:userId', getUserReels)
-router.post('/:id/view', recordReelView)
-router.post('/:id/share', incrementShareCount)
+router.post('/:id/view', optionalProtect, recordReelView)
+router.post('/:id/share', optionalProtect, incrementShareCount)
 router.get('/:id/comments', getComments)
 
 router.use(protect)

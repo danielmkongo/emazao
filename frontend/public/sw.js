@@ -1,4 +1,4 @@
-const CACHE = 'emazao-v1'
+const CACHE = 'emazao-v2'
 const STATIC = [
   '/',
   '/feed',
@@ -33,14 +33,19 @@ self.addEventListener('fetch', e => {
     return
   }
 
-  // Cache-first for static assets
+  // Stale-while-revalidate for static assets: serve cached instantly, but
+  // always refresh in the background so changed files self-heal without a
+  // hard refresh. (Cache-first was why the logo went stale.)
   if (request.destination === 'image' || url.pathname.match(/\.(js|css|woff2?)$/)) {
     e.respondWith(
-      caches.match(request).then(cached => cached || fetch(request).then(res => {
-        const clone = res.clone()
-        caches.open(CACHE).then(c => c.put(request, clone))
-        return res
-      }))
+      caches.match(request).then(cached => {
+        const network = fetch(request).then(res => {
+          const clone = res.clone()
+          caches.open(CACHE).then(c => c.put(request, clone))
+          return res
+        }).catch(() => cached)
+        return cached || network
+      })
     )
     return
   }

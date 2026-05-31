@@ -71,7 +71,7 @@ export const Sidebar = () => {
       className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 z-30 px-3.5 pb-5 bg-[var(--c-card)] border-r border-[var(--c-border)] transition-colors duration-200"
     >
       {/* Logo header */}
-      <NavLink to="/feed" className="flex items-center justify-center pt-4 pb-3">
+      <NavLink to="/feed" className="flex items-center justify-start pl-2 pt-4 pb-3">
         <Logo className="h-44 w-auto" />
       </NavLink>
 

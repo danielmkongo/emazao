@@ -29,13 +29,31 @@ import { seedCategories } from './seed'
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/emazao'
 
-// ─── Cloudinary demo videos (confirmed working) ───────────────────────────────
+// ─── Demo videos — all on stable, public CDNs (Cloudinary demo + Google sample
+// bucket) so every reel actually plays. These are placeholder clips; replace by
+// uploading real vertical farm reels via Dashboard → Reels. ────────────────────
 const VIDEOS = [
   'https://res.cloudinary.com/demo/video/upload/dog.mp4',
   'https://res.cloudinary.com/demo/video/upload/sea_turtle.mp4',
   'https://res.cloudinary.com/demo/video/upload/elephants.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
 ]
-const vid = (i: number) => VIDEOS[i % VIDEOS.length]
+// Each call returns the NEXT video in the pool, so no two reels repeat until the
+// pool is exhausted (the argument is ignored — kept for call-site compatibility).
+let _vidCursor = 0
+const vid = (_i?: number) => VIDEOS[_vidCursor++ % VIDEOS.length]
 
 // ─── Fixed slug helper — deterministic so URLs are stable ─────────────────────
 const slug = (title: string) => slugify(title, { lower: true, strict: true })
