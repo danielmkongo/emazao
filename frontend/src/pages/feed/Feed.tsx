@@ -234,7 +234,7 @@ export default function Feed() {
                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                         {product.images?.[0]
                           ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-lg">🌾</div>
+                          : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-4 w-4 text-brand-green/50" /></div>
                         }
                       </div>
                       <div className="flex-1 min-w-0">

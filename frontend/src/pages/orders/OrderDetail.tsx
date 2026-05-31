@@ -96,7 +96,9 @@ export default function OrderDetail() {
 
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
-      <span className="text-6xl mb-4">⚠️</span>
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+      </div>
       <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Failed to load order</h2>
       <p className="text-[var(--c-text-3)] mb-6 text-sm max-w-sm">
         {(error as any)?.response?.data?.message || (error as Error)?.message || 'Order not found or access denied.'}
@@ -107,7 +109,9 @@ export default function OrderDetail() {
 
   if (!order) return (
     <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
-      <span className="text-6xl mb-4">📦</span>
+      <div className="w-16 h-16 rounded-2xl bg-[var(--c-raised)] flex items-center justify-center mb-4">
+        <Package className="h-8 w-8 text-[var(--c-text-4)]" />
+      </div>
       <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Order not found</h2>
       <Button onClick={() => navigate('/orders')}>Back to Orders</Button>
     </div>

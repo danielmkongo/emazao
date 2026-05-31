@@ -2,21 +2,16 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Search, TrendingUp, MapPin, X, MessageSquare, Radio } from 'lucide-react'
+import { Search, TrendingUp, MapPin, X, MessageSquare, Radio, Sprout } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CategoryIcon } from '@/lib/categoryIcons'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ApiResponse, Product, User } from '@/types'
 
 interface Category { _id: string; name: string; slug: string }
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'fruits-vegetables': '🥦', 'grains-cereals': '🌾', 'coffee-tea': '☕',
-  'spices-herbs': '🌿', 'livestock-poultry': '🐄', 'nuts-seeds': '🥜',
-  'roots-tubers': '🥔', 'sugar-confectionery': '🍫', 'oils-fats': '🫒',
-}
 
 const TRENDING_TAGS = [
   'organic', 'coffee', 'tomatoes', 'maize', 'cocoa', 'spices',
@@ -151,7 +146,7 @@ export default function Explore() {
                   : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40'
               }`}
             >
-              {CATEGORY_ICONS[c.slug] && <span>{CATEGORY_ICONS[c.slug]}</span>}
+              <CategoryIcon slug={c.slug} className="h-3.5 w-3.5" />
               {c.name}
             </button>
           ))}
@@ -321,7 +316,9 @@ function ExploreProductCard({ product, index }: { product: Product; index: numbe
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl">🌾</div>
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/5 to-brand-emerald/10">
+                <Sprout className="h-10 w-10 text-brand-green/25" />
+              </div>
             )}
           </div>
           <div className="p-3">

@@ -9,6 +9,8 @@ const viewerOf     = new Map<string, string>()         // userId → broadcaster
 
 function emitViewerCount(io: Server, broadcasterId: string) {
   const count = liveViewers.get(broadcasterId)?.size ?? 0
+  // Emit to everyone in the stream so broadcaster and all viewers see the same count
+  io.to(`live:${broadcasterId}`).emit('live:viewer-count', { count })
   io.to(`user:${broadcasterId}`).emit('live:viewer-count', { count })
   LiveSession.findOneAndUpdate({ broadcasterId }, { viewerCount: count }).catch(() => {})
 }

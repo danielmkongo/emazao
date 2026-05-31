@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ShoppingBag } from 'lucide-react'
+import { ShoppingBag, Package } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, timeAgo } from '@/lib/utils'
@@ -46,7 +46,7 @@ export default function DashboardOrders() {
               <div className="h-12 w-12 rounded-xl overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                 {order.items[0]?.image
                   ? <img src={order.items[0].image} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+                  : <div className="w-full h-full flex items-center justify-center"><Package className="h-5 w-5 text-[var(--c-text-4)]" /></div>
                 }
               </div>
               <div className="flex-1 min-w-0">

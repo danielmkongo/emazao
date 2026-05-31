@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Heart, Share2, Star, MapPin, Package, ChevronLeft,
   CheckCircle2, X, Plus, Minus, Truck, ShieldCheck, ChevronRight,
+  Sprout, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -119,7 +120,7 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
                 <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-[var(--c-raised)]">
                   {product.images[0]
                     ? <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-2xl">🌾</div>
+                    : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-6 w-6 text-brand-green/50" /></div>
                   }
                 </div>
                 <div className="flex-1 min-w-0">
@@ -373,7 +374,9 @@ export default function ProductDetail() {
 
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
-      <span className="text-6xl mb-4">⚠️</span>
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+      </div>
       <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Failed to load product</h2>
       <p className="text-[var(--c-text-3)] mb-2 text-sm max-w-sm">
         {(error as any)?.response?.data?.message || (error as Error)?.message || 'An unexpected error occurred.'}
@@ -417,7 +420,9 @@ export default function ProductDetail() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-8xl">🌾</div>
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/5 to-brand-emerald/10">
+                  <Sprout className="h-20 w-20 text-brand-green/25" />
+                </div>
               )}
               {data.isBoosted && (
                 <span className="absolute top-3 left-3 text-xs font-semibold bg-gold text-black px-2 py-0.5 rounded-full">

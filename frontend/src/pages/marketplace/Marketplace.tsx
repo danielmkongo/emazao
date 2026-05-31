@@ -1,26 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ShoppingBag, Search, Leaf, X } from 'lucide-react'
+import { ShoppingBag, Search, Sprout, X } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { ProductCardSkeleton } from '@/components/ui/skeleton'
+import { CategoryIcon } from '@/lib/categoryIcons'
 import api from '@/lib/api'
 import type { ApiResponse, Product } from '@/types'
 
 interface Category { _id: string; name: string; slug: string; icon?: string }
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'fruits-vegetables': '🥦',
-  'grains-cereals': '🌾',
-  'coffee-tea': '☕',
-  'spices-herbs': '🌿',
-  'livestock-poultry': '🐄',
-  'nuts-seeds': '🥜',
-  'roots-tubers': '🥔',
-  'sugar-confectionery': '🍫',
-  'oils-fats': '🫒',
-  'beverages': '🧃',
-}
 
 function useDebounce<T>(value: T, ms: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value)
@@ -132,7 +120,7 @@ export default function Marketplace() {
                   : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40 hover:text-[var(--c-text-2)]'
               }`}
             >
-              {CATEGORY_ICONS[cat.slug] && <span>{CATEGORY_ICONS[cat.slug]}</span>}
+              <CategoryIcon slug={cat.slug} className="h-3.5 w-3.5" />
               {cat.name}
             </button>
           ))}
@@ -160,7 +148,9 @@ export default function Marketplace() {
         </div>
       ) : !products.length ? (
         <div className="text-center py-24">
-          <span className="text-6xl mb-4 block">🌾</span>
+          <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
+            <Sprout className="h-8 w-8 text-brand-green/60" />
+          </div>
           <p className="text-[var(--c-text)] font-semibold mb-1">No products found</p>
           <p className="text-[var(--c-text-3)] text-sm">Try adjusting your search or removing filters.</p>
           {hasFilter && (

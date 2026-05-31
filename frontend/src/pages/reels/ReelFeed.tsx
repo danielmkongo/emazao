@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft, Eye } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -115,19 +115,26 @@ function ReelCard({
   const [likeCount, setLikeCount] = useState(reel.likeCount)
   const [shareCount, setShareCount] = useState(reel.shareCount)
   const [commentCount, setCommentCount] = useState(reel.commentCount)
+  const [viewCount, setViewCount] = useState(reel.viewCount ?? 0)
   const [playing, setPlaying] = useState(false)
   const [buffering, setBuffering] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [shareToast, setShareToast] = useState(false)
   const startTimeRef = useRef<number>(0)
+  const viewedRef = useRef(false) // ensure one view per reel mount
   const { user } = useAuthStore()
 
   const reelUser = reel.userId as unknown as User
   const product = reel.productId as unknown as Product | null
 
-  const viewMutation = useMutation({
-    mutationFn: (watchTime: number) => api.post(`/reels/${reel._id}/view`, { watchTime }),
-  })
+  // Record a view exactly once per reel — fires as soon as it starts playing,
+  // so a view is counted even if the user never scrolls away.
+  const recordView = () => {
+    if (viewedRef.current) return
+    viewedRef.current = true
+    setViewCount(prev => prev + 1)
+    api.post(`/reels/${reel._id}/view`, { watchTime: 0 }).catch(() => {})
+  }
 
   // Sync mute without causing re-play
   useEffect(() => {
@@ -147,7 +154,7 @@ function ReelCard({
       const tryPlay = () => {
         setBuffering(false)
         video.play()
-          .then(() => { setPlaying(true); startTimeRef.current = Date.now() })
+          .then(() => { setPlaying(true); startTimeRef.current = Date.now(); recordView() })
           .catch(() => { setPlaying(false) })
       }
 
@@ -170,10 +177,7 @@ function ReelCard({
       setPlaying(false)
       setBuffering(false)
       setShowComments(false)
-      if (startTimeRef.current) {
-        viewMutation.mutate(Math.round((Date.now() - startTimeRef.current) / 1000))
-        startTimeRef.current = 0
-      }
+      startTimeRef.current = 0
     }
   }, [isActive]) // intentionally exclude muted — handled by its own effect
 
@@ -318,6 +322,9 @@ function ReelCard({
         <div className="flex items-center gap-2 mb-2">
           <span className="font-semibold text-white drop-shadow">@{reelUser?.username}</span>
           {reelUser?.isVerified && <Badge variant="default" className="text-xs px-1.5 py-0">✓</Badge>}
+          <span className="flex items-center gap-1 text-white/70 text-xs drop-shadow">
+            <Eye className="h-3.5 w-3.5" />{formatNumber(viewCount)}
+          </span>
         </div>
         {reel.caption && <p className="text-white/80 text-sm mb-2 line-clamp-2 drop-shadow">{reel.caption}</p>}
         {reel.tags?.length > 0 && (

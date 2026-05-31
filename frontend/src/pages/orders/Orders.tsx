@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ShoppingBag, ChevronRight, Clock, Package } from 'lucide-react'
+import { ShoppingBag, ChevronRight, Clock, Package, Sprout } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, timeAgo } from '@/lib/utils'
@@ -93,7 +93,7 @@ export default function Orders() {
                     {order.items[0]?.image ? (
                       <img src={order.items[0].image} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl">🌾</div>
+                      <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-6 w-6 text-brand-green/50" /></div>
                     )}
                   </div>
 

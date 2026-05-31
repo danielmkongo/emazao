@@ -8,14 +8,13 @@ import { formatNumber } from '@/lib/utils'
 
 interface LiveComment { username: string; text: string; id: string }
 
-// STUN + free TURN fallback for cross-network connections
 const ICE = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    // Self-hosted TURN on the emazao VPS — install coturn to activate
+    { urls: 'turn:45.79.206.183:3478', username: 'emazao', credential: 'MazaoTurn2024!' },
+    { urls: 'turn:45.79.206.183:3478?transport=tcp', username: 'emazao', credential: 'MazaoTurn2024!' },
   ],
 }
 
@@ -27,7 +26,7 @@ export default function LiveViewer() {
   const navigate = useNavigate()
   const [commentText, setCommentText] = useState('')
   const [comments, setComments] = useState<LiveComment[]>([])
-  const [viewerCount, setViewerCount] = useState(1)
+  const [viewerCount, setViewerCount] = useState(0)
   const [streamEnded, setStreamEnded] = useState(false)
   const [muted, setMuted] = useState(true)          // start muted to satisfy browser autoplay
   const [connState, setConnState] = useState<ConnState>('connecting')
@@ -80,6 +79,7 @@ export default function LiveViewer() {
       setComments(prev => [{ ...data, id: Date.now().toString() }, ...prev].slice(0, 50))
     })
 
+    socket.on('live:viewer-count', ({ count }: { count: number }) => setViewerCount(count))
     socket.on('live:ended', () => setStreamEnded(true))
 
     return () => {
@@ -87,6 +87,7 @@ export default function LiveViewer() {
       pc.close()
       socket.off('live:offer')
       socket.off('live:ice-candidate')
+      socket.off('live:viewer-count')
       socket.off('live:comment')
       socket.off('live:ended')
     }

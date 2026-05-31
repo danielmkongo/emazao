@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Plus, Package, Eye, Edit } from 'lucide-react'
+import { Plus, Package, Eye, Edit, Sprout } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -51,7 +51,7 @@ export default function DashboardProducts() {
               <div className="h-16 w-16 rounded-xl overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                 {product.images[0]
                   ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-2xl">🌾</div>
+                  : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-6 w-6 text-brand-green/50" /></div>
                 }
               </div>
               <div className="flex-1 min-w-0">
