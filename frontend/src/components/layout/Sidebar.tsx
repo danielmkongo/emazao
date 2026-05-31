@@ -57,7 +57,7 @@ export const Sidebar = () => {
     >
       {/* Logo */}
       <NavLink to="/feed" className="flex items-center px-2 mb-7 cursor-pointer">
-        <img src="/emazaologo.png" alt="eMazao" className="h-14 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
+        <img src="/emazao.png" alt="eMazao" className="h-14 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
       </NavLink>
 
       {/* Nav groups */}
