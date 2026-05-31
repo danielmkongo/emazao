@@ -1,4 +1,4 @@
-const CACHE = 'emazao-v2'
+const CACHE = 'emazao-v3'
 const STATIC = [
   '/',
   '/feed',

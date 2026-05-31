@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
+// Self-healing lazy: reloads once if a chunk 404s after a deploy (stale index.html)
+import { lazyWithReload as lazy } from '@/lib/lazyWithReload'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { useAuthStore } from '@/store/authStore'
 import { Skeleton } from '@/components/ui/skeleton'
