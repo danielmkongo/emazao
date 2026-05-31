@@ -15,7 +15,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      theme: 'dark',
+      theme: 'light',
       sidebarOpen: false,
       cartOpen: false,
       searchOpen: false,
@@ -24,6 +24,8 @@ export const useUIStore = create<UIState>()(
       setCartOpen: (v) => set({ cartOpen: v }),
       setSearchOpen: (v) => set({ searchOpen: v }),
     }),
-    { name: 'emazao-ui', partialize: (s) => ({ theme: s.theme }) }
+    // key bumped to -v2 so the new light default takes effect once for everyone
+    // (old persisted 'dark' is dropped); the user's choice persists from here on.
+    { name: 'emazao-ui-v2', partialize: (s) => ({ theme: s.theme }) }
   )
 )

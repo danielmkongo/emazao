@@ -37,6 +37,24 @@ export const getReels = async (req: AuthRequest, res: Response) => {
   }
 }
 
+export const getReel = async (req: AuthRequest, res: Response) => {
+  try {
+    const reel = await Reel.findById(req.params.id)
+      .populate('userId', 'name username avatar isVerified')
+      .populate('productId', 'title price priceUnit images slug')
+    if (!reel || reel.status !== 'PUBLISHED') {
+      return res.status(404).json({ success: false, message: 'Reel not found' })
+    }
+    let userLiked = false
+    if (req.user?.id) {
+      userLiked = !!(await Like.exists({ userId: req.user.id, targetId: reel._id, targetType: 'Reel' }))
+    }
+    res.json({ success: true, data: { ...reel.toObject(), userLiked } })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
 export const getUserReels = async (req: AuthRequest, res: Response) => {
   try {
     const reels = await Reel.find({ userId: req.params.userId, status: 'PUBLISHED' })

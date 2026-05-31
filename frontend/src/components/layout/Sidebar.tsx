@@ -37,21 +37,28 @@ const navGroups = [
   },
 ]
 
-// One nav row with a shared sliding gradient indicator (layoutId)
+// One nav row. The active indicator is filled with the CONTENT background colour and
+// runs flush to the sidebar's inner (left) edge, so the selected item visually blends
+// into — and touches — the content area, rounded only on the interior side.
 function NavRow({ icon: Icon, label, href }: { icon: typeof Home; label: string; href: string }) {
   return (
     <NavLink to={href} className="relative block">
       {({ isActive }) => (
-        <div className="relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium">
+        <div className="relative flex items-center gap-3 pl-6 pr-4 py-2.5 text-[15px]">
           {isActive && (
             <motion.div
               layoutId="sidebar-active"
-              className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-green to-brand-emerald shadow-lg shadow-brand-green/30"
+              className="absolute inset-y-1 left-0 right-3 bg-[var(--c-bg)] rounded-r-[20px]"
               transition={{ type: 'spring', stiffness: 480, damping: 40 }}
             />
           )}
-          <Icon className={cn('relative z-10 h-5 w-5 flex-shrink-0 transition-colors', isActive ? 'text-white' : 'text-[var(--c-text-3)] group-hover:text-[var(--c-text)]')} />
-          <span className={cn('relative z-10 transition-colors', isActive ? 'text-white font-semibold' : 'text-[var(--c-text-2)]')}>{label}</span>
+          <Icon className={cn('relative z-10 h-5 w-5 flex-shrink-0 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)] group-hover:text-[var(--c-text)]')} />
+          <span
+            className={cn('relative z-10 font-display transition-colors', isActive ? 'text-brand-green font-bold' : 'text-[var(--c-text-2)] font-semibold group-hover:text-[var(--c-text)]')}
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {label}
+          </span>
         </div>
       )}
     </NavLink>
@@ -66,20 +73,20 @@ export const Sidebar = () => {
 
   return (
     <motion.aside
-      initial={{ x: -20, opacity: 0 }}
+      initial={{ x: 20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 z-30 px-3.5 pb-5 bg-[var(--c-card)] border-r border-[var(--c-border)] transition-colors duration-200"
+      className="hidden lg:flex flex-col fixed right-0 top-0 bottom-0 w-64 z-30 pl-0 pr-0 pb-5 bg-[var(--c-card)] shadow-[-10px_0_30px_-12px_rgba(0,0,0,0.10)] transition-colors duration-200"
     >
-      {/* Logo header */}
-      <NavLink to="/feed" className="flex items-center justify-start pl-2 pt-4 pb-3">
+      {/* Logo header — generous breathing room below it before the nav starts */}
+      <NavLink to="/feed" className="flex items-center justify-start pl-4 pt-6 pb-10">
         <Logo className="h-44 w-auto" />
       </NavLink>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto no-scrollbar -mx-1 px-1 space-y-5">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar space-y-7">
         {navGroups.map(({ label, items }) => (
           <div key={label}>
-            <p className="px-3.5 mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-text-4)]">
+            <p className="pl-6 mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--c-text-4)]">
               {label}
             </p>
             <div className="space-y-1">
@@ -95,20 +102,21 @@ export const Sidebar = () => {
         {/* Farmer-only tools — distinct accent treatment */}
         {isFarmer && (
           <div>
-            <p className="px-3.5 mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-text-4)]">
+            <p className="pl-6 mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--c-text-4)]">
               Farm Tools
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1 px-3">
               <NavLink
                 to="/live"
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[15px] font-semibold transition-colors',
                     isActive
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
-                      : 'text-[var(--c-text-2)] hover:bg-red-500/8 hover:text-red-400'
+                      : 'text-[var(--c-text-2)] hover:bg-red-500/8 hover:text-red-500'
                   )
                 }
+                style={{ fontFamily: 'var(--font-display)' }}
               >
                 {({ isActive }) => (
                   <>
@@ -122,12 +130,13 @@ export const Sidebar = () => {
                 to="/dashboard"
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[15px] font-semibold transition-colors',
                     isActive
                       ? 'bg-gold text-white shadow-lg shadow-gold/30'
                       : 'text-[var(--c-text-2)] hover:bg-gold/10 hover:text-gold'
                   )
                 }
+                style={{ fontFamily: 'var(--font-display)' }}
               >
                 {({ isActive }) => (
                   <>
@@ -142,7 +151,7 @@ export const Sidebar = () => {
       </nav>
 
       {/* Bottom: theme toggle + user card */}
-      <div className="pt-4 mt-2 border-t border-[var(--c-border)] space-y-2">
+      <div className="px-3 pt-4 mt-2 border-t border-[var(--c-border)] space-y-2">
         <button
           onClick={toggleTheme}
           className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-colors"

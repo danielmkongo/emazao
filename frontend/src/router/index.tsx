@@ -86,7 +86,8 @@ export const router = createBrowserRouter([
 
   // Fullscreen routes — no layout chrome
   {
-    path: '/reels',
+    // Optional :reelId so a reel tapped in the feed opens on that exact reel
+    path: '/reels/:reelId?',
     element: (
       <ProtectedRoute>
         <Suspense fallback={<div className="h-screen bg-black" />}>

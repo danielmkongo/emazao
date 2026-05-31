@@ -138,7 +138,7 @@ export default function Feed() {
                 const reel = item.data as Reel
                 return (
                   <motion.div key={`reel-${i}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-                    <Link to="/reels" className="block">
+                    <Link to={`/reels/${reel._id}`} state={{ reel }} className="block">
                       <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden aspect-[4/3] relative cursor-pointer group shadow-sm hover:shadow-md transition-shadow">
                         {reel.thumbnailUrl ? (
                           <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

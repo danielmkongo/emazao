@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -198,7 +198,7 @@ function ReelCard({
   }
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/reels`
+    const url = `${window.location.origin}/reels/${reel._id}`
     let shared = false
 
     if (navigator.share) {
@@ -422,6 +422,11 @@ function ReelCard({
 // ─── Main feed ─────────────────────────────────────────────────────────────────
 export default function ReelFeed() {
   const navigate = useNavigate()
+  const { reelId } = useParams()
+  const location = useLocation()
+  // When arriving from the feed we get the reel object via router state (instant,
+  // no flash). On a direct/refreshed URL we fetch it by id so it still opens here.
+  const stateReel = (location.state as { reel?: Reel } | null)?.reel
   const { user } = useAuthStore()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [muted, setMuted] = useState(true)
@@ -457,7 +462,26 @@ export default function ReelFeed() {
     getNextPageParam: (last) => (last.data.length === 10 ? last.page + 1 : undefined),
   })
 
-  const reels = data?.pages.flatMap(p => p.data) ?? []
+  // Fetch the specifically-requested reel (only when we don't already have it from state)
+  const { data: fetchedReel } = useQuery({
+    queryKey: ['reel', reelId],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<Reel>>(`/reels/${reelId}`)
+      return res.data.data ?? null
+    },
+    enabled: !!reelId && !stateReel,
+  })
+
+  const leadReel = stateReel ?? fetchedReel ?? null
+  const feedReels = useMemo(() => data?.pages.flatMap(p => p.data) ?? [], [data])
+
+  // Put the requested reel first, then the rest of the feed (de-duplicated). While a
+  // direct-link reel is still loading, keep the list empty so we don't briefly show
+  // the wrong reel at index 0 and then jump.
+  const reels = useMemo(() => {
+    if (leadReel) return [leadReel, ...feedReels.filter(r => r._id !== leadReel._id)]
+    return reelId ? [] : feedReels
+  }, [leadReel, feedReels, reelId])
   reelsRef.current = reels
 
   // Keep the measured viewport height in sync (mobile chrome show/hide, rotation)
@@ -610,8 +634,15 @@ export default function ReelFeed() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [snapTo, navigate])
 
+  // Waiting on a direct-linked reel to load — show a spinner, not the empty state
+  if (reelId && !leadReel && !reels.length) return (
+    <div className="h-[100dvh] bg-black flex items-center justify-center">
+      <Loader2 className="h-10 w-10 text-white/40 animate-spin" />
+    </div>
+  )
+
   if (!reels.length) return (
-    <div className="h-screen bg-black flex items-center justify-center flex-col gap-4">
+    <div className="h-[100dvh] bg-black flex items-center justify-center flex-col gap-4">
       <Play className="h-16 w-16 text-white/10" />
       <p className="text-white/40 text-lg">No reels yet</p>
       <p className="text-white/20 text-sm">Farmers will post short videos here</p>
