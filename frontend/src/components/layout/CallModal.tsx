@@ -47,14 +47,17 @@ export default function CallModal({
   const [camOff, setCamOff] = useState(false)
   const [mirrored, setMirrored] = useState(true)
   const [duration, setDuration] = useState(0)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const cleanup = useCallback(() => {
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     localStreamRef.current = null
+    remoteStreamRef.current = null
     peerConnection?.close()
     peerConnection = null
     if (timerRef.current) clearInterval(timerRef.current)
@@ -81,12 +84,26 @@ export default function CallModal({
     return stream
   }
 
+  // Friendly message for the common getUserMedia failures.
+  const mediaError = (video: boolean) => {
+    if (!window.isSecureContext) return 'Calls need a secure (https) connection.'
+    return video
+      ? 'Camera/microphone blocked. Allow access in your browser, then try again.'
+      : 'Microphone blocked. Allow access in your browser, then try again.'
+  }
+
   const createPeer = (stream: MediaStream, onIce: (c: RTCIceCandidate) => void) => {
     const pc = new RTCPeerConnection(ICE_SERVERS)
     stream.getTracks().forEach(t => pc.addTrack(t, stream))
     pc.onicecandidate = e => e.candidate && onIce(e.candidate)
     pc.ontrack = e => {
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]
+      // Stash the remote stream and attach it — a dedicated effect re-attaches if the
+      // media element mounts slightly later, so audio/video never silently drops.
+      remoteStreamRef.current = e.streams[0]
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = e.streams[0]
+        remoteVideoRef.current.play?.().catch(() => {})
+      }
     }
     peerConnection = pc
     return pc
@@ -102,13 +119,18 @@ export default function CallModal({
     })
 
     socket.on('call:accepted', async ({ calleeId }: { calleeId: string }) => {
-      const stream = await startLocalStream(call.video)
-      const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: calleeId, from: user._id, candidate: c }))
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      socket.emit('call:offer', { to: calleeId, from: user._id, sdp: offer })
-      setCall(prev => ({ ...prev, type: 'connected' }))
-      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      try {
+        const stream = await startLocalStream(call.video)
+        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: calleeId, from: user._id, candidate: c }))
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        socket.emit('call:offer', { to: calleeId, from: user._id, sdp: offer })
+        setCall(prev => ({ ...prev, type: 'connected' }))
+        timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      } catch {
+        setErrorMsg(mediaError(call.video))
+        hangUp(true)
+      }
     })
 
     socket.on('call:declined', () => {
@@ -117,14 +139,19 @@ export default function CallModal({
     })
 
     socket.on('call:offer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
-      const stream = localStreamRef.current ?? await startLocalStream(call.video)
-      const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, from: user._id, candidate: c }))
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp))
-      const answer = await pc.createAnswer()
-      await pc.setLocalDescription(answer)
-      socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
-      setCall(prev => ({ ...prev, type: 'connected' }))
-      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      try {
+        const stream = localStreamRef.current ?? await startLocalStream(call.video)
+        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, from: user._id, candidate: c }))
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp))
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
+        setCall(prev => ({ ...prev, type: 'connected' }))
+        if (!timerRef.current) timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      } catch {
+        setErrorMsg(mediaError(call.video))
+        hangUp(true)
+      }
     })
 
     socket.on('call:answer', async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
@@ -151,11 +178,35 @@ export default function CallModal({
     }
   }, [user?._id, call.video])
 
+  // Re-attach the remote stream once the media element is mounted (handles the
+  // race where ontrack fires before React renders the <video>).
+  useEffect(() => {
+    if (call.type === 'connected' && remoteVideoRef.current && remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current
+      remoteVideoRef.current.play?.().catch(() => {})
+    }
+  }, [call.type, call.video])
+
+  // Auto-dismiss the error toast
+  useEffect(() => {
+    if (!errorMsg) return
+    const t = setTimeout(() => setErrorMsg(null), 6000)
+    return () => clearTimeout(t)
+  }, [errorMsg])
+
   const acceptCall = async () => {
     if (!user || !call.callerId) return
     const socket = getSocket(user._id)
-    const stream = await startLocalStream(call.video)
-    localStreamRef.current = stream
+    try {
+      // Acquire mic/cam first — if this fails the call can't proceed, and we must
+      // surface why instead of leaving the Accept button looking dead.
+      await startLocalStream(call.video)
+    } catch {
+      setErrorMsg(mediaError(call.video))
+      socket.emit('call:decline', { callerId: call.callerId })
+      setCall({ type: 'idle', video: false })
+      return
+    }
     socket.emit('call:accept', { callerId: call.callerId, calleeId: user._id })
     setCall(prev => ({ ...prev, type: 'connected' }))
   }
@@ -179,7 +230,23 @@ export default function CallModal({
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-  if (call.type === 'idle') return null
+  if (call.type === 'idle') {
+    // Still surface an error (e.g. permission denied) even though the call ended.
+    return (
+      <AnimatePresence>
+        {errorMsg && (
+          <motion.div
+            key="call-error"
+            initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+            onClick={() => setErrorMsg(null)}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl max-w-[90vw] text-center cursor-pointer"
+          >
+            {errorMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )
+  }
 
   const displayName = call.type === 'incoming' ? call.callerName : call.calleeName
   const displayAvatar = call.type === 'incoming' ? call.callerAvatar : call.calleeAvatar

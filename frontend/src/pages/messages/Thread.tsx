@@ -44,6 +44,12 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+// Append a message only if it isn't already in the list. The backend broadcasts
+// 'message:new' to the whole conversation room — including the sender — so without
+// this the sender would see their own message twice (once optimistically, once echoed).
+const appendUnique = (old: Message[] = [], m: Message) =>
+  old.some(x => x._id === m._id) ? old : [...old, m]
+
 export default function Thread() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
@@ -114,7 +120,7 @@ export default function Thread() {
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
         navigate(`/messages/${data.conversationId}`, { replace: true })
       } else {
-        queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, data.message])
+        queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, data.message))
         setText('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       }
@@ -126,7 +132,7 @@ export default function Thread() {
     const socket = getSocket(user._id)
     socket.emit('join_conversation', id)
     socket.on('message:new', (msg: Message) => {
-      queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, msg])
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, msg))
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
     return () => { socket.off('message:new'); socket.emit('leave_conversation', id) }
