@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft, Eye } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -118,10 +118,12 @@ function ReelCard({
   const [viewCount, setViewCount] = useState(reel.viewCount ?? 0)
   const [playing, setPlaying] = useState(false)
   const [buffering, setBuffering] = useState(false)
+  const [videoError, setVideoError] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [shareToast, setShareToast] = useState(false)
   const startTimeRef = useRef<number>(0)
   const viewedRef = useRef(false) // ensure one view per reel mount
+  const retriedRef = useRef(false) // one automatic retry on video load failure
   const { user } = useAuthStore()
 
   const reelUser = reel.userId as unknown as User
@@ -246,12 +248,36 @@ function ReelCard({
     else { video.pause(); setPlaying(false) }
   }
 
+  // Recover from a failed/dead video source: try one silent reload (transient CDN
+  // hiccup), then surface a retry button rather than a black screen.
+  const handleVideoError = () => {
+    const video = videoRef.current
+    if (video && !retriedRef.current) {
+      retriedRef.current = true
+      video.load()
+      if (isActive) video.play().catch(() => {})
+      return
+    }
+    setBuffering(false)
+    setVideoError(true)
+  }
+
+  const retryVideo = () => {
+    const video = videoRef.current
+    retriedRef.current = false
+    setVideoError(false)
+    setBuffering(true)
+    video?.load()
+    video?.play().catch(() => {})
+  }
+
   return (
     <div className="relative h-full w-full bg-black overflow-hidden">
       {reel.videoUrl ? (
         <video
           ref={videoRef}
           src={reel.videoUrl}
+          poster={reel.thumbnailUrl}
           loop
           muted={muted}
           playsInline
@@ -261,7 +287,8 @@ function ReelCard({
           onClick={togglePlay}
           onPointerDown={e => { if ((e.target as HTMLElement).tagName === 'VIDEO') e.stopPropagation() }}
           onWaiting={() => isActive && setBuffering(true)}
-          onPlaying={() => setBuffering(false)}
+          onPlaying={() => { setBuffering(false); setVideoError(false) }}
+          onError={handleVideoError}
         />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-brand-green/20 to-black flex items-center justify-center">
@@ -279,12 +306,25 @@ function ReelCard({
             <Loader2 className="h-10 w-10 text-white/70 animate-spin" />
           </motion.div>
         )}
-        {isActive && !playing && !buffering && (
+        {isActive && !playing && !buffering && !videoError && (
           <motion.div key="pause" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
             className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center">
               <Play className="h-8 w-8 text-white ml-1" />
             </div>
+          </motion.div>
+        )}
+        {videoError && (
+          <motion.div key="err" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/50"
+            onPointerDown={e => e.stopPropagation()}>
+            <p className="text-white/70 text-sm">This video couldn’t load</p>
+            <button
+              onClick={retryVideo}
+              className="flex items-center gap-2 bg-white/15 hover:bg-white/25 active:scale-95 transition-all px-4 py-2 rounded-full text-white text-sm font-medium"
+            >
+              <RotateCcw className="h-4 w-4" /> Retry
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -394,11 +434,15 @@ export default function ReelFeed() {
   const springBackRef = useRef<{ stop: () => void } | null>(null)
   const touchVelRef = useRef(0)  // px/ms, tracked in onTouchMove before the 5px gate
   const lastTouchRef = useRef({ y: 0, t: 0 })
+  // Actual rendered height of the reel viewport. Using window.innerHeight caused
+  // the next reel to peek on mobile because CSS 100vh ≠ window.innerHeight when the
+  // browser chrome is visible. We measure the container and translate by exactly that.
+  const heightRef = useRef(typeof window !== 'undefined' ? window.innerHeight : 0)
 
   const y = useMotionValue(0)
   // Adjacent cards follow y in lockstep so they're always visible during the drag
-  const prevCardY = useTransform(y, v => v - window.innerHeight)
-  const nextCardY = useTransform(y, v => v + window.innerHeight)
+  const prevCardY = useTransform(y, v => v - heightRef.current)
+  const nextCardY = useTransform(y, v => v + heightRef.current)
 
   // Used to signal useLayoutEffect to reset y after a state-driven index change
   const pendingYReset = useRef(false)
@@ -415,6 +459,18 @@ export default function ReelFeed() {
 
   const reels = data?.pages.flatMap(p => p.data) ?? []
   reelsRef.current = reels
+
+  // Keep the measured viewport height in sync (mobile chrome show/hide, rotation)
+  useLayoutEffect(() => {
+    const measure = () => { heightRef.current = containerRef.current?.clientHeight || window.innerHeight }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
 
   // Reset y to 0 AFTER React has committed the new currentIndex to the DOM,
   // so both changes land in the same browser paint — eliminates the blink.
@@ -438,7 +494,7 @@ export default function ReelFeed() {
     }
 
     animatingRef.current = true
-    const h = window.innerHeight
+    const h = heightRef.current || window.innerHeight
     const targetY = targetIndex > currentIdx ? -h : h
     const currentVel = y.getVelocity()
 
@@ -462,7 +518,7 @@ export default function ReelFeed() {
     const wasDragging = draggingRef.current
     draggingRef.current = false
     const delta = y.get()
-    const h = window.innerHeight
+    const h = heightRef.current || window.innerHeight
     const vel = y.getVelocity()
     // Fast flicks may not move y at all (< 5px threshold), so fall back to raw touch velocity
     const effectiveVel = Math.abs(vel) >= 1 ? vel : touchVelRef.current * 1000
@@ -521,61 +577,20 @@ export default function ReelFeed() {
     }
   }, [settle, y])
 
-  // Mouse drag for desktop
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
+  // Desktop uses wheel + arrow buttons + keyboard instead of click-drag, which felt
+  // jittery (a click to play/pause could turn into an accidental drag).
 
-    const onMouseDown = (e: MouseEvent) => {
-      springBackRef.current?.stop()
-      springBackRef.current = null
-      if (animatingRef.current) return
-      if ((e.target as Element).closest('button, a, input, textarea, [data-no-drag]')) return
-      startYRef.current = e.clientY
-      draggingRef.current = false
-    }
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (animatingRef.current || !e.buttons) return
-      const delta = e.clientY - startYRef.current
-      if (!draggingRef.current && Math.abs(delta) < 5) return
-      draggingRef.current = true
-      y.set(delta)
-    }
-
-    const onMouseLeave = () => {
-      if (!draggingRef.current) return
-      const delta = y.get()
-      const vel = y.getVelocity()
-      if (Math.abs(delta) > window.innerHeight * 0.20 || Math.abs(vel) > 400) settle()
-      else {
-        draggingRef.current = false
-        springBackRef.current = animate(y, 0, { type: 'spring', stiffness: 500, damping: 38 })
-      }
-    }
-
-    el.addEventListener('mousedown', onMouseDown)
-    el.addEventListener('mousemove', onMouseMove)
-    el.addEventListener('mouseup', settle)
-    el.addEventListener('mouseleave', onMouseLeave)
-
-    return () => {
-      el.removeEventListener('mousedown', onMouseDown)
-      el.removeEventListener('mousemove', onMouseMove)
-      el.removeEventListener('mouseup', settle)
-      el.removeEventListener('mouseleave', onMouseLeave)
-    }
-  }, [settle, y])
-
-  // Wheel — one snap per debounce window (shorter = snappier on PC)
+  // Wheel — one snap per gesture. Debounced and gated by a small deltaY threshold so
+  // a single trackpad swipe (which fires many events) advances exactly one reel.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     let lastTime = 0
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      if (Math.abs(e.deltaY) < 8) return
       const now = Date.now()
-      if (animatingRef.current || now - lastTime < 180) return
+      if (animatingRef.current || now - lastTime < 380) return
       lastTime = now
       if (e.deltaY > 0) snapTo(currentIndexRef.current + 1)
       else snapTo(currentIndexRef.current - 1)
@@ -606,7 +621,7 @@ export default function ReelFeed() {
   return (
     <div
       ref={containerRef}
-      className="h-screen bg-black overflow-hidden relative select-none"
+      className="h-[100dvh] bg-black overflow-hidden relative select-none"
       style={{ willChange: 'transform' }}
     >
       {/* Previous card */}
@@ -683,6 +698,26 @@ export default function ReelFeed() {
         >
           {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           {muted ? 'Sound off' : 'Sound on'}
+        </button>
+      </div>
+
+      {/* Desktop navigation arrows — click to move between reels (no janky drag) */}
+      <div className="hidden lg:flex flex-col gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-20">
+        <button
+          onClick={() => snapTo(currentIndexRef.current - 1)}
+          disabled={currentIndex === 0}
+          aria-label="Previous reel"
+          className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white hover:bg-black/70 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </button>
+        <button
+          onClick={() => snapTo(currentIndexRef.current + 1)}
+          disabled={currentIndex >= reels.length - 1}
+          aria-label="Next reel"
+          className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white hover:bg-black/70 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronDown className="h-5 w-5" />
         </button>
       </div>
 
