@@ -26,9 +26,9 @@ export const TopBar = () => {
   const iconBtn = 'w-9 h-9 rounded-xl flex items-center justify-center text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-colors'
 
   return (
-    <header className="lg:hidden fixed top-0 left-0 right-0 z-30 glass-dark border-b border-[var(--c-border)] px-3 h-14 flex items-center gap-1 transition-colors duration-200">
+    <header className="lg:hidden fixed top-0 left-0 right-0 z-30 glass-dark border-b border-[var(--c-border)] px-3 h-20 flex items-center gap-1 transition-colors duration-200">
       <Link to="/feed" className="flex items-center mr-auto pl-1">
-        <Logo className="h-14 w-auto" />
+        <Logo className="h-[72px] w-auto" />
       </Link>
 
       <button onClick={() => setSearchOpen(true)} aria-label="Search" className={iconBtn}>
