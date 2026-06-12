@@ -13,6 +13,10 @@ function ThemeApplier() {
   const theme = useUIStore((s) => s.theme)
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    // Recolor the browser/OS chrome (status bar with battery & clock on mobile,
+    // installed-PWA title bar) to follow the app theme.
+    const meta = document.querySelector('meta[name="theme-color"]')
+    meta?.setAttribute('content', theme === 'dark' ? '#0A0F0D' : '#16A34A')
   }, [theme])
   return null
 }

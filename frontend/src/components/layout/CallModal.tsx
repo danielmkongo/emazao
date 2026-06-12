@@ -59,6 +59,7 @@ export default function CallModal({
   const [camOff, setCamOff] = useState(false)
   const [mirrored, setMirrored] = useState(true)
   const [duration, setDuration] = useState(0)
+  const [rtcConnected, setRtcConnected] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
@@ -76,6 +77,7 @@ export default function CallModal({
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setMicMuted(false)
     setCamOff(false)
+    setRtcConnected(false)
     setDuration(0)
   }, [])
 
@@ -113,6 +115,9 @@ export default function CallModal({
     stream.getTracks().forEach(t => pc.addTrack(t, stream))
     pc.onicecandidate = e => e.candidate && onIce(e.candidate)
     pc.onconnectionstatechange = () => {
+      // The call timer starts here — when media is actually flowing — so both sides
+      // count the same talk time, not "time since the accept button".
+      if (pc.connectionState === 'connected') setRtcConnected(true)
       if (pc.connectionState === 'failed') {
         setErrorMsg('Call connection failed — check your network and try again.')
         hangUp(true)
@@ -148,7 +153,6 @@ export default function CallModal({
         await pc.setLocalDescription(offer)
         socket.emit('call:offer', { to: calleeId, from: user._id, sdp: offer })
         setCall(prev => ({ ...prev, type: 'connected' }))
-        timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
       } catch {
         setErrorMsg(mediaError(call.video))
         hangUp(true)
@@ -170,7 +174,6 @@ export default function CallModal({
         await pc.setLocalDescription(answer)
         socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
         setCall(prev => ({ ...prev, type: 'connected' }))
-        if (!timerRef.current) timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
       } catch {
         setErrorMsg(mediaError(call.video))
         hangUp(true)
@@ -236,6 +239,13 @@ export default function CallModal({
     const t = setTimeout(() => { setErrorMsg('No answer.'); hangUp(true) }, 35_000)
     return () => clearTimeout(t)
   }, [call.type, hangUp])
+
+  // Talk-time ticks only while media is actually connected — identical on both ends.
+  useEffect(() => {
+    if (!rtcConnected) return
+    if (!timerRef.current) timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null } }
+  }, [rtcConnected])
 
   const acceptCall = async () => {
     if (!user || !call.callerId) return
@@ -323,13 +333,27 @@ export default function CallModal({
 
         {/* Overlay UI */}
         <div className="relative z-10 flex flex-col items-center gap-6 text-center px-6">
-          <Avatar src={displayAvatar} name={displayName ?? 'User'} size="2xl" />
+          <div className="relative">
+            {(call.type === 'incoming' || call.type === 'calling') && (
+              <motion.span
+                className="absolute -inset-3 rounded-full border-2 border-brand-green/60"
+                animate={{ scale: [1, 1.25, 1], opacity: [0.8, 0, 0.8] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+              />
+            )}
+            <Avatar src={displayAvatar} name={displayName ?? 'User'} size="2xl" />
+          </div>
           <div>
+            <p className="text-brand-lime/80 text-xs font-semibold uppercase tracking-[0.18em] mb-1.5">
+              {call.type === 'incoming' ? `Incoming ${call.video ? 'video' : 'voice'} call`
+                : call.type === 'calling' ? `Outgoing ${call.video ? 'video' : 'voice'} call`
+                : call.video ? 'Video call' : 'Voice call'}
+            </p>
             <h2 className="text-2xl font-bold text-white">{displayName}</h2>
             <p className="text-white/60 mt-1 text-sm">
-              {call.type === 'incoming' ? 'Incoming call...' :
-               call.type === 'calling' ? 'Calling...' :
-               fmt(duration)}
+              {call.type === 'incoming' ? 'Ringing…' :
+               call.type === 'calling' ? 'Ringing…' :
+               rtcConnected ? fmt(duration) : 'Connecting…'}
             </p>
           </div>
 

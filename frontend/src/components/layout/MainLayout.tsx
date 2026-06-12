@@ -3,13 +3,14 @@ import { Sidebar } from './Sidebar'
 import { RightPanel } from './RightPanel'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
+import { InstallPrompt } from './InstallPrompt'
 
 export const MainLayout = () => (
   <div className="min-h-screen bg-[var(--c-bg)] overflow-x-clip transition-colors duration-200">
     {/* Mobile status-bar accent band — fills the notch / status-bar safe area with
         the brand accent so battery & network sit on the app colour (standalone PWA). */}
     <div
-      className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-brand-green to-brand-emerald"
+      className="lg:hidden fixed top-0 left-0 right-0 z-40 status-band transition-colors duration-200"
       style={{ height: 'env(safe-area-inset-top, 0px)' }}
     />
 
@@ -24,5 +25,6 @@ export const MainLayout = () => (
     </main>
 
     <BottomNav />
+    <InstallPrompt />
   </div>
 )

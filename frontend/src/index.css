@@ -163,6 +163,15 @@
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
   }
 
+  /* Mobile status-bar band (under battery/clock in standalone PWA) — follows theme:
+     brand accent in light mode, app black in dark mode. */
+  .status-band {
+    background: linear-gradient(to right, #16A34A, #059669);
+  }
+  [data-theme="dark"] .status-band {
+    background: #0A0F0D;
+  }
+
   /* Shimmer skeleton animation */
   .skeleton-shimmer {
     background: linear-gradient(90deg, var(--c-input) 25%, var(--c-raised) 50%, var(--c-input) 75%);
