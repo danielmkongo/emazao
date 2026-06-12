@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
 import { queryClient } from '@/lib/queryClient'
 import CallModal, { useCallStore } from '@/components/layout/CallModal'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { getSocket } from '@/lib/socket'
 
 function ThemeApplier() {
@@ -40,8 +41,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeApplier />
-      <RouterProvider router={router} />
-      <GlobalCallHandler />
+      <ErrorBoundary>
+        <RouterProvider router={router} />
+        <GlobalCallHandler />
+      </ErrorBoundary>
     </QueryClientProvider>
   )
 }

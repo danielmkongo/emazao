@@ -29,6 +29,18 @@ const ICE_SERVERS = {
 }
 
 let peerConnection: RTCPeerConnection | null = null
+// ICE candidates can arrive before the remote description is set — adding them then
+// throws and the candidate is lost (a top cause of "rings but never connects"). We
+// buffer until the remote description exists, then flush.
+let pendingCandidates: RTCIceCandidateInit[] = []
+
+async function flushPendingCandidates() {
+  if (!peerConnection?.remoteDescription) return
+  for (const c of pendingCandidates) {
+    try { await peerConnection.addIceCandidate(new RTCIceCandidate(c)) } catch { /* ignore */ }
+  }
+  pendingCandidates = []
+}
 
 export function useCallStore() {
   const [call, setCall] = useState<CallState>({ type: 'idle', video: false })
@@ -60,7 +72,10 @@ export default function CallModal({
     remoteStreamRef.current = null
     peerConnection?.close()
     peerConnection = null
-    if (timerRef.current) clearInterval(timerRef.current)
+    pendingCandidates = []
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    setMicMuted(false)
+    setCamOff(false)
     setDuration(0)
   }, [])
 
@@ -94,8 +109,15 @@ export default function CallModal({
 
   const createPeer = (stream: MediaStream, onIce: (c: RTCIceCandidate) => void) => {
     const pc = new RTCPeerConnection(ICE_SERVERS)
+    pendingCandidates = []
     stream.getTracks().forEach(t => pc.addTrack(t, stream))
     pc.onicecandidate = e => e.candidate && onIce(e.candidate)
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') {
+        setErrorMsg('Call connection failed — check your network and try again.')
+        hangUp(true)
+      }
+    }
     pc.ontrack = e => {
       // Stash the remote stream and attach it — a dedicated effect re-attaches if the
       // media element mounts slightly later, so audio/video never silently drops.
@@ -143,6 +165,7 @@ export default function CallModal({
         const stream = localStreamRef.current ?? await startLocalStream(call.video)
         const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, from: user._id, candidate: c }))
         await pc.setRemoteDescription(new RTCSessionDescription(sdp))
+        await flushPendingCandidates()
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
@@ -156,10 +179,16 @@ export default function CallModal({
 
     socket.on('call:answer', async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
       await peerConnection?.setRemoteDescription(new RTCSessionDescription(sdp))
+      await flushPendingCandidates()
     })
 
     socket.on('call:ice-candidate', async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
-      await peerConnection?.addIceCandidate(new RTCIceCandidate(candidate))
+      // Buffer until the remote description is set, otherwise addIceCandidate throws.
+      if (peerConnection?.remoteDescription) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)) } catch { /* ignore */ }
+      } else {
+        pendingCandidates.push(candidate)
+      }
     })
 
     socket.on('call:ended', () => {
@@ -187,12 +216,26 @@ export default function CallModal({
     }
   }, [call.type, call.video])
 
+  // Keep the local preview attached whenever a video call is on screen.
+  useEffect(() => {
+    if (call.video && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current
+    }
+  }, [call.type, call.video])
+
   // Auto-dismiss the error toast
   useEffect(() => {
     if (!errorMsg) return
     const t = setTimeout(() => setErrorMsg(null), 6000)
     return () => clearTimeout(t)
   }, [errorMsg])
+
+  // Stop ringing after 35s if the other side never answers (or is offline).
+  useEffect(() => {
+    if (call.type !== 'calling') return
+    const t = setTimeout(() => { setErrorMsg('No answer.'); hangUp(true) }, 35_000)
+    return () => clearTimeout(t)
+  }, [call.type, hangUp])
 
   const acceptCall = async () => {
     if (!user || !call.callerId) return

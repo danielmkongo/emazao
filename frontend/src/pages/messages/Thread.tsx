@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, MoreHorizontal, Check, CheckCheck } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/utils'
@@ -189,9 +189,6 @@ export default function Thread() {
           </button>
           <button onClick={() => startCall(true)} disabled={!other} aria-label="Video call" className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors disabled:opacity-40">
             <Video className="h-4 w-4" />
-          </button>
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors">
-            <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
       </div>

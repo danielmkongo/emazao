@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Filter, Flame, Clock, MapPin, Play, Sprout } from 'lucide-react'
+import { Flame, Clock, MapPin, Play, Sprout } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { LiveNowRow } from '@/components/feed/LiveNowRow'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
@@ -44,9 +44,6 @@ export default function Feed() {
         <h1 className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
           Your Feed
         </h1>
-        <Button variant="ghost" size="icon">
-          <Filter className="h-5 w-5" />
-        </Button>
       </motion.div>
 
       {/* Filter tabs */}

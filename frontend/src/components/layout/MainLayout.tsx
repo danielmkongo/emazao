@@ -5,7 +5,7 @@ import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
 
 export const MainLayout = () => (
-  <div className="min-h-screen bg-[var(--c-bg)] transition-colors duration-200">
+  <div className="min-h-screen bg-[var(--c-bg)] overflow-x-clip transition-colors duration-200">
     {/* Mobile status-bar accent band — fills the notch / status-bar safe area with
         the brand accent so battery & network sit on the app colour (standalone PWA). */}
     <div
