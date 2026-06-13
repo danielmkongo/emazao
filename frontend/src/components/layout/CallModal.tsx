@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, FlipHorizontal } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { getSocket } from '@/lib/socket'
+import { ICE_SERVERS } from '@/lib/webrtc'
 import { useAuthStore } from '@/store/authStore'
 
 interface CallState {
@@ -14,18 +15,6 @@ interface CallState {
   calleeId?: string
   calleeName?: string
   calleeAvatar?: string
-}
-
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // Free public TURN relay so calls also connect across different networks
-    // (mobile data ↔ wifi / strict NATs), where STUN alone fails.
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  ],
 }
 
 let peerConnection: RTCPeerConnection | null = null
@@ -61,11 +50,19 @@ export default function CallModal({
   const [duration, setDuration] = useState(0)
   const [rtcConnected, setRtcConnected] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  // State-tracked remote stream so the re-attach effect reruns when ontrack fires,
+  // even if it races against React committing the <video> element to the DOM.
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Always-current snapshot of the call, so socket handlers (registered once) never
+  // read stale state. This is the core of the overhaul — listeners no longer churn.
+  const callRef = useRef(call)
+  callRef.current = call
 
   const cleanup = useCallback(() => {
     localStreamRef.current?.getTracks().forEach(t => t.stop())
@@ -79,18 +76,18 @@ export default function CallModal({
     setCamOff(false)
     setRtcConnected(false)
     setDuration(0)
+    setRemoteStream(null)
   }, [])
 
   const hangUp = useCallback((notify = true) => {
-    if (!user) return
-    const otherId = call.callerId ?? call.calleeId
-    if (notify && otherId) {
-      const socket = getSocket(user._id)
-      socket.emit('call:end', { to: otherId })
+    const c = callRef.current
+    const otherId = c.callerId ?? c.calleeId
+    if (notify && otherId && user) {
+      getSocket(user._id).emit('call:end', { to: otherId })
     }
     cleanup()
     setCall({ type: 'idle', video: false })
-  }, [call, user, cleanup, setCall])
+  }, [user, cleanup, setCall])
 
   const startLocalStream = async (video: boolean) => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video })
@@ -124,9 +121,11 @@ export default function CallModal({
       }
     }
     pc.ontrack = e => {
-      // Stash the remote stream and attach it — a dedicated effect re-attaches if the
-      // media element mounts slightly later, so audio/video never silently drops.
       remoteStreamRef.current = e.streams[0]
+      // Trigger state update so the re-attach effect reruns after React commits the
+      // remote <video> element — without this, ontrack can race the DOM mount and
+      // the caller ends up seeing only themselves (black remote view).
+      setRemoteStream(e.streams[0])
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = e.streams[0]
         remoteVideoRef.current.play?.().catch(() => {})
@@ -142,19 +141,24 @@ export default function CallModal({
     const socket = getSocket(user._id)
 
     socket.on('call:incoming', (data: { callerId: string; callerName: string; callerAvatar?: string; video: boolean }) => {
+      // Ignore if we're already in an outgoing or active call — prevents a
+      // simultaneous cross-call from overwriting our state and showing "Incoming"
+      // on the caller's own screen.
+      if (callRef.current.type !== 'idle') return
       setCall({ type: 'incoming', video: data.video, callerId: data.callerId, callerName: data.callerName, callerAvatar: data.callerAvatar })
     })
 
     socket.on('call:accepted', async ({ calleeId }: { calleeId: string }) => {
+      const wantVideo = callRef.current.video
       try {
-        const stream = await startLocalStream(call.video)
+        const stream = await startLocalStream(wantVideo)
         const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: calleeId, from: user._id, candidate: c }))
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
         socket.emit('call:offer', { to: calleeId, from: user._id, sdp: offer })
         setCall(prev => ({ ...prev, type: 'connected' }))
       } catch {
-        setErrorMsg(mediaError(call.video))
+        setErrorMsg(mediaError(wantVideo))
         hangUp(true)
       }
     })
@@ -165,8 +169,9 @@ export default function CallModal({
     })
 
     socket.on('call:offer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
+      const wantVideo = callRef.current.video
       try {
-        const stream = localStreamRef.current ?? await startLocalStream(call.video)
+        const stream = localStreamRef.current ?? await startLocalStream(wantVideo)
         const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, from: user._id, candidate: c }))
         await pc.setRemoteDescription(new RTCSessionDescription(sdp))
         await flushPendingCandidates()
@@ -175,7 +180,7 @@ export default function CallModal({
         socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
         setCall(prev => ({ ...prev, type: 'connected' }))
       } catch {
-        setErrorMsg(mediaError(call.video))
+        setErrorMsg(mediaError(wantVideo))
         hangUp(true)
       }
     })
@@ -208,16 +213,20 @@ export default function CallModal({
       socket.off('call:ice-candidate')
       socket.off('call:ended')
     }
-  }, [user?._id, call.video])
+    // Registered once per user — handlers read live state via callRef, so we never
+    // tear down/re-add listeners mid-call (which was dropping signalling events).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id])
 
-  // Re-attach the remote stream once the media element is mounted (handles the
-  // race where ontrack fires before React renders the <video>).
+  // Re-attach the remote stream whenever the stream or the call type changes.
+  // Using state (remoteStream) rather than a ref ensures this effect reruns even
+  // when ontrack races ahead of React committing the remote <video> element.
   useEffect(() => {
-    if (call.type === 'connected' && remoteVideoRef.current && remoteStreamRef.current) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream
       remoteVideoRef.current.play?.().catch(() => {})
     }
-  }, [call.type, call.video])
+  }, [remoteStream, call.type])
 
   // Keep the local preview attached whenever a video call is on screen.
   useEffect(() => {

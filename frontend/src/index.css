@@ -166,7 +166,7 @@
   /* Mobile status-bar band (under battery/clock in standalone PWA) — follows theme:
      brand accent in light mode, app black in dark mode. */
   .status-band {
-    background: linear-gradient(to right, #16A34A, #059669);
+    background: #ffffff;
   }
   [data-theme="dark"] .status-band {
     background: #0A0F0D;

@@ -16,7 +16,7 @@ function ThemeApplier() {
     // Recolor the browser/OS chrome (status bar with battery & clock on mobile,
     // installed-PWA title bar) to follow the app theme.
     const meta = document.querySelector('meta[name="theme-color"]')
-    meta?.setAttribute('content', theme === 'dark' ? '#0A0F0D' : '#16A34A')
+    meta?.setAttribute('content', theme === 'dark' ? '#0A0F0D' : '#ffffff')
   }, [theme])
   return null
 }
@@ -31,7 +31,7 @@ function GlobalCallHandler() {
     const handleCallOut = (e: Event) => {
       const { calleeId, calleeName, calleeAvatar, video } = (e as CustomEvent).detail
       const socket = getSocket(user._id)
-      socket.emit('call:request', { calleeId, callerId: user._id, callerName: user.name, video })
+      socket.emit('call:request', { calleeId, callerId: user._id, callerName: user.name, callerAvatar: user.avatar, video })
       setCall({ type: 'calling', video, calleeId, calleeName, calleeAvatar })
     }
     window.addEventListener('emazao:call-out', handleCallOut)

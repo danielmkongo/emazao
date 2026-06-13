@@ -34,8 +34,8 @@ export const initSocket = (io: Server): void => {
     socket.on('join_requirement', (id: string) => socket.join(`req:${id}`))
 
     // ── WebRTC Calling ─────────────────────────────────────────────────────────
-    socket.on('call:request', (d: { calleeId: string; callerName: string; callerId: string; video: boolean }) => {
-      io.to(`user:${d.calleeId}`).emit('call:incoming', { callerId: d.callerId, callerName: d.callerName, video: d.video })
+    socket.on('call:request', (d: { calleeId: string; callerName: string; callerAvatar?: string; callerId: string; video: boolean }) => {
+      io.to(`user:${d.calleeId}`).emit('call:incoming', { callerId: d.callerId, callerName: d.callerName, callerAvatar: d.callerAvatar, video: d.video })
     })
     socket.on('call:accept',        (d: { callerId: string; calleeId: string })                    => io.to(`user:${d.callerId}`).emit('call:accepted', { calleeId: d.calleeId }))
     socket.on('call:decline',       (d: { callerId: string })                                      => io.to(`user:${d.callerId}`).emit('call:declined'))

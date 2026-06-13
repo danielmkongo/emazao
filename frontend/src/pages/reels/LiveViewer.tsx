@@ -4,19 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Users, Heart, Share2, Volume2, VolumeX, Loader2, WifiOff } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
+import { ICE_SERVERS as ICE } from '@/lib/webrtc'
 import { formatNumber } from '@/lib/utils'
 
 interface LiveComment { username: string; text: string; id: string }
-
-const ICE = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // Self-hosted TURN on the emazao VPS — install coturn to activate
-    { urls: 'turn:45.79.206.183:3478', username: 'emazao', credential: 'MazaoTurn2024!' },
-    { urls: 'turn:45.79.206.183:3478?transport=tcp', username: 'emazao', credential: 'MazaoTurn2024!' },
-  ],
-}
 
 type ConnState = 'connecting' | 'connected' | 'failed'
 

@@ -1,23 +1,14 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Camera, CameraOff, Mic, MicOff, Radio, X, Send, Users, AlertCircle, RefreshCw } from 'lucide-react'
+import { Camera, CameraOff, Mic, MicOff, Radio, X, Send, Users, AlertCircle, RefreshCw, SwitchCamera, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
+import { ICE_SERVERS as ICE } from '@/lib/webrtc'
 import { formatNumber } from '@/lib/utils'
 
 interface LiveComment { username: string; text: string; id: string }
-
-const ICE = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // Self-hosted TURN on the emazao VPS — install coturn to activate
-    { urls: 'turn:45.79.206.183:3478', username: 'emazao', credential: 'MazaoTurn2024!' },
-    { urls: 'turn:45.79.206.183:3478?transport=tcp', username: 'emazao', credential: 'MazaoTurn2024!' },
-  ],
-}
 
 type PermState = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'insecure' | 'in_use'
 
@@ -33,6 +24,7 @@ export default function LiveBroadcast() {
   const [viewerCount, setViewerCount] = useState(0)
   const [duration, setDuration] = useState(0)
   const [permState, setPermState] = useState<PermState>('idle')
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -154,6 +146,31 @@ export default function LiveBroadcast() {
     if (t) { t.enabled = !t.enabled; setCamOn(c => !c) }
   }
 
+  // Flip between front/back camera, live-swapping the outgoing track for every viewer.
+  const flipCamera = async () => {
+    if (!streamRef.current) return
+    const next = facingMode === 'user' ? 'environment' : 'user'
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false })
+      const newTrack = newStream.getVideoTracks()[0]
+      if (!newTrack) return
+      newTrack.enabled = camOn
+      // Replace the video track in each viewer's peer connection (no renegotiation needed)
+      peers.current.forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video')
+        sender?.replaceTrack(newTrack).catch(() => {})
+      })
+      // Swap the local preview track
+      const old = streamRef.current.getVideoTracks()[0]
+      if (old) { streamRef.current.removeTrack(old); old.stop() }
+      streamRef.current.addTrack(newTrack)
+      if (videoRef.current) videoRef.current.srcObject = streamRef.current
+      setFacingMode(next)
+    } catch (err) {
+      console.error('flip camera failed', err)
+    }
+  }
+
   const sendComment = () => {
     if (!commentText.trim() || !socket || !user || !isLive) return
     socket.emit('live:comment', { broadcasterId: user._id, username: user.username, text: commentText.trim() })
@@ -249,15 +266,58 @@ export default function LiveBroadcast() {
     )
   }
 
+  const ControlButton = ({ on, onClick, onIcon, offIcon, danger }: { on: boolean; onClick: () => void; onIcon: ReactNode; offIcon: ReactNode; danger?: boolean }) => (
+    <button onClick={onClick}
+      className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors flex-shrink-0 ${on ? 'bg-white/20 hover:bg-white/30' : danger ? 'bg-red-500' : 'bg-white/20'}`}>
+      {on ? onIcon : offIcon}
+    </button>
+  )
+
+  const commentBubbles = (compact: boolean) => (
+    <AnimatePresence>
+      {comments.map(c => {
+        const isMe = c.username === user?.username
+        return (
+          <motion.div key={c.id} initial={{ opacity: 0, x: isMe ? 10 : -10 }} animate={{ opacity: 1, x: 0 }}
+            className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isMe ? 'bg-brand-green text-white' : 'bg-brand-green/20 text-brand-green'}`}>
+              {c.username[0]?.toUpperCase()}
+            </div>
+            <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end text-right' : ''}`}>
+              <span className={`text-[11px] font-semibold ${isMe ? 'text-brand-green' : 'text-brand-lime'}`}>
+                {isMe ? 'You (host)' : `@${c.username}`}
+              </span>
+              <span className={`text-xs px-2 py-1 rounded-xl mt-0.5 inline-block ${compact ? 'bg-black/40 backdrop-blur-sm text-white' : isMe ? 'bg-brand-green/20 text-white' : 'text-white/80'}`}>
+                {c.text}
+              </span>
+            </div>
+          </motion.div>
+        )
+      })}
+    </AnimatePresence>
+  )
+
+  const commentInput = (
+    <div className="flex gap-2">
+      <input value={commentText} onChange={e => setCommentText(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendComment()}
+        placeholder="Say something…"
+        className="flex-1 min-w-0 bg-white/15 backdrop-blur-sm rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:bg-white/20" />
+      <button onClick={sendComment} className="w-10 h-10 bg-brand-green rounded-full flex items-center justify-center text-white hover:bg-brand-emerald transition-colors flex-shrink-0">
+        <Send className="h-4 w-4" />
+      </button>
+    </div>
+  )
+
   return (
-    <div className="h-screen bg-black flex overflow-hidden">
+    <div className="h-[100dvh] bg-black flex overflow-hidden">
       {/* ── Video ── */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-w-0">
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
 
         {/* Requesting permission overlay */}
         {permState === 'requesting' && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4">
+          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 px-6 text-center">
             <div className="w-16 h-16 rounded-full border-4 border-brand-green border-t-transparent animate-spin" />
             <p className="text-white text-sm">Requesting camera access…</p>
             <p className="text-white/40 text-xs">Allow camera and microphone in the browser prompt above</p>
@@ -266,8 +326,8 @@ export default function LiveBroadcast() {
 
         {/* Pre-live setup (camera granted, not yet live) */}
         {permState === 'granted' && !isLive && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-5 w-72">
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center px-6">
+            <div className="flex flex-col items-center gap-5 w-full max-w-xs">
               <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-brand-green/20 border-2 border-brand-green flex items-center justify-center mx-auto mb-3">
                   <Radio className="h-7 w-7 text-brand-green" />
@@ -290,7 +350,7 @@ export default function LiveBroadcast() {
 
         {/* Live badge + stats */}
         {isLive && (
-          <div className="absolute top-4 left-4 flex items-center gap-3">
+          <div className="absolute top-4 left-4 flex items-center gap-2 z-20" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
             <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
               className="flex items-center gap-2 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
               <div className="w-2 h-2 rounded-full bg-white" /> LIVE
@@ -302,69 +362,56 @@ export default function LiveBroadcast() {
           </div>
         )}
 
-        {/* Controls */}
+        {/* Mobile floating comments (over the video, never a full panel) */}
         {isLive && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
-            <button onClick={toggleMic}
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors ${micOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500'}`}>
-              {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+          <div className="lg:hidden absolute left-3 right-3 bottom-[136px] max-h-[34vh] overflow-y-auto no-scrollbar flex flex-col-reverse gap-2 z-10 pointer-events-none">
+            {commentBubbles(true)}
+          </div>
+        )}
+
+        {/* Controls — centred; sits above the mobile comment bar, lower on desktop */}
+        {isLive && (
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-[76px] lg:bottom-6 flex items-center gap-3 lg:gap-4 z-20">
+            <ControlButton on={micOn} onClick={toggleMic} onIcon={<Mic className="h-5 w-5" />} offIcon={<MicOff className="h-5 w-5" />} danger />
+            <ControlButton on={camOn} onClick={toggleCam} onIcon={<Camera className="h-5 w-5" />} offIcon={<CameraOff className="h-5 w-5" />} danger />
+            <button onClick={flipCamera} aria-label="Flip camera"
+              className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors flex-shrink-0">
+              <SwitchCamera className="h-5 w-5" />
             </button>
-            <button onClick={toggleCam}
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors ${camOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500'}`}>
-              {camOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
-            </button>
-            <button onClick={stopStream}
-              className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-xl transition-colors">
+            <button onClick={stopStream} aria-label="End stream"
+              className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-xl transition-colors flex-shrink-0">
               <X className="h-6 w-6" />
             </button>
           </div>
         )}
 
+        {/* Mobile comment input bar */}
+        {isLive && (
+          <div className="lg:hidden absolute left-3 right-3 bottom-4 z-20">
+            {commentInput}
+          </div>
+        )}
+
         {/* Close pre-live */}
         {!isLive && (
-          <button onClick={() => navigate(-1)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+          <button onClick={() => navigate(-1)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors z-20" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
             <X className="h-5 w-5" />
           </button>
         )}
       </div>
 
-      {/* ── Live comments panel ── */}
+      {/* ── Desktop comments side panel ── */}
       {isLive && (
-        <div className="w-80 bg-[#111827] flex flex-col border-l border-white/10">
-          <div className="px-4 py-3 border-b border-white/10">
+        <div className="hidden lg:flex w-80 bg-[#111827] flex-col border-l border-white/10">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-brand-green" />
             <h3 className="text-white font-semibold text-sm">Live Comments</h3>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-3 flex flex-col-reverse">
-            <AnimatePresence>
-              {comments.map(c => {
-                const isMe = c.username === user?.username
-                return (
-                  <motion.div key={c.id} initial={{ opacity: 0, x: isMe ? 10 : -10 }} animate={{ opacity: 1, x: 0 }}
-                    className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isMe ? 'bg-brand-green text-white' : 'bg-brand-green/20 text-brand-green'}`}>
-                      {c.username[0]?.toUpperCase()}
-                    </div>
-                    <div className={`max-w-[80%] ${isMe ? 'items-end text-right' : ''} flex flex-col`}>
-                      <span className={`text-xs font-semibold ${isMe ? 'text-brand-green' : 'text-brand-lime'}`}>
-                        {isMe ? 'You (host)' : `@${c.username}`}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded-xl mt-0.5 inline-block ${isMe ? 'bg-brand-green/20 text-white' : 'text-white/80'}`}>
-                        {c.text}
-                      </span>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
+            {commentBubbles(false)}
           </div>
-          <div className="p-3 border-t border-white/10 flex gap-2">
-            <input value={commentText} onChange={e => setCommentText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendComment()}
-              placeholder="Say something…"
-              className="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-white/30 focus:outline-none" />
-            <button onClick={sendComment} className="w-8 h-8 bg-brand-green rounded-xl flex items-center justify-center text-white hover:bg-brand-emerald transition-colors">
-              <Send className="h-3 w-3" />
-            </button>
+          <div className="p-3 border-t border-white/10">
+            {commentInput}
           </div>
         </div>
       )}
