@@ -21,6 +21,8 @@ const wrap = (Component: React.LazyExoticComponent<() => any>) => (
 const Landing = lazy(() => import('@/pages/Landing'))
 const Login = lazy(() => import('@/pages/auth/Login'))
 const Register = lazy(() => import('@/pages/auth/Register'))
+const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/auth/ResetPassword'))
 const VerifyOtp = lazy(() => import('@/pages/auth/VerifyOtp'))
 const Onboarding = lazy(() => import('@/pages/auth/Onboarding'))
 const Feed = lazy(() => import('@/pages/feed/Feed'))
@@ -81,6 +83,8 @@ export const router = createBrowserRouter([
   { path: '/', element: wrap(Landing) },
   { path: '/login', element: wrap(Login) },
   { path: '/register', element: wrap(Register) },
+  { path: '/forgot-password', element: wrap(ForgotPassword) },
+  { path: '/reset-password', element: wrap(ResetPassword) },
   { path: '/verify-otp', element: wrap(VerifyOtp) },
   { path: '/onboarding', element: wrap(Onboarding) },
 

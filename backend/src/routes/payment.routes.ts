@@ -1,15 +1,15 @@
 import { Router } from 'express'
-import express from 'express'
 import { protect } from '../middleware/auth.middleware'
-import { createPaymentIntent, stripeWebhook, releaseEscrow } from '../controllers/payment.controller'
+import { requireRole } from '../middleware/role.middleware'
+import { createPaymentIntent, releaseEscrow } from '../controllers/payment.controller'
 
 const router = Router()
 
-// Webhook needs raw body
-router.post('/webhook', express.raw({ type: 'application/json' }), stripeWebhook)
+// Webhook is mounted directly on the app (before the global JSON body-parser) in
+// app.ts, since it needs the raw request body to verify its Stripe signature.
 
 router.use(protect)
 router.post('/intent', createPaymentIntent)
-router.post('/escrow/:id/release', releaseEscrow)
+router.post('/escrow/:id/release', requireRole('ADMIN', 'SUPER_ADMIN'), releaseEscrow)
 
 export default router

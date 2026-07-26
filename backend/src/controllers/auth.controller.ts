@@ -1,12 +1,13 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { nanoid } from 'nanoid'
 import { env } from '../config/env'
 import User from '../models/User'
 import Wallet from '../models/Wallet'
 import { AuthRequest } from '../middleware/auth.middleware'
-import { sendOtpEmail } from '../services/email.service'
+import { sendOtpEmail, sendPasswordResetEmail } from '../services/email.service'
 
 const signAccess = (id: string, role: string, email: string) =>
   jwt.sign({ id, role, email }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions)
@@ -88,6 +89,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ success: false, message: 'Invalid credentials' })
       return
     }
+    if (user.isSuspended) {
+      res.status(403).json({ success: false, message: 'Your account has been suspended. Contact support.' })
+      return
+    }
 
     const accessToken = signAccess(user.id as string, user.role, user.email)
     const refreshToken = signRefresh(user.id as string)
@@ -140,6 +145,67 @@ export const logout = async (req: AuthRequest, res: Response): Promise<void> => 
       await User.findByIdAndUpdate(req.user.id, { refreshToken: undefined })
     }
     res.json({ success: true, message: 'Logged out' })
+  } catch (err) {
+    const error = err as Error
+    res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+// POST /api/auth/forgot-password
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body as { email: string }
+    // Always respond the same way regardless of whether the email exists, so
+    // this endpoint can't be used to enumerate registered accounts.
+    const genericResponse = { success: true, message: 'If that email is registered, a reset link has been sent.' }
+
+    const user = await User.findOne({ email: (email ?? '').toLowerCase() })
+    if (!user) {
+      res.json(genericResponse)
+      return
+    }
+
+    const token = crypto.randomBytes(32).toString('hex')
+    user.resetPasswordTokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    user.resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000)
+    await user.save()
+
+    const resetLink = `${env.CLIENT_URL}/reset-password?token=${token}`
+    await sendPasswordResetEmail(user.email, resetLink)
+
+    res.json(genericResponse)
+  } catch (err) {
+    const error = err as Error
+    res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+// POST /api/auth/reset-password
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, newPassword } = req.body as { token: string; newPassword: string }
+    if (!token || !newPassword || newPassword.length < 8) {
+      res.status(400).json({ success: false, message: 'A valid token and a password of at least 8 characters are required' })
+      return
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    const user = await User.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpires: { $gt: new Date() },
+    })
+    if (!user) {
+      res.status(400).json({ success: false, message: 'Reset link is invalid or has expired' })
+      return
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12)
+    user.resetPasswordTokenHash = undefined
+    user.resetPasswordExpires = undefined
+    user.refreshToken = undefined // force re-login on every device
+    await user.save()
+
+    res.json({ success: true, message: 'Password reset — you can now log in with your new password' })
   } catch (err) {
     const error = err as Error
     res.status(500).json({ success: false, message: error.message })

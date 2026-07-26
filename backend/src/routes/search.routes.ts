@@ -3,6 +3,7 @@ import { Request, Response } from 'express'
 import Product from '../models/Product'
 import User from '../models/User'
 import Reel from '../models/Reel'
+import { escapeRegex } from '../utils/regexEscape'
 
 const router = Router()
 
@@ -11,7 +12,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { q, type } = req.query
     if (!q) { res.json({ success: true, data: { products: [], users: [], reels: [] } }); return }
 
-    const regex = new RegExp(q as string, 'i')
+    const regex = new RegExp(escapeRegex(String(q).slice(0, 100)), 'i')
 
     const [products, users, reels] = await Promise.all([
       (!type || type === 'products')

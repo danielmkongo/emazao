@@ -7,6 +7,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
+import { formatNumber } from '@/lib/utils'
 import type { ApiResponse } from '@/types'
 
 interface Broadcaster { _id: string; name: string; username: string; avatar?: string; isVerified?: boolean }
@@ -63,7 +64,7 @@ export const LiveNowRow = () => {
   // Real-time: handle both old and new socket payload formats
   useEffect(() => {
     if (!user?._id) return
-    const socket = getSocket(user._id)
+    const socket = getSocket()
 
     socket.on('live:new', async (raw: any) => {
       const session = await resolveSession(raw)
@@ -78,9 +79,17 @@ export const LiveNowRow = () => {
       setSessions(prev => prev.filter(s => s.broadcasterId._id !== broadcasterId))
     })
 
+    // Live viewer counts for streams shown here (not just ones this client has
+    // joined) — previously frozen at whatever value was present on fetch until
+    // the next 20s poll.
+    socket.on('live:viewer-count-global', ({ broadcasterId, count }: { broadcasterId: string; count: number }) => {
+      setSessions(prev => prev.map(s => s.broadcasterId._id === broadcasterId ? { ...s, viewerCount: count } : s))
+    })
+
     return () => {
       socket.off('live:new')
       socket.off('live:removed')
+      socket.off('live:viewer-count-global')
     }
   }, [user?._id])
 
@@ -129,6 +138,9 @@ export const LiveNowRow = () => {
                   <p className="text-[11px] text-[var(--c-text-2)] max-w-[64px] text-center truncate mt-1.5">
                     {b.name?.split(' ')[0] ?? 'Farmer'}
                   </p>
+                  {session.viewerCount > 0 && (
+                    <p className="text-[10px] text-[var(--c-text-4)] -mt-1">{formatNumber(session.viewerCount)} watching</p>
+                  )}
                 </Link>
               </motion.div>
             )

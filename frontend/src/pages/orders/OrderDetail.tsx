@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Package, MapPin, CheckCircle, AlertTriangle, Truck, Clock } from 'lucide-react'
+import { ArrowLeft, Package, MapPin, CheckCircle, AlertTriangle, Truck, Clock, CreditCard } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar } from '@/components/ui/avatar'
+import { PaymentForm } from '@/components/payment/PaymentForm'
 import { formatCurrency, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
@@ -64,6 +66,8 @@ export default function OrderDetail() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
+  const [payingClientSecret, setPayingClientSecret] = useState('')
+
   const { data: order, isLoading, isError, error } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
@@ -71,6 +75,14 @@ export default function OrderDetail() {
       return res.data.data
     },
     retry: 1,
+  })
+
+  const startPaymentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<{ clientSecret: string }>>('/payments/intent', { orderId: id })
+      return res.data.data
+    },
+    onSuccess: (data) => setPayingClientSecret(data.clientSecret),
   })
 
   const confirmMutation = useMutation({
@@ -124,6 +136,7 @@ export default function OrderDetail() {
   const canConfirm = isBuyer && order.status === 'SHIPPED'
   const canDispute = isBuyer && ['SHIPPED', 'DELIVERED'].includes(order.status)
   const canMarkShipped = isSeller && (order.status === 'PAYMENT_CONFIRMED' || order.status === 'PROCESSING')
+  const canPay = isBuyer && order.status === 'PENDING'
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-8">
@@ -218,6 +231,28 @@ export default function OrderDetail() {
           <p className="text-[var(--c-text-2)] text-sm">{order.deliveryAddress.street}</p>
           <p className="text-[var(--c-text-2)] text-sm">{order.deliveryAddress.city}, {order.deliveryAddress.region}</p>
           <p className="text-[var(--c-text-2)] text-sm">{order.deliveryAddress.country}</p>
+        </motion.div>
+      )}
+
+      {/* Abandoned/incomplete payment recovery */}
+      {canPay && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5 mb-4">
+          {payingClientSecret ? (
+            <>
+              <h3 className="font-semibold text-[var(--c-text)] mb-3">Complete Payment</h3>
+              <PaymentForm
+                clientSecret={payingClientSecret}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['order', id] })}
+                onCancel={() => setPayingClientSecret('')}
+              />
+            </>
+          ) : (
+            <Button className="w-full" onClick={() => startPaymentMutation.mutate()} disabled={startPaymentMutation.isPending}>
+              <CreditCard className="h-4 w-4" />
+              {startPaymentMutation.isPending ? 'Loading…' : 'Complete Payment'}
+            </Button>
+          )}
         </motion.div>
       )}
 

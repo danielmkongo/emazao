@@ -9,6 +9,10 @@ import { useAuthStore } from '@/store/authStore'
 interface CallState {
   type: 'idle' | 'calling' | 'incoming' | 'connected'
   video: boolean
+  // Set once when a call starts and never overwritten by later `type` transitions —
+  // `type` alone can't tell us which side we're on once a call reaches 'connected',
+  // which previously made the callee's screen show blank/wrong identity info.
+  direction?: 'incoming' | 'outgoing'
   callerId?: string
   callerName?: string
   callerAvatar?: string
@@ -58,6 +62,7 @@ export default function CallModal({
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Always-current snapshot of the call, so socket handlers (registered once) never
   // read stale state. This is the core of the overhaul — listeners no longer churn.
@@ -72,6 +77,7 @@ export default function CallModal({
     peerConnection = null
     pendingCandidates = []
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null }
     setMicMuted(false)
     setCamOff(false)
     setRtcConnected(false)
@@ -83,7 +89,7 @@ export default function CallModal({
     const c = callRef.current
     const otherId = c.callerId ?? c.calleeId
     if (notify && otherId && user) {
-      getSocket(user._id).emit('call:end', { to: otherId })
+      getSocket().emit('call:end', { to: otherId })
     }
     cleanup()
     setCall({ type: 'idle', video: false })
@@ -108,13 +114,33 @@ export default function CallModal({
 
   const createPeer = (stream: MediaStream, onIce: (c: RTCIceCandidate) => void) => {
     const pc = new RTCPeerConnection(ICE_SERVERS)
-    pendingCandidates = []
+    // NOTE: pendingCandidates is intentionally NOT reset here. On the callee path,
+    // 'call:offer' awaits startLocalStream() (a mic/camera permission prompt) before
+    // calling createPeer() — ICE candidates arriving during that await are correctly
+    // buffered by the 'call:ice-candidate' handler below. Resetting the buffer here
+    // wiped exactly those candidates the instant createPeer() ran, before they were
+    // ever flushed — a top cause of "rings but never connects". cleanup() already
+    // resets the buffer on every real call-end path, so no reset is needed here.
     stream.getTracks().forEach(t => pc.addTrack(t, stream))
     pc.onicecandidate = e => e.candidate && onIce(e.candidate)
     pc.onconnectionstatechange = () => {
       // The call timer starts here — when media is actually flowing — so both sides
       // count the same talk time, not "time since the accept button".
-      if (pc.connectionState === 'connected') setRtcConnected(true)
+      if (pc.connectionState === 'connected') {
+        setRtcConnected(true)
+        if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null }
+      }
+      if (pc.connectionState === 'disconnected') {
+        // Browsers often sit in 'disconnected' for a while (and can recover via ICE
+        // restart) before ever reaching 'failed' — give it a grace period instead of
+        // leaving a zombie "connected" call with the timer still running forever.
+        if (!disconnectTimerRef.current) {
+          disconnectTimerRef.current = setTimeout(() => {
+            setErrorMsg('Call connection lost.')
+            hangUp(true)
+          }, 8000)
+        }
+      }
       if (pc.connectionState === 'failed') {
         setErrorMsg('Call connection failed — check your network and try again.')
         hangUp(true)
@@ -138,24 +164,28 @@ export default function CallModal({
   // Socket event listeners
   useEffect(() => {
     if (!user?._id) return
-    const socket = getSocket(user._id)
+    const socket = getSocket()
 
     socket.on('call:incoming', (data: { callerId: string; callerName: string; callerAvatar?: string; video: boolean }) => {
       // Ignore if we're already in an outgoing or active call — prevents a
       // simultaneous cross-call from overwriting our state and showing "Incoming"
-      // on the caller's own screen.
-      if (callRef.current.type !== 'idle') return
-      setCall({ type: 'incoming', video: data.video, callerId: data.callerId, callerName: data.callerName, callerAvatar: data.callerAvatar })
+      // on the caller's own screen. Tell the caller we're busy instead of just
+      // leaving them ringing for the full timeout with no explanation.
+      if (callRef.current.type !== 'idle') {
+        socket.emit('call:busy', { callerId: data.callerId })
+        return
+      }
+      setCall({ type: 'incoming', direction: 'incoming', video: data.video, callerId: data.callerId, callerName: data.callerName, callerAvatar: data.callerAvatar })
     })
 
     socket.on('call:accepted', async ({ calleeId }: { calleeId: string }) => {
       const wantVideo = callRef.current.video
       try {
         const stream = await startLocalStream(wantVideo)
-        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: calleeId, from: user._id, candidate: c }))
+        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: calleeId, candidate: c }))
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
-        socket.emit('call:offer', { to: calleeId, from: user._id, sdp: offer })
+        socket.emit('call:offer', { to: calleeId, sdp: offer })
         setCall(prev => ({ ...prev, type: 'connected' }))
       } catch {
         setErrorMsg(mediaError(wantVideo))
@@ -168,16 +198,26 @@ export default function CallModal({
       setCall({ type: 'idle', video: false })
     })
 
+    socket.on('call:busy', () => {
+      setErrorMsg('This person is on another call.')
+      hangUp(false)
+    })
+
+    socket.on('call:peer-disconnected', () => {
+      setErrorMsg('The other person lost connection.')
+      hangUp(false)
+    })
+
     socket.on('call:offer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
       const wantVideo = callRef.current.video
       try {
         const stream = localStreamRef.current ?? await startLocalStream(wantVideo)
-        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, from: user._id, candidate: c }))
+        const pc = createPeer(stream, (c) => socket.emit('call:ice-candidate', { to: from, candidate: c }))
         await pc.setRemoteDescription(new RTCSessionDescription(sdp))
         await flushPendingCandidates()
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
-        socket.emit('call:answer', { to: from, from: user._id, sdp: answer })
+        socket.emit('call:answer', { to: from, sdp: answer })
         setCall(prev => ({ ...prev, type: 'connected' }))
       } catch {
         setErrorMsg(mediaError(wantVideo))
@@ -186,8 +226,13 @@ export default function CallModal({
     })
 
     socket.on('call:answer', async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
-      await peerConnection?.setRemoteDescription(new RTCSessionDescription(sdp))
-      await flushPendingCandidates()
+      try {
+        await peerConnection?.setRemoteDescription(new RTCSessionDescription(sdp))
+        await flushPendingCandidates()
+      } catch {
+        setErrorMsg('Call connection failed — check your network and try again.')
+        hangUp(true)
+      }
     })
 
     socket.on('call:ice-candidate', async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
@@ -208,6 +253,8 @@ export default function CallModal({
       socket.off('call:incoming')
       socket.off('call:accepted')
       socket.off('call:declined')
+      socket.off('call:busy')
+      socket.off('call:peer-disconnected')
       socket.off('call:offer')
       socket.off('call:answer')
       socket.off('call:ice-candidate')
@@ -249,6 +296,17 @@ export default function CallModal({
     return () => clearTimeout(t)
   }, [call.type, hangUp])
 
+  // Mirror the above on the receiving side — previously only the caller ever gave
+  // up, so an unanswered incoming call could sit ringing indefinitely.
+  useEffect(() => {
+    if (call.type !== 'incoming') return
+    const t = setTimeout(() => {
+      if (user && call.callerId) getSocket().emit('call:decline', { callerId: call.callerId })
+      setCall({ type: 'idle', video: false })
+    }, 35_000)
+    return () => clearTimeout(t)
+  }, [call.type, call.callerId, user, setCall])
+
   // Talk-time ticks only while media is actually connected — identical on both ends.
   useEffect(() => {
     if (!rtcConnected) return
@@ -258,7 +316,7 @@ export default function CallModal({
 
   const acceptCall = async () => {
     if (!user || !call.callerId) return
-    const socket = getSocket(user._id)
+    const socket = getSocket()
     try {
       // Acquire mic/cam first — if this fails the call can't proceed, and we must
       // surface why instead of leaving the Accept button looking dead.
@@ -269,13 +327,13 @@ export default function CallModal({
       setCall({ type: 'idle', video: false })
       return
     }
-    socket.emit('call:accept', { callerId: call.callerId, calleeId: user._id })
+    socket.emit('call:accept', { callerId: call.callerId })
     setCall(prev => ({ ...prev, type: 'connected' }))
   }
 
   const declineCall = () => {
     if (!user || !call.callerId) return
-    const socket = getSocket(user._id)
+    const socket = getSocket()
     socket.emit('call:decline', { callerId: call.callerId })
     setCall({ type: 'idle', video: false })
   }
@@ -310,8 +368,12 @@ export default function CallModal({
     )
   }
 
-  const displayName = call.type === 'incoming' ? call.callerName : call.calleeName
-  const displayAvatar = call.type === 'incoming' ? call.callerAvatar : call.calleeAvatar
+  // Branch on `direction` (fixed for the lifetime of the call), not `type` — once
+  // connected, `type` is 'connected' on both ends, which previously made the
+  // receiving side fall through to `calleeName`/`calleeAvatar`, fields that are
+  // never populated for an incoming call, showing a blank/wrong identity.
+  const displayName = call.direction === 'incoming' ? call.callerName : call.calleeName
+  const displayAvatar = call.direction === 'incoming' ? call.callerAvatar : call.calleeAvatar
 
   return (
     <AnimatePresence>

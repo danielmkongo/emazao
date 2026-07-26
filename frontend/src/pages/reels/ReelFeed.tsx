@@ -123,19 +123,31 @@ function ReelCard({
   const [shareToast, setShareToast] = useState(false)
   const startTimeRef = useRef<number>(0)
   const viewedRef = useRef(false) // ensure one view per reel mount
+  const watchTimeSentRef = useRef(false) // ensure watch-time posts exactly once per reel mount
   const retriedRef = useRef(false) // one automatic retry on video load failure
   const { user } = useAuthStore()
 
   const reelUser = reel.userId as unknown as User
   const product = reel.productId as unknown as Product | null
 
-  // Record a view exactly once per reel — fires as soon as it starts playing,
-  // so a view is counted even if the user never scrolls away.
+  // Count a view exactly once per reel — fires as soon as it starts playing, so a
+  // view is counted even if the user never scrolls away. Watch time itself is
+  // reported separately by flushWatchTime() once we know how long they stayed.
   const recordView = () => {
     if (viewedRef.current) return
     viewedRef.current = true
     setViewCount(prev => prev + 1)
-    api.post(`/reels/${reel._id}/view`, { watchTime: 0 }).catch(() => {})
+  }
+
+  // Reports real elapsed watch time — without this, every view was posted with
+  // watchTime: 0, which made the recommendation engine treat every reel view as a
+  // near-zero-completion (negative) engagement signal and suppressed reel content
+  // platform-wide.
+  const flushWatchTime = () => {
+    if (watchTimeSentRef.current || !startTimeRef.current) return
+    watchTimeSentRef.current = true
+    const watchTime = (Date.now() - startTimeRef.current) / 1000
+    api.post(`/reels/${reel._id}/view`, { watchTime }).catch(() => {})
   }
 
   // Sync mute without causing re-play
@@ -152,6 +164,7 @@ function ReelCard({
 
     if (isActive) {
       video.muted = muted
+      watchTimeSentRef.current = false // a re-watch (scrolled back to this reel) reports its own watch time
 
       const tryPlay = () => {
         setBuffering(false)
@@ -174,6 +187,7 @@ function ReelCard({
         return () => video.removeEventListener('canplay', tryPlay)
       }
     } else {
+      flushWatchTime()
       video.pause()
       video.currentTime = 0
       setPlaying(false)
@@ -183,17 +197,50 @@ function ReelCard({
     }
   }, [isActive]) // intentionally exclude muted — handled by its own effect
 
+  // Reliability fallbacks: report watch time on unmount (navigated away entirely)
+  // and on tab close/backgrounding, since neither reliably passes through the
+  // isActive-false branch above.
+  useEffect(() => {
+    return () => flushWatchTime()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      if (watchTimeSentRef.current || !startTimeRef.current) return
+      watchTimeSentRef.current = true
+      const watchTime = (Date.now() - startTimeRef.current) / 1000
+      navigator.sendBeacon?.(
+        `/api/reels/${reel._id}/view`,
+        new Blob([JSON.stringify({ watchTime })], { type: 'application/json' })
+      )
+    }
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (reel.userLiked !== undefined) setLiked(reel.userLiked)
   }, [reel.userLiked])
 
+  const likePendingRef = useRef(false)
+
   const handleLike = async () => {
+    // Ignore rapid double-taps while a toggle is in flight — two overlapping
+    // requests can otherwise race the backend's unique-like-per-user index.
+    if (likePendingRef.current) return
+    likePendingRef.current = true
     const newLiked = !liked
     setLiked(newLiked)
     setLikeCount(prev => newLiked ? prev + 1 : prev - 1)
-    try { await api.post('/social/like', { targetId: reel._id, targetType: 'Reel' }) } catch {
+    try {
+      await api.post('/social/like', { targetId: reel._id, targetType: 'Reel' })
+    } catch {
       setLiked(!newLiked)
       setLikeCount(prev => newLiked ? prev - 1 : prev + 1)
+    } finally {
+      likePendingRef.current = false
     }
   }
 

@@ -91,12 +91,23 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     const isSeller = sellerIdStr === userId
     const isBuyer = buyerIdStr === userId
 
-    // Only seller can mark SHIPPED; only admin can make other changes
+    // Only seller can mark SHIPPED (and only from a paid state); buyers can only
+    // cancel a still-unpaid order — everything else (confirming payment, marking
+    // delivered/completed) goes through the dedicated payment-webhook/confirmDelivery
+    // flows, never this generic status endpoint.
     if (!isAdmin && !isSeller && !isBuyer) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    if (!isAdmin && isSeller && status !== 'SHIPPED') {
-      return res.status(403).json({ success: false, message: 'Sellers can only mark orders as SHIPPED' })
+    if (!isAdmin && isSeller) {
+      if (status !== 'SHIPPED') {
+        return res.status(403).json({ success: false, message: 'Sellers can only mark orders as SHIPPED' })
+      }
+      if (!['PAYMENT_CONFIRMED', 'PROCESSING'].includes(order.status)) {
+        return res.status(400).json({ success: false, message: `Cannot ship an order that is ${order.status}` })
+      }
+    }
+    if (!isAdmin && isBuyer && !(status === 'CANCELLED' && order.status === 'PENDING')) {
+      return res.status(403).json({ success: false, message: 'Buyers can only cancel a pending order' })
     }
 
     order.status = status
@@ -134,32 +145,37 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
     order.deliveredAt = new Date()
     await order.save()
 
-    // Release escrow if exists
+    // Release escrow if exists. The escrow's own HOLDING → RELEASED transition is
+    // the mutex here — findOneAndUpdate only succeeds for one caller even if this
+    // endpoint, the payment-controller release, and a dispute resolution all race
+    // for the same escrow.
     if (order.escrowId) {
-      const escrow = await Escrow.findById(order.escrowId)
-      if (escrow && escrow.status === 'HOLDING') {
-        escrow.status = 'RELEASED'
-        escrow.releasedAt = new Date()
-        await escrow.save()
-
-        // Credit seller wallet
-        const platformFeeRate = 0.025
-        const net = escrow.amount * (1 - platformFeeRate)
-        let wallet = await Wallet.findOne({ userId: order.sellerId })
-        if (!wallet) {
-          wallet = await Wallet.create({ userId: order.sellerId, balance: 0, pendingBalance: 0, currency: escrow.currency })
-        }
-        wallet.balance += net
-        wallet.pendingBalance = Math.max(0, wallet.pendingBalance - escrow.amount)
-        wallet.transactions.push({
-          type: 'ESCROW_RELEASE',
-          amount: net,
-          description: `Payment for order ${order.orderNumber}`,
-          reference: order._id.toString(),
-          status: 'completed',
-          createdAt: new Date(),
-        })
-        await wallet.save()
+      const escrow = await Escrow.findOneAndUpdate(
+        { _id: order.escrowId, status: 'HOLDING' },
+        { status: 'RELEASED', releasedAt: new Date() },
+        { new: true }
+      )
+      if (escrow) {
+        // escrow.amount already includes the buyer-paid platform fee (order.total),
+        // so the seller receives everything except that fee — not another cut of it.
+        const net = order.total - order.platformFee
+        await Wallet.findOneAndUpdate(
+          { userId: order.sellerId },
+          {
+            $inc: { balance: net, pendingBalance: -escrow.amount },
+            $push: {
+              transactions: {
+                type: 'ESCROW_RELEASE',
+                amount: net,
+                description: `Payment for order ${order.orderNumber}`,
+                reference: order._id.toString(),
+                status: 'completed',
+                createdAt: new Date(),
+              },
+            },
+          },
+          { upsert: true, setDefaultsOnInsert: true }
+        )
       }
     }
 
@@ -183,6 +199,12 @@ export const disputeOrder = async (req: AuthRequest, res: Response) => {
   try {
     const order = await Order.findById(req.params.id)
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    const userId = req.user!.id
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user!.role)
+    if (!isAdmin && order.buyerId.toString() !== userId && order.sellerId.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
 
     order.status = 'DISPUTED'
     await order.save()

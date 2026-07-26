@@ -30,8 +30,9 @@ export default function LiveBroadcast() {
   const streamRef = useRef<MediaStream | null>(null)
   const peers = useRef<Map<string, RTCPeerConnection>>(new Map())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const socket = user ? getSocket(user._id) : null
+  const socket = user ? getSocket() : null
 
   // Request camera access immediately on mount so the browser prompts right away
   const requestCamera = useCallback(async () => {
@@ -74,9 +75,13 @@ export default function LiveBroadcast() {
 
   const goLive = () => {
     if (!socket || !user || !streamRef.current) return
-    socket.emit('live:start', { broadcasterId: user._id, title: title || `${user.name} is live!` })
+    socket.emit('live:start', { title: title || `${user.name} is live!` })
     setIsLive(true)
     timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+    // Keep the LiveSession's TTL alive server-side — if this stops (crash, tab
+    // close without a clean 'live:end'), the session expires on its own instead
+    // of showing as permanently "LIVE".
+    heartbeatRef.current = setInterval(() => socket.emit('live:heartbeat'), 15_000)
   }
 
   const stopStream = () => {
@@ -86,8 +91,11 @@ export default function LiveBroadcast() {
     peers.current.forEach(pc => pc.close())
     peers.current.clear()
     if (timerRef.current) clearInterval(timerRef.current)
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current)
     navigate('/reels')
   }
+
+  useEffect(() => () => { if (heartbeatRef.current) clearInterval(heartbeatRef.current) }, [])
 
   const createPeerForViewer = useCallback((viewerId: string) => {
     if (!socket || !user || !streamRef.current) return

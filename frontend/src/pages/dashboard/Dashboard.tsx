@@ -114,7 +114,7 @@ export default function Dashboard() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
       >
         <div>
           <h1 className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
@@ -123,8 +123,8 @@ export default function Dashboard() {
           <p className="text-[var(--c-text-3)] text-sm mt-1">Here's how your farm is performing</p>
         </div>
         <div className="flex gap-3">
-          <Link to="/dashboard/products/new">
-            <Button><Package className="h-4 w-4" /> Add Product</Button>
+          <Link to="/dashboard/products/new" className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto"><Package className="h-4 w-4" /> Add Product</Button>
           </Link>
         </div>
       </motion.div>

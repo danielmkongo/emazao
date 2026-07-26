@@ -12,6 +12,7 @@ import { connectDB } from './config/db'
 import { initSocket } from './socket'
 import { setIo } from './services/notification.service'
 import { errorHandler, notFound } from './middleware/errorHandler'
+import { stripeWebhook } from './controllers/payment.controller'
 
 // Routes
 import authRoutes from './routes/auth.routes'
@@ -36,6 +37,8 @@ import eventRoutes from './routes/event.routes'
 import recommendationRoutes from './routes/recommendation.routes'
 import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
+import { startRequirementExpiryJob } from './services/requirementExpiry.job'
+import LiveSession from './models/LiveSession'
 
 const app = express()
 const httpServer = createServer(app)
@@ -57,6 +60,12 @@ app.use(helmet({
   contentSecurityPolicy: false,     // CSP can block assets on HTTP
 }))
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }))
+
+// Stripe webhook needs the raw request body to verify its signature — it must be
+// mounted before the global express.json() below, or the body-parser flag it sets
+// (req._body) makes express.raw() a no-op and signature verification always fails.
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook)
+
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
@@ -104,9 +113,25 @@ if (fs.existsSync(frontendDist)) {
 
 // Start
 const start = async () => {
+  // Fail loudly on a missing production secret instead of silently issuing
+  // tokens signed with (or accepting webhooks verified against) a fallback
+  // value anyone could guess from the source.
+  if (env.NODE_ENV === 'production') {
+    const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'MONGO_URI']
+    const missing = required.filter(k => !process.env[k])
+    if (missing.length) throw new Error(`Missing required env var(s) in production: ${missing.join(', ')}`)
+  }
+
   await connectDB()
+
+  // In-memory viewer/broadcaster tracking always starts empty on a fresh process,
+  // so any LiveSession left over from before a restart/crash is guaranteed stale —
+  // clear it immediately rather than waiting on the TTL index.
+  await LiveSession.deleteMany({})
+
   await seedCategories()
   startRecommendationJobs()
+  startRequirementExpiryJob()
   httpServer.listen(parseInt(env.PORT), () => {
     console.log(`🚀 EMAZAO API running on port ${env.PORT}`)
     console.log(`🌐 Environment: ${env.NODE_ENV}`)

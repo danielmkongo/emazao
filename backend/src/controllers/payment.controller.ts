@@ -15,12 +15,20 @@ export const createPaymentIntent = async (req: AuthRequest, res: Response) => {
     if (order.buyerId.toString() !== req.user!.id) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
+    if (order.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: `Order is ${order.status}, not payable` })
+    }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(order.total * 100),
-      currency: order.currency.toLowerCase(),
-      metadata: { orderId: order._id!.toString(), buyerId: req.user!.id },
-    })
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: Math.round(order.total * 100),
+        currency: order.currency.toLowerCase(),
+        metadata: { orderId: order._id!.toString(), buyerId: req.user!.id },
+      },
+      // Re-opening the pay screen or a retried request reuses the same intent
+      // instead of creating a duplicate charge attempt for the same order.
+      { idempotencyKey: `pi_order_${order._id}` }
+    )
 
     res.json({ success: true, data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id } })
   } catch (err: any) {
@@ -92,39 +100,43 @@ export const stripeWebhook = async (req: Request, res: Response) => {
 
 export const releaseEscrow = async (req: AuthRequest, res: Response) => {
   try {
-    const escrow = await Escrow.findById(req.params.id)
-    if (!escrow) return res.status(404).json({ success: false, message: 'Escrow not found' })
-    if (escrow.status !== 'HOLDING') {
-      return res.status(400).json({ success: false, message: `Escrow is ${escrow.status}, cannot release` })
-    }
-
-    const order = await Order.findById(escrow.orderId)
+    const order = await Order.findOne({ escrowId: req.params.id })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
 
-    escrow.status = 'RELEASED'
-    escrow.releasedAt = new Date()
-    await escrow.save()
+    // The escrow's own HOLDING → RELEASED transition is the mutex — this only
+    // succeeds for one caller even if a buyer's confirmDelivery, a dispute
+    // resolution, and this admin-triggered release all race for the same escrow.
+    const escrow = await Escrow.findOneAndUpdate(
+      { _id: req.params.id, status: 'HOLDING' },
+      { status: 'RELEASED', releasedAt: new Date() },
+      { new: true }
+    )
+    if (!escrow) return res.status(409).json({ success: false, message: 'Escrow already processed or not found' })
 
     order.status = 'COMPLETED'
     await order.save()
 
-    // Credit seller wallet
-    const net = escrow.amount * 0.975
-    let wallet = await Wallet.findOne({ userId: order.sellerId })
-    if (!wallet) {
-      wallet = await Wallet.create({ userId: order.sellerId, balance: 0, pendingBalance: 0, currency: escrow.currency })
-    }
-    wallet.balance += net
-    wallet.pendingBalance = Math.max(0, wallet.pendingBalance - escrow.amount)
-    wallet.transactions.push({
-      type: 'ESCROW_RELEASE',
-      amount: net,
-      description: `Payment released for order ${order.orderNumber}`,
-      reference: order._id.toString(),
-      status: 'completed',
-      createdAt: new Date(),
-    })
-    await wallet.save()
+    // Credit seller wallet — escrow.amount already includes the buyer-paid
+    // platform fee (order.total), so the seller receives everything except that
+    // fee, not another cut of it.
+    const net = order.total - order.platformFee
+    await Wallet.findOneAndUpdate(
+      { userId: order.sellerId },
+      {
+        $inc: { balance: net, pendingBalance: -escrow.amount },
+        $push: {
+          transactions: {
+            type: 'ESCROW_RELEASE',
+            amount: net,
+            description: `Payment released for order ${order.orderNumber}`,
+            reference: order._id!.toString(),
+            status: 'completed',
+            createdAt: new Date(),
+          },
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    )
 
     await sendNotification({
       userId: order.sellerId.toString(),

@@ -43,17 +43,17 @@ export const HeroSection = () => {
 
       {/* Animated ambient orbs */}
       <motion.div
-        className="absolute top-1/4 right-1/3 w-[500px] h-[500px] bg-brand-green/12 rounded-full blur-[100px] pointer-events-none"
+        className="absolute top-1/4 right-1/3 w-[260px] h-[260px] sm:w-[500px] sm:h-[500px] bg-brand-green/12 rounded-full blur-[100px] pointer-events-none"
         animate={{ x: [0, 40, 0], y: [0, -30, 0], scale: [1, 1.12, 1] }}
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
-        className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-gold/8 rounded-full blur-[80px] pointer-events-none"
+        className="absolute bottom-1/4 left-1/4 w-[220px] h-[220px] sm:w-[400px] sm:h-[400px] bg-gold/8 rounded-full blur-[80px] pointer-events-none"
         animate={{ x: [0, -30, 0], y: [0, 25, 0], scale: [1, 1.18, 1] }}
         transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
       />
       <motion.div
-        className="absolute top-2/3 right-1/4 w-[300px] h-[300px] bg-brand-lime/6 rounded-full blur-[70px] pointer-events-none"
+        className="absolute top-2/3 right-1/4 w-[160px] h-[160px] sm:w-[300px] sm:h-[300px] bg-brand-lime/6 rounded-full blur-[70px] pointer-events-none"
         animate={{ x: [0, 20, 0], y: [0, -40, 0] }}
         transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut', delay: 6 }}
       />

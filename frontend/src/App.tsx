@@ -30,9 +30,11 @@ function GlobalCallHandler() {
     // Listen for outgoing call initiated from Profile page
     const handleCallOut = (e: Event) => {
       const { calleeId, calleeName, calleeAvatar, video } = (e as CustomEvent).detail
-      const socket = getSocket(user._id)
-      socket.emit('call:request', { calleeId, callerId: user._id, callerName: user.name, callerAvatar: user.avatar, video })
-      setCall({ type: 'calling', video, calleeId, calleeName, calleeAvatar })
+      const socket = getSocket()
+      // Caller identity is derived server-side from the authenticated socket, not
+      // trusted from the client, so only the callee + call type need to be sent.
+      socket.emit('call:request', { calleeId, video })
+      setCall({ type: 'calling', direction: 'outgoing', video, calleeId, calleeName, calleeAvatar })
     }
     window.addEventListener('emazao:call-out', handleCallOut)
     return () => window.removeEventListener('emazao:call-out', handleCallOut)

@@ -11,10 +11,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PaymentForm } from '@/components/payment/PaymentForm'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import type { ApiResponse, Product, User } from '@/types'
+import type { ApiResponse, Order, Product, User } from '@/types'
 
 // ─── Order modal ────────────────────────────────────────────────────────────
 
@@ -44,8 +45,11 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
     country: user?.country ?? '',
   })
   const [notes, setNotes] = useState('')
-  const [step, setStep] = useState<'details' | 'confirm' | 'success'>('details')
+  const [step, setStep] = useState<'details' | 'confirm' | 'pay' | 'success'>('details')
+  const [orderId, setOrderId] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [confirming, setConfirming] = useState(false)
 
   const subtotal = parseFloat((qty * product.price).toFixed(2))
   const platformFee = parseFloat((subtotal * 0.025).toFixed(2))
@@ -72,11 +76,34 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
       const res = await api.post<ApiResponse<{ _id: string; orderNumber: string }>>('/orders', payload)
       return res.data.data
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      setOrderId(data._id)
       setOrderNumber(data.orderNumber)
-      setStep('success')
+      const intentRes = await api.post<ApiResponse<{ clientSecret: string }>>('/payments/intent', { orderId: data._id })
+      setClientSecret(intentRes.data.data.clientSecret)
+      setStep('pay')
     },
   })
+
+  // Payment confirmation is async (webhook-driven) — poll briefly for the order
+  // to actually flip to PAYMENT_CONFIRMED instead of assuming success the moment
+  // Stripe's client-side confirm call returns.
+  const handlePaymentSuccess = () => {
+    setStep('success')
+    setConfirming(true)
+    let attempts = 0
+    const poll = setInterval(async () => {
+      attempts += 1
+      try {
+        const res = await api.get<ApiResponse<Order>>(`/orders/${orderId}`)
+        if (res.data.data.status !== 'PENDING') {
+          setConfirming(false)
+          clearInterval(poll)
+        }
+      } catch { /* keep polling */ }
+      if (attempts >= 10) { setConfirming(false); clearInterval(poll) }
+    }, 1500)
+  }
 
   const addressFilled = address.street && address.city && address.country
 
@@ -104,7 +131,7 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--c-border)]">
           <h2 className="font-bold text-[var(--c-text)] text-lg">
-            {step === 'success' ? 'Order Placed!' : 'Place Order'}
+            {step === 'success' ? 'Order Placed!' : step === 'pay' ? 'Payment' : 'Place Order'}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[var(--c-input)] transition-colors">
             <X className="h-5 w-5 text-[var(--c-text-3)]" />
@@ -270,13 +297,24 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setStep('details')}>Back</Button>
                 <Button className="flex-[2]" onClick={() => placeOrder()} disabled={isPending}>
-                  {isPending ? 'Placing order…' : `Confirm & Pay ${formatCurrency(total)}`}
+                  {isPending ? 'Placing order…' : `Continue to Payment ${formatCurrency(total)}`}
                 </Button>
               </div>
             </motion.div>
           )}
 
-          {/* Step 3 — Success */}
+          {/* Step 3 — Payment */}
+          {step === 'pay' && clientSecret && (
+            <motion.div key="pay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-5 space-y-4">
+              <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)] bg-brand-green/5 border border-brand-green/15 rounded-xl px-3 py-2.5">
+                <ShieldCheck className="h-4 w-4 text-brand-green shrink-0" />
+                Your payment is protected by Emazao Escrow until delivery is confirmed.
+              </div>
+              <PaymentForm clientSecret={clientSecret} onSuccess={handlePaymentSuccess} />
+            </motion.div>
+          )}
+
+          {/* Step 4 — Success */}
           {step === 'success' && (
             <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-8 text-center">
               <motion.div
@@ -286,9 +324,13 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
               >
                 <CheckCircle2 className="h-10 w-10 text-brand-green" />
               </motion.div>
-              <h3 className="text-xl font-bold text-[var(--c-text)] mb-2">Order Placed!</h3>
+              <h3 className="text-xl font-bold text-[var(--c-text)] mb-2">{confirming ? 'Confirming payment…' : 'Payment Confirmed!'}</h3>
               <p className="text-[var(--c-text-3)] text-sm mb-1">Order <span className="font-mono text-[var(--c-text)]">{orderNumber}</span></p>
-              <p className="text-[var(--c-text-3)] text-sm mb-8">The seller has been notified. You'll receive a confirmation once they confirm the order.</p>
+              <p className="text-[var(--c-text-3)] text-sm mb-8">
+                {confirming
+                  ? "We're confirming your payment with your bank. This can take a few seconds."
+                  : "The seller has been notified and will prepare your order for shipment."}
+              </p>
               <div className="flex flex-col gap-3">
                 <Button className="w-full" onClick={() => navigate('/orders')}>
                   Track Order

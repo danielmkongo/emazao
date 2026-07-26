@@ -24,7 +24,7 @@ export default function LiveViewer() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
-  const socket = user ? getSocket(user._id) : null
+  const socket = user ? getSocket() : null
 
   useEffect(() => {
     if (!socket || !user || !broadcasterId) return
@@ -51,14 +51,21 @@ export default function LiveViewer() {
       if (e.candidate) socket.emit('live:ice-candidate', { to: broadcasterId, from: user._id, candidate: e.candidate })
     }
 
-    socket.emit('live:join', { broadcasterId, viewerId: user._id })
+    socket.emit('live:join', { broadcasterId })
+
+    // Defense-in-depth: if no offer/not-found response ever arrives (e.g. an edge
+    // case the backend's existence check doesn't cover), stop spinning forever.
+    const noResponseTimer = setTimeout(() => {
+      setConnState(prev => (prev === 'connecting' ? 'failed' : prev))
+    }, 8000)
 
     socket.on('live:offer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
       if (from !== broadcasterId) return
+      clearTimeout(noResponseTimer)
       await pc.setRemoteDescription(new RTCSessionDescription(sdp))
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
-      socket.emit('live:answer', { to: broadcasterId, from: user._id, sdp: answer })
+      socket.emit('live:answer', { to: broadcasterId, sdp: answer })
     })
 
     socket.on('live:ice-candidate', async ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
@@ -71,15 +78,22 @@ export default function LiveViewer() {
     })
 
     socket.on('live:viewer-count', ({ count }: { count: number }) => setViewerCount(count))
-    socket.on('live:ended', () => setStreamEnded(true))
+    socket.on('live:not-found', () => setStreamEnded(true))
+    socket.on('live:ended', () => {
+      setStreamEnded(true)
+      pc.close()
+      if (videoRef.current) videoRef.current.srcObject = null
+    })
 
     return () => {
-      socket.emit('live:leave', { broadcasterId, viewerId: user._id })
+      clearTimeout(noResponseTimer)
+      socket.emit('live:leave', { broadcasterId })
       pc.close()
       socket.off('live:offer')
       socket.off('live:ice-candidate')
       socket.off('live:viewer-count')
       socket.off('live:comment')
+      socket.off('live:not-found')
       socket.off('live:ended')
     }
   }, [socket, user, broadcasterId])

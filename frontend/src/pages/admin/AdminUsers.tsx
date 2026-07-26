@@ -38,6 +38,11 @@ export default function AdminUsers() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
   })
 
+  const unsuspendMutation = useMutation({
+    mutationFn: (userId: string) => api.put(`/admin/users/${userId}/unsuspend`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+  })
+
   const ROLES = ['BUYER', 'FARMER', 'BUSINESS_BUYER', 'LOGISTICS', 'ADMIN']
 
   return (
@@ -61,8 +66,8 @@ export default function AdminUsers() {
       {isLoading ? (
         <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
       ) : (
-        <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden">
-          <table className="w-full">
+        <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-[var(--c-border)]">
                 <th className="text-left px-4 py-3 text-xs text-[var(--c-text-3)] font-medium">User</th>
@@ -87,9 +92,12 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{u.role}</Badge></td>
                   <td className="px-4 py-3">
-                    <Badge variant={u.isVerified ? 'default' : 'outline'} className="text-xs">
-                      {u.isVerified ? (u.verifiedType ?? 'Verified') : 'Unverified'}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={u.isVerified ? 'default' : 'outline'} className="text-xs">
+                        {u.isVerified ? (u.verifiedType ?? 'Verified') : 'Unverified'}
+                      </Badge>
+                      {u.isSuspended && <Badge variant="urgent" className="text-xs">Suspended</Badge>}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-[var(--c-text-3)] text-xs">{timeAgo(u.createdAt)}</td>
                   <td className="px-4 py-3">
@@ -100,10 +108,17 @@ export default function AdminUsers() {
                           <ShieldCheck className="h-3.5 w-3.5" /> Verify
                         </Button>
                       )}
-                      <Button size="xs" variant="ghost" className="text-red-400"
-                        onClick={() => suspendMutation.mutate(u._id)}>
-                        <Ban className="h-3.5 w-3.5" /> Suspend
-                      </Button>
+                      {u.isSuspended ? (
+                        <Button size="xs" variant="ghost" className="text-brand-green"
+                          onClick={() => unsuspendMutation.mutate(u._id)}>
+                          <ShieldCheck className="h-3.5 w-3.5" /> Unsuspend
+                        </Button>
+                      ) : (
+                        <Button size="xs" variant="ghost" className="text-red-400"
+                          onClick={() => suspendMutation.mutate(u._id)}>
+                          <Ban className="h-3.5 w-3.5" /> Suspend
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </motion.tr>

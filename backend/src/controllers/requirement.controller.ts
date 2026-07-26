@@ -4,14 +4,15 @@ import Bid from '../models/Bid'
 import User from '../models/User'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { sendNotification } from '../services/notification.service'
+import { escapeRegex } from '../utils/regexEscape'
 
 // GET /api/requirements
 export const getRequirements = async (req: Request, res: Response): Promise<void> => {
   try {
     const { location, productType, minBudget, maxBudget, urgent, page = '1', limit = '20' } = req.query
     const filter: Record<string, unknown> = { status: 'OPEN' }
-    if (location) filter['deliveryLocation'] = new RegExp(location as string, 'i')
-    if (productType) filter['productType'] = new RegExp(productType as string, 'i')
+    if (location) filter['deliveryLocation'] = new RegExp(escapeRegex(String(location).slice(0, 100)), 'i')
+    if (productType) filter['productType'] = new RegExp(escapeRegex(String(productType).slice(0, 100)), 'i')
     if (urgent === 'true') filter['isUrgent'] = true
     if (minBudget) filter['budgetMax'] = { $gte: parseFloat(minBudget as string) }
     if (maxBudget) filter['budgetMin'] = { $lte: parseFloat(maxBudget as string) }
@@ -77,7 +78,7 @@ export const submitBid = async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const requirementId = String(req.params['id'] ?? '')
     const requirement = await Requirement.findById(requirementId)
-    if (!requirement || requirement.status !== 'OPEN') {
+    if (!requirement || requirement.status !== 'OPEN' || (requirement.expiresAt && requirement.expiresAt < new Date())) {
       res.status(400).json({ success: false, message: 'Requirement not open for bids' }); return
     }
 
@@ -140,12 +141,24 @@ export const updateBidStatus = async (req: AuthRequest, res: Response): Promise<
     }
 
     const { status } = req.body as { status: 'ACCEPTED' | 'REJECTED' | 'SHORTLISTED' }
-    bid.status = status
-    await bid.save()
 
     if (status === 'ACCEPTED') {
-      await Requirement.findByIdAndUpdate(requirement._id, { status: 'AWARDED' })
+      // The requirement's own OPEN → AWARDED transition is the mutex: this only
+      // succeeds once, so two bids can never both be accepted for the same
+      // requirement even under concurrent requests.
+      const awarded = await Requirement.findOneAndUpdate(
+        { _id: requirement._id, status: 'OPEN' },
+        { status: 'AWARDED' },
+        { new: true }
+      )
+      if (!awarded) {
+        res.status(409).json({ success: false, message: 'Requirement already awarded or no longer open' })
+        return
+      }
     }
+
+    bid.status = status
+    await bid.save()
 
     // Notify the farmer of bid decision
     const notifTitle = status === 'ACCEPTED' ? 'Bid accepted!' : status === 'SHORTLISTED' ? 'Bid shortlisted' : 'Bid not selected'

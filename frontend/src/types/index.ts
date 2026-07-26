@@ -12,6 +12,7 @@ export interface User {
   role: UserRole
   isVerified: boolean
   verifiedType?: string
+  isSuspended?: boolean
   country?: string
   region?: string
   location?: string

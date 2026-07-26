@@ -11,6 +11,40 @@ const transporter = nodemailer.createTransport({
   },
 })
 
+export const sendPasswordResetEmail = async (to: string, resetLink: string): Promise<void> => {
+  if (!env.EMAIL_USER || !env.EMAIL_PASS) {
+    console.warn(`[EMAIL] SMTP not configured — password reset link for ${to}: ${resetLink}`)
+    return
+  }
+
+  await transporter.sendMail({
+    from: env.EMAIL_FROM,
+    to,
+    subject: 'Reset your eMazao password',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:16px">
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="display:inline-block;background:#16A34A;border-radius:12px;padding:12px 16px">
+            <span style="color:white;font-size:24px;font-weight:bold">eMazao</span>
+          </div>
+        </div>
+        <h2 style="color:#111827;font-size:20px;margin-bottom:8px;text-align:center">Reset your password</h2>
+        <p style="color:#6b7280;font-size:14px;text-align:center;margin-bottom:32px">
+          Click the button below to choose a new password. This link expires in 30 minutes.
+        </p>
+        <div style="text-align:center;margin-bottom:24px">
+          <a href="${resetLink}" style="display:inline-block;background:#16A34A;color:white;font-weight:bold;font-size:16px;padding:14px 28px;border-radius:12px;text-decoration:none">
+            Reset Password
+          </a>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          If you didn't request this, you can safely ignore this email — your password will stay unchanged.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export const sendOtpEmail = async (to: string, otp: string): Promise<void> => {
   if (!env.EMAIL_USER || !env.EMAIL_PASS) {
     console.warn(`[EMAIL] SMTP not configured — OTP for ${to}: ${otp}`)

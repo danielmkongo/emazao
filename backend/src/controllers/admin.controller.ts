@@ -6,12 +6,16 @@ import Product from '../models/Product'
 import Dispute from '../models/Dispute'
 import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
+import { escapeRegex } from '../utils/regexEscape'
 
 export const listUsers = async (req: AuthRequest, res: Response) => {
   try {
     const { search, role, isVerified, limit = 50, page = 1 } = req.query
     const query: Record<string, any> = {}
-    if (search) query.$or = [{ name: new RegExp(String(search), 'i') }, { username: new RegExp(String(search), 'i') }, { email: new RegExp(String(search), 'i') }]
+    if (search) {
+      const re = new RegExp(escapeRegex(String(search).slice(0, 100)), 'i')
+      query.$or = [{ name: re }, { username: re }, { email: re }]
+    }
     if (role) query.role = role
     if (isVerified !== undefined) query.isVerified = isVerified === 'true'
 
@@ -45,6 +49,16 @@ export const suspendUser = async (req: AuthRequest, res: Response) => {
   }
 }
 
+export const unsuspendUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, { isSuspended: false }, { returnDocument: 'after' })
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+    res.json({ success: true, data: user })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
 export const listDisputes = async (req: AuthRequest, res: Response) => {
   try {
     const disputes = await Dispute.find().populate('orderId', 'orderNumber total').populate('raisedById', 'name username').sort({ createdAt: -1 }).limit(50)
@@ -66,21 +80,39 @@ export const resolveDispute = async (req: AuthRequest, res: Response) => {
 
     const order = dispute.orderId as any
     if (order?.escrowId) {
-      const escrow = await Escrow.findById(order.escrowId)
-      if (escrow && escrow.status === 'DISPUTED') {
-        if (resolution === 'RELEASE_TO_SELLER') {
-          escrow.status = 'RELEASED'
-          escrow.releasedAt = new Date()
-          await escrow.save()
-          let wallet = await Wallet.findOne({ userId: order.sellerId })
-          if (!wallet) wallet = await Wallet.create({ userId: order.sellerId, balance: 0, pendingBalance: 0, currency: escrow.currency })
-          wallet.balance += escrow.amount * 0.975
-          await wallet.save()
-        } else if (resolution === 'REFUND_BUYER') {
-          escrow.status = 'REFUNDED'
-          escrow.refundedAt = new Date()
-          await escrow.save()
+      if (resolution === 'RELEASE_TO_SELLER') {
+        // The escrow's own DISPUTED → RELEASED transition is the mutex, same
+        // pattern as the buyer- and admin-triggered release paths.
+        const escrow = await Escrow.findOneAndUpdate(
+          { _id: order.escrowId, status: 'DISPUTED' },
+          { status: 'RELEASED', releasedAt: new Date() },
+          { new: true }
+        )
+        if (escrow) {
+          const net = order.total - order.platformFee
+          await Wallet.findOneAndUpdate(
+            { userId: order.sellerId },
+            {
+              $inc: { balance: net, pendingBalance: -escrow.amount },
+              $push: {
+                transactions: {
+                  type: 'ESCROW_RELEASE',
+                  amount: net,
+                  description: `Dispute resolved for order ${order.orderNumber}`,
+                  reference: order._id.toString(),
+                  status: 'completed',
+                  createdAt: new Date(),
+                },
+              },
+            },
+            { upsert: true, setDefaultsOnInsert: true }
+          )
         }
+      } else if (resolution === 'REFUND_BUYER') {
+        await Escrow.findOneAndUpdate(
+          { _id: order.escrowId, status: 'DISPUTED' },
+          { status: 'REFUNDED', refundedAt: new Date() }
+        )
       }
     }
 

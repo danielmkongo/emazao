@@ -18,6 +18,7 @@ export interface IUser extends Document {
   accountType: AccountType
   isVerified: boolean
   verifiedType?: VerifiedType
+  isSuspended: boolean
   location?: string
   country?: string
   region?: string
@@ -28,6 +29,8 @@ export interface IUser extends Document {
   refreshToken?: string
   otp?: string
   otpExpiry?: Date
+  resetPasswordTokenHash?: string
+  resetPasswordExpires?: Date
   followersCount: number
   followingCount: number
   createdAt: Date
@@ -52,6 +55,7 @@ const UserSchema = new Schema<IUser>(
     accountType: { type: String, enum: ['PERSONAL', 'BUSINESS'], default: 'PERSONAL' },
     isVerified: { type: Boolean, default: false },
     verifiedType: { type: String, enum: ['ID_VERIFIED', 'FARM_VERIFIED', 'BUSINESS_VERIFIED'] },
+    isSuspended: { type: Boolean, default: false },
     location: { type: String },
     country: { type: String },
     region: { type: String },
@@ -62,6 +66,8 @@ const UserSchema = new Schema<IUser>(
     refreshToken: { type: String },
     otp: { type: String },
     otpExpiry: { type: Date },
+    resetPasswordTokenHash: { type: String },
+    resetPasswordExpires: { type: Date },
     followersCount: { type: Number, default: 0 },
     followingCount: { type: Number, default: 0 },
   },

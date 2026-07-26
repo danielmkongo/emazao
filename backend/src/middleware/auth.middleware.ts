@@ -45,6 +45,10 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       res.status(401).json({ success: false, message: 'User no longer exists' })
       return
     }
+    if (user.isSuspended) {
+      res.status(403).json({ success: false, message: 'Account suspended' })
+      return
+    }
 
     req.user = { id: decoded.id, role: decoded.role, email: decoded.email }
     next()

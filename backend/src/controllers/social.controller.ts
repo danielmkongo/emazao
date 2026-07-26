@@ -27,7 +27,15 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
       return res.json({ success: true, liked: false })
     }
 
-    await Like.create({ userId, targetId, targetType })
+    try {
+      await Like.create({ userId, targetId, targetType })
+    } catch (createErr: any) {
+      // A near-simultaneous double-tap can race two toggles past the `existing`
+      // check above; the unique index rejects the second insert — treat that as
+      // an already-liked no-op instead of a 500.
+      if (createErr.code === 11000) return res.json({ success: true, liked: true })
+      throw createErr
+    }
     if (targetType === 'Product') await Product.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
     if (targetType === 'Reel') await Reel.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
     res.json({ success: true, liked: true })
