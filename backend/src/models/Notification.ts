@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export type NotificationType =
   | 'ORDER' | 'NEW_ORDER' | 'ORDER_SHIPPED' | 'ESCROW_RELEASED'
   | 'BID' | 'NEW_BID' | 'BID_ACCEPTED' | 'BID_REJECTED' | 'BID_SHORTLISTED'
-  | 'MESSAGE' | 'LIKE' | 'FOLLOW' | 'COMMENT'
+  | 'MESSAGE' | 'LIKE' | 'FOLLOW' | 'COMMENT' | 'MISSED_CALL'
   | 'PAYMENT' | 'DELIVERY' | 'PROMOTION' | 'SYSTEM'
 
 export interface INotification extends Document {
@@ -26,7 +26,7 @@ const NotificationSchema = new Schema<INotification>(
       enum: [
         'ORDER', 'NEW_ORDER', 'ORDER_SHIPPED', 'ESCROW_RELEASED',
         'BID', 'NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'BID_SHORTLISTED',
-        'MESSAGE', 'LIKE', 'FOLLOW', 'COMMENT',
+        'MESSAGE', 'LIKE', 'FOLLOW', 'COMMENT', 'MISSED_CALL',
         'PAYMENT', 'DELIVERY', 'PROMOTION', 'SYSTEM',
       ],
     },

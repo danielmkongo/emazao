@@ -7,6 +7,7 @@ import {
 import { Logo } from '@/components/ui/Logo'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
+import { useUnreadStore } from '@/store/unreadStore'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +40,7 @@ const navGroups = [
 
 // A single menu item — compact row, icon + label, neutral filled active state with
 // a green icon accent. This is the shadcn/Linear pattern: calm, legible, no gimmicks.
-function MenuItem({ icon: Icon, label, href }: { icon: typeof Home; label: string; href: string }) {
+function MenuItem({ icon: Icon, label, href, badge }: { icon: typeof Home; label: string; href: string; badge?: number }) {
   return (
     <NavLink
       to={href}
@@ -55,7 +56,12 @@ function MenuItem({ icon: Icon, label, href }: { icon: typeof Home; label: strin
       {({ isActive }) => (
         <>
           <Icon className={cn('h-[18px] w-[18px] flex-shrink-0', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} strokeWidth={2} />
-          <span className="truncate">{label}</span>
+          <span className="truncate flex-1">{label}</span>
+          {!!badge && (
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+              {badge > 9 ? '9+' : badge}
+            </span>
+          )}
         </>
       )}
     </NavLink>
@@ -65,6 +71,7 @@ function MenuItem({ icon: Icon, label, href }: { icon: typeof Home; label: strin
 export const Sidebar = () => {
   const { user, clearAuth } = useAuthStore()
   const { theme, toggleTheme } = useUIStore()
+  const unreadMessages = useUnreadStore((s) => s.unreadMessages)
   const navigate = useNavigate()
   const isFarmer = user?.role === 'FARMER'
 
@@ -102,7 +109,9 @@ export const Sidebar = () => {
               {label}
             </p>
             <div className="space-y-0.5">
-              {items.map(item => <MenuItem key={item.href} {...item} />)}
+              {items.map(item => (
+                <MenuItem key={item.href} {...item} badge={item.href === '/messages' ? unreadMessages : undefined} />
+              ))}
             </div>
           </div>
         ))}

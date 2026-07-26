@@ -4,10 +4,13 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { router } from '@/router'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
+import { useUnreadStore } from '@/store/unreadStore'
 import { queryClient } from '@/lib/queryClient'
 import CallModal, { useCallStore } from '@/components/layout/CallModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { getSocket } from '@/lib/socket'
+import { playNotificationSound } from '@/lib/sound'
+import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 
 function ThemeApplier() {
   const theme = useUIStore((s) => s.theme)
@@ -43,6 +46,42 @@ function GlobalCallHandler() {
   return <CallModal call={call} setCall={setCall} />
 }
 
+// Live badges + sound for messages and notifications, mounted once for the
+// whole app so they fire no matter which page the user is currently on —
+// previously nothing subscribed to these events client-side, so a new message
+// or notification produced no indication at all until the user happened to
+// open Messages/Notifications and the next poll landed.
+function GlobalRealtimeHandler() {
+  const { user } = useAuthStore()
+  const incrementUnreadMessages = useUnreadStore((s) => s.incrementUnreadMessages)
+
+  useEffect(() => {
+    if (!user?._id) return
+    const socket = getSocket()
+    void refreshUnreadMessages()
+
+    socket.on('notification:new', (n: { type: string; link?: string }) => {
+      playNotificationSound()
+      queryClient.setQueryData(['notifications-count'], (old: { unreadCount: number } | undefined) =>
+        old ? { ...old, unreadCount: old.unreadCount + 1 } : old
+      )
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+
+      if (n.type === 'MESSAGE') {
+        const conversationId = n.link?.split('/messages/')[1]
+        const activeConversationId = useUnreadStore.getState().activeConversationId
+        if (conversationId && conversationId !== activeConversationId) {
+          incrementUnreadMessages()
+        }
+      }
+    })
+
+    return () => { socket.off('notification:new') }
+  }, [user?._id, incrementUnreadMessages])
+
+  return null
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -50,6 +89,7 @@ function App() {
       <ErrorBoundary>
         <RouterProvider router={router} />
         <GlobalCallHandler />
+        <GlobalRealtimeHandler />
       </ErrorBoundary>
     </QueryClientProvider>
   )

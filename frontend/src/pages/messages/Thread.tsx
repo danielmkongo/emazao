@@ -6,6 +6,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useUnreadStore } from '@/store/unreadStore'
+import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
 import type { ApiResponse, User } from '@/types'
@@ -83,10 +85,20 @@ export default function Thread() {
     queryFn: async () => {
       const res = await api.get<ApiResponse<Message[]>>(`/messages/${id}`)
       await api.put(`/messages/${id}/read`)
+      void refreshUnreadMessages()
       return res.data.data
     },
     enabled: !isNewConvo && !!id,
   })
+
+  // Register this conversation as "currently being viewed" so the global
+  // notification handler doesn't bump the unread badge/play a sound for
+  // messages arriving in the thread the user is already looking at.
+  useEffect(() => {
+    if (isNewConvo || !id) return
+    useUnreadStore.getState().setActiveConversationId(id)
+    return () => useUnreadStore.getState().setActiveConversationId(null)
+  }, [id, isNewConvo])
 
   const { data: conversations } = useQuery({
     queryKey: ['conversations', user?._id],
@@ -135,7 +147,15 @@ export default function Thread() {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, msg))
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
-    return () => { socket.off('message:new'); socket.emit('leave_conversation', id) }
+    socket.on('message:read', ({ readerId, readAt }: { readerId: string; readAt: string }) => {
+      // The other participant just read our messages — flip the tick to "read"
+      // live instead of waiting for this client's next refetch.
+      if (readerId === user._id) return
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+        old.map(m => (getSenderId(m) === user._id && !m.readAt) ? { ...m, readAt } : m)
+      )
+    })
+    return () => { socket.off('message:new'); socket.off('message:read'); socket.emit('leave_conversation', id) }
   }, [id, user?._id, isNewConvo])
 
   useEffect(() => {

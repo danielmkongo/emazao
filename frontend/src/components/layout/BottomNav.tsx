@@ -3,6 +3,7 @@ import { Home, Search, Play, MessageSquare, User, Radio } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useUnreadStore } from '@/store/unreadStore'
 import { Avatar } from '@/components/ui/avatar'
 
 const buyerTabs = [
@@ -18,7 +19,7 @@ const farmerTabs = [
   { icon: MessageSquare, label: 'Messages', href: '/messages' },
 ]
 
-function Tab({ icon: Icon, label, href }: { icon: typeof Home; label: string; href: string }) {
+function Tab({ icon: Icon, label, href, badge }: { icon: typeof Home; label: string; href: string; badge?: number }) {
   return (
     <NavLink to={href} className="relative flex-1">
       {({ isActive }) => (
@@ -30,7 +31,14 @@ function Tab({ icon: Icon, label, href }: { icon: typeof Home; label: string; hr
               transition={{ type: 'spring', stiffness: 500, damping: 42 }}
             />
           )}
-          <Icon className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
+          <div className="relative">
+            <Icon className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
+            {!!badge && (
+              <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center z-20">
+                {badge > 9 ? '9+' : badge}
+              </span>
+            )}
+          </div>
           <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
             {label}
           </span>
@@ -43,13 +51,14 @@ function Tab({ icon: Icon, label, href }: { icon: typeof Home; label: string; hr
 export const BottomNav = () => {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const unreadMessages = useUnreadStore((s) => s.unreadMessages)
   const isFarmer = user?.role === 'FARMER'
   const tabs = isFarmer ? farmerTabs : buyerTabs
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1 pointer-events-none">
       <nav className="pointer-events-auto glass-dark rounded-[22px] border border-[var(--c-border)] shadow-xl shadow-black/10 flex items-center px-1.5">
-        {tabs.map(t => <Tab key={t.href} {...t} />)}
+        {tabs.map(t => <Tab key={t.href} {...t} badge={t.href === '/messages' ? unreadMessages : undefined} />)}
 
         {/* Go Live — farmers get a prominent centre action */}
         {isFarmer && (

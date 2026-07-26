@@ -5,11 +5,27 @@ import LiveSession from '../models/LiveSession'
 import User from '../models/User'
 import Follow from '../models/Follow'
 import Conversation from '../models/Conversation'
+import { sendNotification } from '../services/notification.service'
 
 const onlineUsers  = new Map<string, string>()         // userId → socketId
 const liveViewers  = new Map<string, Set<string>>()    // broadcasterId → Set<userId>
 const viewerOf     = new Map<string, string>()         // userId → broadcasterId (for disconnect cleanup)
 const activeCalls  = new Map<string, string>()         // userId → peerUserId (only while a call is accepted/connected)
+const pendingCalls = new Map<string, { callerId: string; callerName: string }>() // calleeId → caller, while ringing/unanswered
+
+function resolveMissedCall(calleeId: string) {
+  const pending = pendingCalls.get(calleeId)
+  if (!pending) return
+  pendingCalls.delete(calleeId)
+  void sendNotification({
+    userId: calleeId,
+    type: 'MISSED_CALL',
+    title: 'Missed call',
+    body: `You missed a call from ${pending.callerName}`,
+    link: '/messages',
+    data: { callerId: pending.callerId },
+  })
+}
 
 function emitViewerCount(io: Server, broadcasterId: string) {
   const count = liveViewers.get(broadcasterId)?.size ?? 0
@@ -60,24 +76,33 @@ export const initSocket = (io: Server): void => {
     // ── WebRTC Calling ─────────────────────────────────────────────────────────
     socket.on('call:request', async (d: { calleeId: string; video: boolean }) => {
       const caller = await User.findById(userId).select('name avatar').lean()
+      const callerName = caller?.name ?? 'Unknown'
+      pendingCalls.set(d.calleeId, { callerId: userId, callerName })
       io.to(`user:${d.calleeId}`).emit('call:incoming', {
         callerId: userId,
-        callerName: caller?.name ?? 'Unknown',
+        callerName,
         callerAvatar: caller?.avatar,
         video: d.video,
       })
     })
     socket.on('call:accept', (d: { callerId: string }) => {
+      pendingCalls.delete(userId) // answered — not missed
       activeCalls.set(d.callerId, userId)
       activeCalls.set(userId, d.callerId)
       io.to(`user:${d.callerId}`).emit('call:accepted', { calleeId: userId })
     })
-    socket.on('call:decline', (d: { callerId: string }) => io.to(`user:${d.callerId}`).emit('call:declined'))
+    socket.on('call:decline', (d: { callerId: string }) => {
+      resolveMissedCall(userId) // userId is the callee here — they didn't answer
+      io.to(`user:${d.callerId}`).emit('call:declined')
+    })
     socket.on('call:offer',         (d: { to: string; sdp: unknown })         => io.to(`user:${d.to}`).emit('call:offer',         { from: userId, sdp: d.sdp }))
     socket.on('call:answer',        (d: { to: string; sdp: unknown })         => io.to(`user:${d.to}`).emit('call:answer',        { from: userId, sdp: d.sdp }))
     socket.on('call:ice-candidate', (d: { to: string; candidate: unknown })   => io.to(`user:${d.to}`).emit('call:ice-candidate', { from: userId, candidate: d.candidate }))
     socket.on('call:busy',          (d: { callerId: string })                => io.to(`user:${d.callerId}`).emit('call:busy'))
     socket.on('call:end', (d: { to: string }) => {
+      // If `d.to` never accepted, this is the caller giving up (35s no-answer
+      // timeout or a manual cancel) rather than a hangup of a connected call.
+      resolveMissedCall(d.to)
       activeCalls.delete(userId)
       activeCalls.delete(d.to)
       io.to(`user:${d.to}`).emit('call:ended')
@@ -178,6 +203,10 @@ export const initSocket = (io: Server): void => {
         activeCalls.delete(userId)
         activeCalls.delete(peerId)
       }
+
+      // A call was still ringing for this user when they disconnected (tab
+      // closed/crashed) — log it as missed so it's not lost with no trace.
+      resolveMissedCall(userId)
 
       // Remove from viewer set if they were watching
       const broadcasterId = viewerOf.get(userId)

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Bell, ShoppingBag, MessageSquare, TrendingUp, CheckCheck, Heart, UserPlus, Truck } from 'lucide-react'
+import { Bell, ShoppingBag, MessageSquare, TrendingUp, CheckCheck, Heart, UserPlus, Truck, PhoneMissed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/utils'
@@ -27,6 +27,7 @@ const notifIcon = (type: string) => {
   if (type === 'FOLLOW')                               return <UserPlus className="h-4 w-4 text-brand-green" />
   if (type === 'DELIVERY')                             return <Truck className="h-4 w-4 text-brand-emerald" />
   if (type === 'PAYMENT' || type === 'ESCROW_RELEASED') return <TrendingUp className="h-4 w-4 text-gold" />
+  if (type === 'MISSED_CALL')                          return <PhoneMissed className="h-4 w-4 text-red-500" />
   return <Bell className="h-4 w-4 text-brand-green" />
 }
 
@@ -37,6 +38,7 @@ const notifBg = (type: string) => {
   if (type === 'MESSAGE')                                return 'bg-purple-500/10'
   if (type === 'LIKE')                                   return 'bg-red-500/10'
   if (type === 'DELIVERY')                               return 'bg-brand-emerald/10'
+  if (type === 'MISSED_CALL')                            return 'bg-red-500/10'
   return 'bg-brand-green/10'
 }
 

@@ -1,4 +1,5 @@
 import { Response } from 'express'
+import mongoose from 'mongoose'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
@@ -7,11 +8,42 @@ import { sendNotification, emitToRoom } from '../services/notification.service'
 
 export const getConversations = async (req: AuthRequest, res: Response) => {
   try {
-    const conversations = await Conversation.find({ participants: req.user!.id })
+    const userId = req.user!.id
+    const conversations = await Conversation.find({ participants: userId })
       .populate('participants', 'name username avatar isVerified')
       .sort({ lastMessageAt: -1 })
       .limit(50)
-    res.json({ success: true, data: conversations })
+
+    const unreadCounts = await Message.aggregate([
+      { $match: { conversationId: { $in: conversations.map(c => c._id) }, senderId: { $ne: new mongoose.Types.ObjectId(userId) }, readAt: null } },
+      { $group: { _id: '$conversationId', count: { $sum: 1 } } },
+    ])
+    const unreadByConvo = new Map(unreadCounts.map(u => [u._id.toString(), u.count]))
+
+    const data = conversations.map(c => ({
+      ...c.toObject(),
+      unreadCount: unreadByConvo.get(c._id.toString()) ?? 0,
+    }))
+
+    res.json({ success: true, data })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+// GET /api/messages/unread-count — total unread messages across all of the
+// user's conversations, for the nav badge (doesn't require fetching the whole
+// conversation list).
+export const getUnreadCount = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const conversationIds = await Conversation.find({ participants: userId }).select('_id').lean()
+    const count = await Message.countDocuments({
+      conversationId: { $in: conversationIds.map(c => c._id) },
+      senderId: { $ne: userId },
+      readAt: null,
+    })
+    res.json({ success: true, data: { count } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -86,6 +118,13 @@ export const markRead = async (req: AuthRequest, res: Response) => {
       { conversationId: req.params.conversationId, senderId: { $ne: req.user!.id }, readAt: null },
       { readAt: new Date() },
     )
+    // Live read-receipt update — without this the sender's read tick only
+    // flips after their next refetch, not when the recipient actually reads it.
+    emitToRoom(`conv:${req.params.conversationId}`, 'message:read', {
+      conversationId: req.params.conversationId,
+      readerId: req.user!.id,
+      readAt: new Date(),
+    })
     res.json({ success: true })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })

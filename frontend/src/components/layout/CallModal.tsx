@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { getSocket } from '@/lib/socket'
 import { ICE_SERVERS } from '@/lib/webrtc'
 import { useAuthStore } from '@/store/authStore'
+import { playRingtone } from '@/lib/sound'
 
 interface CallState {
   type: 'idle' | 'calling' | 'incoming' | 'connected'
@@ -288,6 +289,15 @@ export default function CallModal({
     const t = setTimeout(() => setErrorMsg(null), 6000)
     return () => clearTimeout(t)
   }, [errorMsg])
+
+  // Audible ringtone while an incoming call is pending — previously this modal
+  // was purely visual, so a call arriving while the recipient was on another
+  // page/screen (i.e. not staring at the phone) produced no indication at all.
+  useEffect(() => {
+    if (call.type !== 'incoming') return
+    const stop = playRingtone()
+    return stop
+  }, [call.type])
 
   // Stop ringing after 35s if the other side never answers (or is offline).
   useEffect(() => {
