@@ -41,7 +41,7 @@ const RequirementSchema = new Schema<IRequirement>(
     deliveryFrequency: { type: String },
     budgetMin: { type: Number },
     budgetMax: { type: Number },
-    budgetCurrency: { type: String, default: 'USD' },
+    budgetCurrency: { type: String, default: 'TZS' },
     preferredQuality: { type: String },
     deadline: { type: Date },
     images: [{ type: String }],

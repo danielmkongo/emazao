@@ -60,7 +60,7 @@ const UserSchema = new Schema<IUser>(
     country: { type: String },
     region: { type: String },
     language: { type: String, default: 'en' },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'TZS' },
     subscriptionTier: { type: String, enum: ['FREE', 'PRO_FARMER', 'ENTERPRISE'], default: 'FREE' },
     onboardingDone: { type: Boolean, default: false },
     refreshToken: { type: String },

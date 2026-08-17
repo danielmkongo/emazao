@@ -191,3 +191,30 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Landing hierarchy: supporting sections stay quieter than the hero and closing CTA. */
+.landing-page main > section:nth-child(2),
+.landing-page main > section:nth-child(3),
+.landing-page main > section:nth-child(4) {
+  padding-top: 5rem !important;
+  padding-bottom: 5rem !important;
+}
+
+.landing-page main > section:nth-child(2) h2,
+.landing-page main > section:nth-child(3) h2,
+.landing-page main > section:nth-child(4) h2 {
+  font-size: clamp(2.5rem, 5vw, 4.25rem) !important;
+}
+
+.landing-page footer img[alt="eMazao"] {
+  height: 6rem !important;
+}
+
+@media (min-width: 1024px) {
+  .landing-page main > section:nth-child(2),
+  .landing-page main > section:nth-child(3),
+  .landing-page main > section:nth-child(4) {
+    padding-top: 7rem !important;
+    padding-bottom: 7rem !important;
+  }
+}

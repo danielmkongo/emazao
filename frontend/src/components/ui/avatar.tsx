@@ -34,7 +34,11 @@ const getInitials = (name?: string) =>
     .slice(0, 2) ?? '?'
 
 export const Avatar = ({ src, name, size = 'md', verified, className, alt, ...props }: AvatarProps) => (
-  <div className={cn('relative inline-flex flex-shrink-0', className)}>
+  // rounded-full on the wrapper too: callers pass ring/border utilities through
+  // `className`, which land here rather than on the circular image inside. Without
+  // it a `ring-4` rendered as a square box around the avatar — clearly visible
+  // where profile and storefront avatars overlap their cover image.
+  <div className={cn('relative inline-flex flex-shrink-0 rounded-full', className)}>
     {src ? (
       <img
         src={src}

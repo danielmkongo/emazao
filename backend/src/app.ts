@@ -12,7 +12,7 @@ import { connectDB } from './config/db'
 import { initSocket } from './socket'
 import { setIo } from './services/notification.service'
 import { errorHandler, notFound } from './middleware/errorHandler'
-import { stripeWebhook } from './controllers/payment.controller'
+import { paymentWebhook } from './controllers/payment.controller'
 
 // Routes
 import authRoutes from './routes/auth.routes'
@@ -35,6 +35,7 @@ import categoryRoutes from './routes/category.routes'
 import liveRoutes from './routes/live.routes'
 import eventRoutes from './routes/event.routes'
 import recommendationRoutes from './routes/recommendation.routes'
+import verificationRoutes from './routes/verification.routes'
 import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
 import { startRequirementExpiryJob } from './services/requirementExpiry.job'
@@ -61,12 +62,14 @@ app.use(helmet({
 }))
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }))
 
-// Stripe webhook needs the raw request body to verify its signature — it must be
-// mounted before the global express.json() below, or the body-parser flag it sets
-// (req._body) makes express.raw() a no-op and signature verification always fails.
-app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook)
-
 app.use(express.json({ limit: '10mb' }))
+
+// Payment provider callback. Mounted outside the /api router stack so it bypasses
+// `protect` — the provider proves itself with an HMAC checksum over the payload
+// instead of a session. ClickPesa's checksum is computed over the canonicalised
+// JSON rather than the raw byte stream, so unlike Stripe this can safely run
+// after express.json().
+app.post('/api/payments/webhook', paymentWebhook)
 app.use(express.urlencoded({ extended: true }))
 
 // Rate limiting
@@ -97,6 +100,7 @@ app.use('/api/categories', categoryRoutes)
 app.use('/api/live', liveRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/recommendation', recommendationRoutes)
+app.use('/api/verification', verificationRoutes)
 
 // Serve frontend static files if built
 const frontendDist = path.join(__dirname, '../../frontend/dist')
@@ -117,7 +121,15 @@ const start = async () => {
   // tokens signed with (or accepting webhooks verified against) a fallback
   // value anyone could guess from the source.
   if (env.NODE_ENV === 'production') {
-    const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'MONGO_URI']
+    const required = [
+      'JWT_SECRET', 'JWT_REFRESH_SECRET', 'MONGO_URI',
+      // Without the checksum key the webhook accepts unsigned callbacks, which
+      // would let anyone who finds the URL mark orders paid.
+      'CLICKPESA_CLIENT_ID', 'CLICKPESA_API_KEY', 'CLICKPESA_CHECKSUM_KEY',
+      // Without these, national IDs would hash under a guessable default key and
+      // fingerprints would be trivially correlatable across deployments.
+      'NIDA_HASH_KEY', 'FINGERPRINT_SALT',
+    ]
     const missing = required.filter(k => !process.env[k])
     if (missing.length) throw new Error(`Missing required env var(s) in production: ${missing.join(', ')}`)
   }
@@ -138,4 +150,7 @@ const start = async () => {
   })
 }
 
-start()
+start().catch((err) => {
+  console.error('❌ Startup failed:', err instanceof Error ? err.message : err)
+  process.exit(1)
+})

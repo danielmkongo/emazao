@@ -6,10 +6,15 @@ import Wallet from '../models/Wallet'
 import User from '../models/User'
 import { nanoid } from 'nanoid'
 import { sendNotification } from '../services/notification.service'
+import { recordFingerprint } from '../services/risk/rules'
 
 export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
     const { sellerId, items, deliveryAddress, notes, deliveryFee = 0 } = req.body
+
+    // Coarse device/network fingerprint, hashed. Lets the self-dealing rule spot
+    // one person working both sides of a "sale" without storing anyone's IP.
+    void recordFingerprint(req.user!.id, req.ip, req.get('user-agent')).catch(() => {})
     const subtotal = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
     const platformFee = parseFloat((subtotal * 0.025).toFixed(2))
     const total = subtotal + deliveryFee + platformFee
@@ -23,7 +28,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       deliveryFee,
       platformFee,
       total,
-      currency: 'USD',
+      currency: 'TZS',
       deliveryAddress,
       notes,
       status: 'PENDING',
@@ -139,6 +144,17 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
     const buyerIdStr = (order.buyerId as any)?._id?.toString() ?? order.buyerId.toString()
     if (buyerIdStr !== req.user!.id) {
       return res.status(403).json({ success: false, message: 'Only buyer can confirm delivery' })
+    }
+    // A second confirm on an already-completed order used to silently re-run:
+    // it overwrote deliveredAt with a fresh timestamp and reported success again,
+    // even though the escrow mutex below correctly blocked a second wallet
+    // credit. That mismatch is exactly the kind of thing that misleads an
+    // investigation — the audit trail's "delivered at" no longer matches when
+    // delivery was actually confirmed. Terminal/pending-dispute states are
+    // rejected outright rather than silently re-completed.
+    const nonConfirmable: typeof order.status[] = ['COMPLETED', 'CANCELLED', 'REFUNDED', 'DISPUTED']
+    if (nonConfirmable.includes(order.status)) {
+      return res.status(409).json({ success: false, message: `Order is already ${order.status.toLowerCase()}` })
     }
 
     order.status = 'COMPLETED'

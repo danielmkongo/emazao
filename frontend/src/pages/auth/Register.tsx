@@ -4,9 +4,11 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Mail, Lock, User, Sprout } from 'lucide-react'
+import { Mail, Lock, User, ShoppingBasket, Wheat, Building2 } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -14,18 +16,21 @@ import { cn } from '@/lib/utils'
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(['BUYER', 'FARMER', 'BUSINESS_BUYER']),
 })
 type FormData = z.infer<typeof schema>
 
+// Line icons rather than emoji: emoji render differently on every platform,
+// can't inherit the selected/unselected colour, and read as placeholder art.
 const roles = [
-  { value: 'BUYER',          label: 'Buyer',          desc: 'Browse and purchase products',         icon: '🛒' },
-  { value: 'FARMER',         label: 'Farmer / Seller', desc: 'Sell crops and build your storefront', icon: '🌾' },
-  { value: 'BUSINESS_BUYER', label: 'Business Buyer',  desc: 'Hotels, restaurants, exporters',       icon: '🏢' },
+  { value: 'BUYER',          label: 'auth.roleBuyer',  desc: 'auth.roleBuyerDesc', icon: ShoppingBasket },
+  { value: 'FARMER',         label: 'auth.roleFarmer', desc: 'auth.roleFarmerDesc',   icon: Wheat },
+  { value: 'BUSINESS_BUYER', label: 'auth.roleBusiness', desc: 'auth.roleBusinessDesc',   icon: Building2 },
 ] as const
 
 export default function Register() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const [error, setError] = useState('')
@@ -61,19 +66,17 @@ export default function Register() {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-10">
-          <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center shadow-lg shadow-brand-green/25">
-            <Sprout className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            eMazao
-          </span>
+        {/* Shared <Logo>, same as the landing page and app sidebar. These pages used
+            a generic sprout glyph plus a typed wordmark, so the whole auth flow
+            looked like a different product from the one users came from. */}
+        <Link to="/" className="flex items-center justify-center mb-10">
+          <Logo className="h-20 w-auto" />
         </Link>
 
         <div className="glass rounded-2xl p-8 shadow-xl">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">Create your account</h1>
-            <p className="text-[var(--c-text-3)] text-sm">Join 50,000+ farmers and buyers on eMazao</p>
+            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">{t('auth.createAccount')}</h1>
+            <p className="text-[var(--c-text-3)] text-sm">{t('auth.registerSubtitle')}</p>
           </div>
 
           {error && (
@@ -84,41 +87,52 @@ export default function Register() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
-              <label className="text-sm font-medium text-[var(--c-text-2)] mb-3 block">I am a...</label>
+              <label className="text-sm font-medium text-[var(--c-text-2)] mb-3 block">{t('auth.iAmA')}</label>
               <div className="grid grid-cols-1 gap-2">
-                {roles.map(({ value, label, desc, icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setValue('role', value)}
-                    className={cn(
-                      'flex items-center gap-3 p-3 rounded-xl border text-left transition-all',
-                      selectedRole === value
-                        ? 'border-brand-green bg-brand-green/8 text-[var(--c-text)]'
-                        : 'border-[var(--c-border)] bg-[var(--c-input)] text-[var(--c-text-2)] hover:border-brand-green/40'
-                    )}
-                  >
-                    <span className="text-2xl">{icon}</span>
-                    <div>
-                      <p className="text-sm font-medium">{label}</p>
-                      <p className="text-xs text-[var(--c-text-3)]">{desc}</p>
-                    </div>
-                  </button>
-                ))}
+                {roles.map(({ value, label, desc, icon: Icon }) => {
+                  const active = selectedRole === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setValue('role', value)}
+                      aria-pressed={active}
+                      className={cn(
+                        'flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all duration-200',
+                        active
+                          ? 'border-brand-green bg-brand-green/8 text-[var(--c-text)] ring-2 ring-brand-green/15'
+                          : 'border-[var(--c-border)] bg-[var(--c-input)] text-[var(--c-text-2)] hover:border-brand-green/40'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors duration-200',
+                          active ? 'bg-brand-green text-white' : 'bg-[var(--c-raised)] text-[var(--c-text-3)]'
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{t(label)}</p>
+                        <p className="text-xs text-[var(--c-text-3)] leading-snug">{t(desc)}</p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
-            <Input {...register('name')} label="Full Name" placeholder="John Mwangi" leftIcon={<User className="h-4 w-4" />} error={errors.name?.message} />
-            <Input {...register('email')} label="Email" type="email" placeholder="you@example.com" leftIcon={<Mail className="h-4 w-4" />} error={errors.email?.message} />
-            <Input {...register('password')} label="Password" type="password" placeholder="Min. 6 characters" leftIcon={<Lock className="h-4 w-4" />} error={errors.password?.message} />
+            <Input {...register('name')} label={t('auth.fullName')} placeholder="John Mwangi" leftIcon={<User className="h-4 w-4" />} error={errors.name?.message} />
+            <Input {...register('email')} label={t('auth.email')} type="email" placeholder="you@example.com" leftIcon={<Mail className="h-4 w-4" />} error={errors.email?.message} />
+            <Input {...register('password')} label={t('auth.password')} type="password" placeholder={t('auth.passwordMin')} leftIcon={<Lock className="h-4 w-4" />} error={errors.password?.message} />
 
             <Button type="submit" className="w-full" size="lg" loading={isSubmitting}>
-              Create Account
+              {t('auth.createAccountButton')}
             </Button>
           </form>
 
           <p className="text-center text-sm text-[var(--c-text-3)] mt-6">
-            Already have an account?{' '}
+            {t('auth.haveAccount')}{' '}
             <Link to="/login" className="text-brand-green hover:underline font-medium">Sign in</Link>
           </p>
         </div>

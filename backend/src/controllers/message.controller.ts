@@ -76,6 +76,13 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     let conversation
     if (existingConvId) {
       conversation = await Conversation.findById(existingConvId)
+      // Membership check — an id alone used to be enough to post into any
+      // conversation on the platform, so a guessed/leaked conversationId let a
+      // stranger inject messages into someone else's buyer↔seller negotiation
+      // (and trigger a notification that looked like it came from that thread).
+      if (conversation && !conversation.participants.map(String).includes(senderId)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
     } else {
       conversation = await Conversation.findOne({ participants: { $all: [senderId, recipientId] }, type: 'DIRECT' })
       if (!conversation) {
@@ -114,6 +121,14 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
 export const markRead = async (req: AuthRequest, res: Response) => {
   try {
+    // Same membership check as getMessages — otherwise any authenticated user
+    // could flip read receipts on a conversation they aren't part of.
+    const conversation = await Conversation.findById(req.params.conversationId)
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' })
+    if (!conversation.participants.map(String).includes(req.user!.id)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
     await Message.updateMany(
       { conversationId: req.params.conversationId, senderId: { $ne: req.user!.id }, readAt: null },
       { readAt: new Date() },

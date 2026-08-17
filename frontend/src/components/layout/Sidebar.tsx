@@ -2,38 +2,42 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
-  Package, Wallet, Bell, Settings, LogOut, Sun, Moon, Radio, LayoutDashboard, Plus,
+  Package, Wallet, Bell, Settings, LogOut, LogIn, Sun, Moon, Radio, LayoutDashboard, Plus,
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
+import { useTranslation } from 'react-i18next'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { useUnreadStore } from '@/store/unreadStore'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
+// Labels are i18n keys resolved at render time so a language switch re-renders
+// the nav without a reload.
 const navGroups = [
   {
-    label: 'Discover',
+    label: 'nav.discover',
     items: [
-      { icon: Home,        label: 'Feed',        href: '/feed' },
-      { icon: Search,      label: 'Explore',     href: '/explore' },
-      { icon: Play,        label: 'Reels',       href: '/reels' },
-      { icon: ShoppingBag, label: 'Marketplace', href: '/marketplace' },
+      { icon: Home,        label: 'nav.feed',        href: '/feed' },
+      { icon: Search,      label: 'nav.explore',     href: '/explore' },
+      { icon: Play,        label: 'nav.reels',       href: '/reels' },
+      { icon: ShoppingBag, label: 'nav.marketplace', href: '/marketplace' },
     ],
   },
   {
-    label: 'Trade',
+    label: 'nav.trade',
     items: [
-      { icon: FileText, label: 'Requirements', href: '/requirements' },
-      { icon: Package,  label: 'Orders',       href: '/orders' },
-      { icon: Wallet,   label: 'Wallet',       href: '/wallet' },
+      { icon: FileText, label: 'nav.requirements', href: '/requirements' },
+      { icon: Package,  label: 'nav.orders',       href: '/orders' },
+      { icon: Wallet,   label: 'nav.wallet',       href: '/wallet' },
     ],
   },
   {
-    label: 'Connect',
+    label: 'nav.connect',
     items: [
-      { icon: MessageSquare, label: 'Messages', href: '/messages' },
-      { icon: Bell,          label: 'Alerts',   href: '/notifications' },
+      { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
+      { icon: Bell,          label: 'nav.alerts',   href: '/notifications' },
     ],
   },
 ]
@@ -41,6 +45,7 @@ const navGroups = [
 // A single menu item — compact row, icon + label, neutral filled active state with
 // a green icon accent. This is the shadcn/Linear pattern: calm, legible, no gimmicks.
 function MenuItem({ icon: Icon, label, href, badge }: { icon: typeof Home; label: string; href: string; badge?: number }) {
+  const { t } = useTranslation()
   return (
     <NavLink
       to={href}
@@ -56,7 +61,7 @@ function MenuItem({ icon: Icon, label, href, badge }: { icon: typeof Home; label
       {({ isActive }) => (
         <>
           <Icon className={cn('h-[18px] w-[18px] flex-shrink-0', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} strokeWidth={2} />
-          <span className="truncate flex-1">{label}</span>
+          <span className="truncate flex-1">{t(label)}</span>
           {!!badge && (
             <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
               {badge > 9 ? '9+' : badge}
@@ -69,6 +74,7 @@ function MenuItem({ icon: Icon, label, href, badge }: { icon: typeof Home; label
 }
 
 export const Sidebar = () => {
+  const { t } = useTranslation()
   const { user, clearAuth } = useAuthStore()
   const { theme, toggleTheme } = useUIStore()
   const unreadMessages = useUnreadStore((s) => s.unreadMessages)
@@ -76,8 +82,8 @@ export const Sidebar = () => {
   const isFarmer = user?.role === 'FARMER'
 
   const cta = isFarmer
-    ? { label: 'Share a Reel', href: '/dashboard/reels' }
-    : { label: 'Post a Requirement', href: '/requirements/post' }
+    ? { label: t('nav.shareReel'), href: '/dashboard/reels' }
+    : { label: t('nav.postRequirement'), href: '/requirements/post' }
 
   return (
     <motion.aside
@@ -106,7 +112,7 @@ export const Sidebar = () => {
         {navGroups.map(({ label, items }) => (
           <div key={label}>
             <p className="px-2.5 h-7 flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--c-text-4)]">
-              {label}
+              {t(label)}
             </p>
             <div className="space-y-0.5">
               {items.map(item => (
@@ -119,7 +125,7 @@ export const Sidebar = () => {
         {isFarmer && (
           <div>
             <p className="px-2.5 h-7 flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--c-text-4)]">
-              Farm Tools
+              {t('nav.farmTools')}
             </p>
             <div className="space-y-0.5">
               <NavLink
@@ -132,17 +138,18 @@ export const Sidebar = () => {
                 }
               >
                 <Radio className="h-[18px] w-[18px] flex-shrink-0 text-red-500" strokeWidth={2} />
-                <span className="flex-1">Go Live</span>
+                <span className="flex-1">{t('nav.goLive')}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               </NavLink>
-              <MenuItem icon={LayoutDashboard} label="Dashboard" href="/dashboard" />
+              <MenuItem icon={LayoutDashboard} label="nav.dashboard" href="/dashboard" />
             </div>
           </div>
         )}
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-[var(--c-border)] space-y-0.5 flex-shrink-0">
+      <div className="px-3 py-3 border-t border-[var(--c-border)] space-y-1.5 flex-shrink-0">
+        <LanguageSwitcher variant="compact" />
         <button
           onClick={toggleTheme}
           className="w-full flex items-center gap-3 rounded-md px-2.5 h-9 text-sm text-[var(--c-text-2)] hover:bg-[var(--c-raised)]/60 hover:text-[var(--c-text)] transition-colors"
@@ -150,10 +157,21 @@ export const Sidebar = () => {
           {theme === 'dark'
             ? <Sun className="h-[18px] w-[18px] text-[var(--c-text-3)]" strokeWidth={2} />
             : <Moon className="h-[18px] w-[18px] text-[var(--c-text-3)]" strokeWidth={2} />}
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          {theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')}
         </button>
 
-        {/* Account */}
+        {/* Account — public pages render this same sidebar with no signed-in user,
+            which previously showed an empty avatar and a bare "@". Offer sign-in
+            instead. */}
+        {!user ? (
+          <NavLink
+            to="/login"
+            className="flex items-center justify-center gap-2 rounded-md px-2 h-12 bg-brand-green text-white text-sm font-semibold hover:bg-brand-green/90 transition-colors"
+          >
+            <LogIn className="h-[17px] w-[17px]" strokeWidth={2} />
+            {t('nav.signIn')}
+          </NavLink>
+        ) : (
         <div className="flex items-center gap-2.5 rounded-md px-2 h-12 hover:bg-[var(--c-raised)]/60 transition-colors">
           <NavLink to="/profile" className="flex items-center gap-2.5 flex-1 min-w-0 group">
             <Avatar src={user?.avatar} name={user?.name} size="sm" verified={user?.isVerified} />
@@ -177,6 +195,7 @@ export const Sidebar = () => {
             <LogOut className="h-[17px] w-[17px]" strokeWidth={2} />
           </button>
         </div>
+        )}
       </div>
     </motion.aside>
   )

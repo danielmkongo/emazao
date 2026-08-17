@@ -25,7 +25,7 @@ const BidSchema = new Schema<IBid>(
     farmerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     pricePerUnit: { type: Number, required: true },
     totalPrice: { type: Number, required: true },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'TZS' },
     deliveryTimeline: { type: String, required: true },
     deliveryNotes: { type: String },
     message: { type: String, required: true },

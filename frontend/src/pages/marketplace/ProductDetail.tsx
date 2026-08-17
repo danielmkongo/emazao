@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaymentForm } from '@/components/payment/PaymentForm'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -48,7 +49,6 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
   const [step, setStep] = useState<'details' | 'confirm' | 'pay' | 'success'>('details')
   const [orderId, setOrderId] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
   const [confirming, setConfirming] = useState(false)
 
   const subtotal = parseFloat((qty * product.price).toFixed(2))
@@ -76,18 +76,18 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
       const res = await api.post<ApiResponse<{ _id: string; orderNumber: string }>>('/orders', payload)
       return res.data.data
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       setOrderId(data._id)
       setOrderNumber(data.orderNumber)
-      const intentRes = await api.post<ApiResponse<{ clientSecret: string }>>('/payments/intent', { orderId: data._id })
-      setClientSecret(intentRes.data.data.clientSecret)
+      // Mobile money needs no pre-created intent — the buyer enters their number
+      // on the next step and the USSD push is raised from there.
       setStep('pay')
     },
   })
 
   // Payment confirmation is async (webhook-driven) — poll briefly for the order
-  // to actually flip to PAYMENT_CONFIRMED instead of assuming success the moment
-  // Stripe's client-side confirm call returns.
+  // to actually flip to PAYMENT_CONFIRMED, since the buyer approves the USSD
+  // prompt on their handset well after this screen advances.
   const handlePaymentSuccess = () => {
     setStep('success')
     setConfirming(true)
@@ -145,10 +145,12 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
               {/* Product summary */}
               <div className="flex gap-3 items-center p-3 bg-[var(--c-input)] rounded-xl">
                 <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-[var(--c-raised)]">
-                  {product.images[0]
-                    ? <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-6 w-6 text-brand-green/50" /></div>
-                  }
+                  <ImageWithFallback
+                    src={product.images[0]}
+                    alt={product.title}
+                    className="w-full h-full object-cover"
+                    fallbackClassName="w-full h-full"
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[var(--c-text)] text-sm truncate">{product.title}</p>
@@ -304,13 +306,13 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
           )}
 
           {/* Step 3 — Payment */}
-          {step === 'pay' && clientSecret && (
+          {step === 'pay' && orderId && (
             <motion.div key="pay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-5 space-y-4">
               <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)] bg-brand-green/5 border border-brand-green/15 rounded-xl px-3 py-2.5">
                 <ShieldCheck className="h-4 w-4 text-brand-green shrink-0" />
                 Your payment is protected by Emazao Escrow until delivery is confirmed.
               </div>
-              <PaymentForm clientSecret={clientSecret} onSuccess={handlePaymentSuccess} />
+              <PaymentForm orderId={orderId} onSuccess={handlePaymentSuccess} />
             </motion.div>
           )}
 
@@ -455,17 +457,13 @@ export default function ProductDetail() {
           {/* Image gallery */}
           <div className="space-y-3">
             <div className="aspect-square rounded-2xl overflow-hidden bg-[var(--c-input)] relative">
-              {images[selectedImage] ? (
-                <img
-                  src={images[selectedImage]}
-                  alt={data.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/5 to-brand-emerald/10">
-                  <Sprout className="h-20 w-20 text-brand-green/25" />
-                </div>
-              )}
+              <ImageWithFallback
+                src={images[selectedImage]}
+                alt={data.title}
+                className="w-full h-full object-cover"
+                fallbackClassName="w-full h-full"
+                loading="eager"
+              />
               {data.isBoosted && (
                 <span className="absolute top-3 left-3 text-xs font-semibold bg-gold text-black px-2 py-0.5 rounded-full">
                   Featured

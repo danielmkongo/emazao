@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDate, formatNumber } from '@/lib/utils'
+import { formatDate, formatNumber, verifiedLabel } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User, SellerProfile } from '@/types'
@@ -154,29 +154,39 @@ export default function Profile() {
           )}
         </div>
 
-        <div className="px-6 pb-6">
-          <div className="-mt-12 flex items-end justify-between mb-4">
-            <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified} />
+        <div className="px-4 sm:px-6 pb-6">
+          {/* The avatar is the only thing allowed to overlap the cover. The action
+              buttons used to sit in this same negative-margin row, so once they
+              wrapped on a narrow screen they were dragged up onto the cover photo
+              — outline buttons over a light image left their labels unreadable.
+              They now sit on their own row, below the cover, at every width. */}
+          <div className="-mt-12 mb-3">
+            <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified}
+              className="ring-4 ring-[var(--c-card)]" />
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
             {isOwnProfile ? (
               <Link to="/settings">
                 <Button size="sm" variant="outline">Edit Profile</Button>
               </Link>
             ) : (
-              <div className="flex gap-2 flex-wrap justify-end">
-                <Button size="sm" variant="outline" onClick={handleMessage}>
+              <>
+                <Button size="sm" variant="outline" onClick={handleMessage} className="flex-1 sm:flex-none min-w-0">
                   <MessageSquare className="h-3.5 w-3.5" /> Message
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => startCall(false)}>
+                <Button size="sm" variant="outline" onClick={() => startCall(false)} aria-label={`Call ${user.name}`}>
                   <Phone className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => startCall(true)}>
+                <Button size="sm" variant="outline" onClick={() => startCall(true)} aria-label={`Video call ${user.name}`}>
                   <Video className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="sm" onClick={() => followMutation.mutate()} loading={followMutation.isPending}>
+                <Button size="sm" onClick={() => followMutation.mutate()} loading={followMutation.isPending}
+                  className="flex-1 sm:flex-none min-w-0">
                   {followed ? <UserCheck className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
                   {followed ? 'Following' : 'Follow'}
                 </Button>
-              </div>
+              </>
             )}
           </div>
 
@@ -184,7 +194,7 @@ export default function Profile() {
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-xl font-bold text-[var(--c-text)]">{user.name}</h1>
               {user.isVerified && (
-                <Badge variant="default" className="text-xs">{user.verifiedType ?? 'Verified'}</Badge>
+                <Badge variant="default" className="text-xs">{verifiedLabel(user.verifiedType)}</Badge>
               )}
             </div>
             <p className="text-[var(--c-text-3)] text-sm mb-2">@{user.username}</p>

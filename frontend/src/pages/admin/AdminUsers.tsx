@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, verifiedLabel } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ApiResponse, User } from '@/types'
 
@@ -94,7 +94,7 @@ export default function AdminUsers() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <Badge variant={u.isVerified ? 'default' : 'outline'} className="text-xs">
-                        {u.isVerified ? (u.verifiedType ?? 'Verified') : 'Unverified'}
+                        {u.isVerified ? verifiedLabel(u.verifiedType) : 'Unverified'}
                       </Badge>
                       {u.isSuspended && <Badge variant="urgent" className="text-xs">Suspended</Badge>}
                     </div>

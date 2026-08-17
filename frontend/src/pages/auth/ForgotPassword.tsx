@@ -4,7 +4,8 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Mail, Sprout, CheckCircle2 } from 'lucide-react'
+import { Mail, CheckCircle2 } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import api from '@/lib/api'
@@ -45,13 +46,11 @@ export default function ForgotPassword() {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-10">
-          <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center shadow-lg shadow-brand-green/25">
-            <Sprout className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            eMazao
-          </span>
+        {/* Shared <Logo>, same as the landing page and app sidebar. These pages used
+            a generic sprout glyph plus a typed wordmark, so the whole auth flow
+            looked like a different product from the one users came from. */}
+        <Link to="/" className="flex items-center justify-center mb-10">
+          <Logo className="h-20 w-auto" />
         </Link>
 
         <div className="glass rounded-2xl p-8 shadow-xl">

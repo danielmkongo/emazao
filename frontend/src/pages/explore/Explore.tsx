@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Search, TrendingUp, MapPin, X, MessageSquare, Radio, Sprout } from 'lucide-react'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -309,17 +310,12 @@ function ExploreProductCard({ product, index }: { product: Product; index: numbe
       <Link to={`/marketplace/product/${product.slug || product._id}`}>
         <div className="group bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden hover:border-brand-green/30 hover:shadow-md transition-all">
           <div className="aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
-            {product.images?.[0] ? (
-              <img
-                src={product.images[0]}
-                alt={product.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/5 to-brand-emerald/10">
-                <Sprout className="h-10 w-10 text-brand-green/25" />
-              </div>
-            )}
+            <ImageWithFallback
+              src={product.images?.[0]}
+              alt={product.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              fallbackClassName="w-full h-full"
+            />
           </div>
           <div className="p-3">
             {product.isOrganic && (

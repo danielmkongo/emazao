@@ -4,7 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { User, Lock, LogOut, Camera, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
+import { User, Lock, LogOut, Camera, Loader2, Languages } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
@@ -22,6 +24,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function Settings() {
+  const { t } = useTranslation()
   const { user, updateUser, clearAuth } = useAuthStore()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -75,7 +78,15 @@ export default function Settings() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-8">Settings</h1>
+      <h1 className="text-2xl font-bold text-[var(--c-text)] mb-8">{t('nav.settings')}</h1>
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6 mb-4">
+        <h2 className="font-semibold text-[var(--c-text)] mb-4 flex items-center gap-2">
+          <Languages className="h-4 w-4 text-brand-green" /> {t('common.language')}
+        </h2>
+        <LanguageSwitcher />
+      </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
         className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-6 mb-4">

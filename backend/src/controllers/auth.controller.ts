@@ -27,6 +27,22 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
+    if (password.length < 8) {
+      res.status(400).json({ success: false, message: 'Password must be at least 8 characters' })
+      return
+    }
+
+    // Only these roles may be self-assigned at signup. `role` used to be passed
+    // straight through to the model, whose enum also contains ADMIN and
+    // SUPER_ADMIN — so anyone could POST role:'SUPER_ADMIN' and mint themselves
+    // an account that clears requireRole() on every /api/admin route. Elevated
+    // roles are granted by an existing admin, never claimed by the registrant.
+    const SELF_ASSIGNABLE_ROLES = ['BUYER', 'FARMER', 'BUSINESS_BUYER'] as const
+    if (!SELF_ASSIGNABLE_ROLES.includes(role as typeof SELF_ASSIGNABLE_ROLES[number])) {
+      res.status(400).json({ success: false, message: 'Invalid role' })
+      return
+    }
+
     const exists = await User.findOne({ email: email.toLowerCase() })
     if (exists) {
       res.status(409).json({ success: false, message: 'Email already registered' })

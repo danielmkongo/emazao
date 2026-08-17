@@ -6,6 +6,8 @@ import UserInterest from '../../models/UserInterest'
 import FeedImpression from '../../models/FeedImpression'
 import CreatorScore from '../../models/CreatorScore'
 import User from '../../models/User'
+import Like from '../../models/Like'
+import Save from '../../models/Save'
 import { getRankingConfig } from './config'
 import {
   contentQualityScore, relevanceScore, statsViewFrom, emptyStatsView, type StatsView,
@@ -135,7 +137,32 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
   // ── Record impressions (fire-and-forget) so TEST content accrues a sample ──
   if (userId) void recordImpressions(userId, page.map(p => p.c))
 
-  return page.map(({ c, score }) => ({ type: c.type, score, data: c.doc, createdAt: c.createdAt }))
+  // ── Attach this viewer's own like/save state ──────────────────────────────
+  // The feed previously returned no per-viewer social state, so cards rendered
+  // as un-liked regardless of history. The first tap then sent a *toggle*, which
+  // removed an already-existing like while the icon lit up — the control did the
+  // opposite of what it displayed, and the count drifted. Two bulk queries for
+  // the page rather than a lookup per card.
+  let likedIds = new Set<string>()
+  let savedIds = new Set<string>()
+  if (userId && page.length) {
+    const pageIds = page.map(p => p.c.id)
+    const [likes, saves] = await Promise.all([
+      Like.find({ userId, targetId: { $in: pageIds } }).select('targetId').lean(),
+      Save.find({ userId, productId: { $in: pageIds } }).select('productId').lean(),
+    ])
+    likedIds = new Set(likes.map((l: any) => l.targetId.toString()))
+    savedIds = new Set(saves.map((s: any) => s.productId.toString()))
+  }
+
+  return page.map(({ c, score }) => {
+    // c.doc is a hydrated Mongoose document; an off-schema field assigned to it
+    // would be dropped by toJSON(), so serialize first and extend the result.
+    const data = typeof c.doc?.toObject === 'function' ? c.doc.toObject() : { ...c.doc }
+    data.userLiked = likedIds.has(c.id)
+    if (c.type === 'PRODUCT') data.userSaved = savedIds.has(c.id)
+    return { type: c.type, score, data, createdAt: c.createdAt }
+  })
 }
 
 function diversify(scored: { c: Candidate; score: number }[], cfg: IRankingConfigLike): { c: Candidate; score: number }[] {

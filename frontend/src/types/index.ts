@@ -76,6 +76,9 @@ export interface Product {
   orderCount: number
   rating: number
   ratingCount: number
+  /** This viewer's own like/save state, resolved server-side on enriched endpoints. */
+  userLiked?: boolean
+  userSaved?: boolean
   createdAt: string
 }
 

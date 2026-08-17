@@ -12,8 +12,22 @@ export const env = {
   CLOUDINARY_CLOUD_NAME: process.env['CLOUDINARY_CLOUD_NAME'] || '',
   CLOUDINARY_API_KEY: process.env['CLOUDINARY_API_KEY'] || '',
   CLOUDINARY_API_SECRET: process.env['CLOUDINARY_API_SECRET'] || '',
-  STRIPE_SECRET_KEY: process.env['STRIPE_SECRET_KEY'] || '',
-  STRIPE_WEBHOOK_SECRET: process.env['STRIPE_WEBHOOK_SECRET'] || '',
+  // --- Payments ---
+  // Which rail money actually moves over. See services/payments/index.ts.
+  PAYMENT_PROVIDER: process.env['PAYMENT_PROVIDER'] || 'clickpesa',
+  CLICKPESA_CLIENT_ID: process.env['CLICKPESA_CLIENT_ID'] || '',
+  CLICKPESA_API_KEY: process.env['CLICKPESA_API_KEY'] || '',
+  // Optional, but leaving it unset disables webhook authenticity checks entirely.
+  CLICKPESA_CHECKSUM_KEY: process.env['CLICKPESA_CHECKSUM_KEY'] || '',
+  // --- Identity & risk ---
+  // Keys the national ID hash. Changing it orphans every stored hash, so treat it
+  // as permanent once live — rotating it means re-collecting every seller's ID.
+  NIDA_HASH_KEY: process.env['NIDA_HASH_KEY'] || '',
+  FINGERPRINT_SALT: process.env['FINGERPRINT_SALT'] || 'dev_fingerprint_salt',
+  // Optional self-hosted CPU vision service (OpenCV/MediaPipe). Unset = liveness
+  // and face matching are unavailable rather than silently passing.
+  BIOMETRIC_SERVICE_URL: process.env['BIOMETRIC_SERVICE_URL'] || '',
+  BIOMETRIC_SERVICE_KEY: process.env['BIOMETRIC_SERVICE_KEY'] || '',
   EMAIL_HOST: process.env['EMAIL_HOST'] || 'smtp.gmail.com',
   EMAIL_PORT: parseInt(process.env['EMAIL_PORT'] || '587'),
   EMAIL_USER: process.env['EMAIL_USER'] || '',

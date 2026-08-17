@@ -29,26 +29,63 @@ import { seedCategories } from './seed'
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/emazao'
 
-// ─── Demo videos — all on stable, public CDNs (Cloudinary demo + Google sample
-// bucket) so every reel actually plays. These are placeholder clips; replace by
-// uploading real vertical farm reels via Dashboard → Reels. ────────────────────
+// ─── Currency ────────────────────────────────────────────────────────────────
+// The demo figures below were originally written in USD. The platform now
+// denominates everything in TZS (ClickPesa collects in TZS only), so rather than
+// rewriting ~70 numeric literals — and risking a typo in one of them — the
+// monetary fields are converted on the way into the database.
+//
+// Approximate rate; these are illustrative demo prices, not a live FX feed.
+const USD_TO_TZS = 2600
+const toTZS = (v: number) => Math.round(v * USD_TO_TZS)
+
+/** Convert the named numeric fields of each row from USD to TZS. */
+function inTZS<T extends Record<string, any>>(rows: T[], fields: string[]): T[] {
+  return rows.map(row => {
+    const out: Record<string, any> = { ...row }
+    for (const f of fields) {
+      if (typeof out[f] === 'number') out[f] = toTZS(out[f])
+    }
+    // Order line items and wallet transactions carry their own nested amounts.
+    if (Array.isArray(out['items'])) {
+      out['items'] = out['items'].map((it: Record<string, any>) => ({
+        ...it,
+        ...(typeof it['unitPrice'] === 'number' ? { unitPrice: toTZS(it['unitPrice']) } : {}),
+        ...(typeof it['totalPrice'] === 'number' ? { totalPrice: toTZS(it['totalPrice']) } : {}),
+      }))
+    }
+    if (Array.isArray(out['transactions'])) {
+      out['transactions'] = out['transactions'].map((t: Record<string, any>) => ({
+        ...t,
+        ...(typeof t['amount'] === 'number' ? { amount: toTZS(t['amount']) } : {}),
+      }))
+    }
+    return out as T
+  })
+}
+
+// ─── Demo videos — all on stable, public CDNs so every reel actually plays.
+// These are placeholder clips; replace by uploading real vertical farm reels via
+// Dashboard → Reels.
+//
+// Google's `commondatastorage.googleapis.com/gtv-videos-bucket` samples used to
+// make up most of this pool but now return 403 — the bucket was made private, so
+// 13 of 16 reels showed only a poster and the "couldn't load" retry. Every URL
+// below was re-verified as serving a 206 with video/mp4. ──────────────────────
 const VIDEOS = [
   'https://res.cloudinary.com/demo/video/upload/dog.mp4',
   'https://res.cloudinary.com/demo/video/upload/sea_turtle.mp4',
   'https://res.cloudinary.com/demo/video/upload/elephants.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+  'https://res.cloudinary.com/demo/video/upload/snow_horses.mp4',
+  'https://res.cloudinary.com/demo/video/upload/cld-sample-video.mp4',
+  'https://res.cloudinary.com/demo/video/upload/kitten_fighting.mp4',
+  'https://res.cloudinary.com/demo/video/upload/ski_jump.mp4',
+  'https://res.cloudinary.com/demo/video/upload/funny_dog.mp4',
+  'https://res.cloudinary.com/demo/video/upload/big_buck_bunny.mp4',
+  'https://res.cloudinary.com/demo/video/upload/outdoors.mp4',
+  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
+  'https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_1MB.mp4',
+  'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4',
 ]
 // Each call returns the NEXT video in the pool, so no two reels repeat until the
 // pool is exhausted (the argument is ignored — kept for call-site compatibility).
@@ -174,9 +211,9 @@ async function main() {
 
   // ─── 2. WALLETS ─────────────────────────────────────────────────────────────
   const daysAgo = (n: number) => new Date(Date.now() - n * 86400000)
-  await Wallet.insertMany([
+  await Wallet.insertMany(inTZS([
     {
-      userId: farmer1._id, balance: 4250.00, pendingBalance: 800.00, currency: 'USD',
+      userId: farmer1._id, balance: 4250.00, pendingBalance: 800.00, currency: 'TZS',
       transactions: [
         { type: 'CREDIT', amount: 415.00, description: 'Order EM-001 released — Organic Tomatoes', status: 'completed', createdAt: daysAgo(18) },
         { type: 'CREDIT', amount: 546.00, description: 'Order EM-006 released — White Maize', status: 'completed', createdAt: daysAgo(9) },
@@ -186,7 +223,7 @@ async function main() {
       ],
     },
     {
-      userId: farmer2._id, balance: 1820.50, pendingBalance: 320.00, currency: 'USD',
+      userId: farmer2._id, balance: 1820.50, pendingBalance: 320.00, currency: 'TZS',
       transactions: [
         { type: 'CREDIT', amount: 480.00, description: 'Order released — Cardamom pods', status: 'completed', createdAt: daysAgo(30) },
         { type: 'CREDIT', amount: 960.00, description: 'Order released — Kilimanjaro Arabica Coffee', status: 'completed', createdAt: daysAgo(14) },
@@ -195,14 +232,14 @@ async function main() {
       ],
     },
     {
-      userId: farmer3._id, balance: 320.00, pendingBalance: 0, currency: 'USD',
+      userId: farmer3._id, balance: 320.00, pendingBalance: 0, currency: 'TZS',
       transactions: [
         { type: 'CREDIT', amount: 275.00, description: 'Order EM-004 released — Ghanaian Cocoa Beans', status: 'completed', createdAt: daysAgo(11) },
         { type: 'CREDIT', amount: 45.00, description: 'Order released — Plantain', status: 'completed', createdAt: daysAgo(20) },
       ],
     },
     {
-      userId: farmer4._id, balance: 2100.00, pendingBalance: 450.00, currency: 'USD',
+      userId: farmer4._id, balance: 2100.00, pendingBalance: 450.00, currency: 'TZS',
       transactions: [
         { type: 'CREDIT', amount: 1200.00, description: 'Order released — Vanilla Beans Uganda', status: 'completed', createdAt: daysAgo(25) },
         { type: 'CREDIT', amount: 450.00, description: 'Order released — Dried Hibiscus', status: 'completed', createdAt: daysAgo(12) },
@@ -211,7 +248,7 @@ async function main() {
       ],
     },
     {
-      userId: farmer5._id, balance: 5800.00, pendingBalance: 1200.00, currency: 'USD',
+      userId: farmer5._id, balance: 5800.00, pendingBalance: 1200.00, currency: 'TZS',
       transactions: [
         { type: 'CREDIT', amount: 1800.00, description: 'Order released — Yirgacheffe Coffee export', status: 'completed', createdAt: daysAgo(45) },
         { type: 'CREDIT', amount: 680.00, description: 'Order released — Moringa Powder', status: 'completed', createdAt: daysAgo(20) },
@@ -220,10 +257,10 @@ async function main() {
         { type: 'WITHDRAWAL', amount: 1200.00, description: 'Withdrawal to CBE Bank Ethiopia', status: 'completed', createdAt: daysAgo(10) },
       ],
     },
-    { userId: buyer1._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
-    { userId: buyer2._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
-    { userId: buyer3._id, balance: 0, pendingBalance: 0, currency: 'USD', transactions: [] },
-  ])
+    { userId: buyer1._id, balance: 0, pendingBalance: 0, currency: 'TZS', transactions: [] },
+    { userId: buyer2._id, balance: 0, pendingBalance: 0, currency: 'TZS', transactions: [] },
+    { userId: buyer3._id, balance: 0, pendingBalance: 0, currency: 'TZS', transactions: [] },
+  ], ['balance','pendingBalance']))
 
   // ─── 3. SELLER PROFILES ─────────────────────────────────────────────────────
   await SellerProfile.insertMany([
@@ -298,7 +335,7 @@ async function main() {
   const cat = (s: string) => cats.find(c => c.slug === s)?._id
 
   // ─── 5. PRODUCTS (25 with fixed slugs) ──────────────────────────────────────
-  const products = await Product.insertMany([
+  const products = await Product.insertMany(inTZS([
 
     // ── Farmer 1 — James Kamau, Kenya ──────────────────────────────────────
     {
@@ -782,13 +819,13 @@ async function main() {
       status: 'ACTIVE',
       viewCount: 1650, likeCount: 105, saveCount: 46, orderCount: 15, rating: 4.6, ratingCount: 15,
     },
-  ])
+  ], ['price']))
   console.log('📦 Created 33 products')
 
   // ─── 6. REQUIREMENTS ────────────────────────────────────────────────────────
   const day = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
 
-  const [req1, req2, req3, req4, req5, req6] = await Requirement.insertMany([
+  const [req1, req2, req3, req4, req5, req6] = await Requirement.insertMany(inTZS([
     {
       buyerId: buyer1._id,
       title: 'Need 500kg Organic Tomatoes Weekly — Nairobi Delivery',
@@ -798,7 +835,7 @@ async function main() {
       quantityAmount: 500, quantityUnit: 'kg',
       deliveryLocation: 'Nairobi, Kenya',
       deliveryFrequency: 'weekly',
-      budgetMin: 350, budgetMax: 500, budgetCurrency: 'USD',
+      budgetMin: 350, budgetMax: 500, budgetCurrency: 'TZS',
       preferredQuality: 'KEPHIS certified organic, medium-large, Brix >5',
       deadline: day(14), status: 'OPEN', isUrgent: false,
       expiresAt: day(30), bidCount: 0, viewCount: 534,
@@ -812,7 +849,7 @@ async function main() {
       quantityAmount: 2000, quantityUnit: 'kg',
       deliveryLocation: 'Dubai, UAE',
       deliveryFrequency: 'one-time',
-      budgetMin: 12000, budgetMax: 18000, budgetCurrency: 'USD',
+      budgetMin: 12000, budgetMax: 18000, budgetCurrency: 'TZS',
       preferredQuality: 'AA grade, SCA score 85+, wet or natural processed',
       deadline: day(7), status: 'OPEN', isUrgent: true,
       expiresAt: day(14), bidCount: 0, viewCount: 1241,
@@ -826,7 +863,7 @@ async function main() {
       quantityAmount: 150, quantityUnit: 'kg',
       deliveryLocation: 'Nairobi, Kenya',
       deliveryFrequency: 'monthly',
-      budgetMin: 2500, budgetMax: 5000, budgetCurrency: 'USD',
+      budgetMin: 2500, budgetMax: 5000, budgetCurrency: 'TZS',
       preferredQuality: 'Grade A, food-grade certification, consistent quality',
       deadline: day(21), status: 'OPEN', isUrgent: false,
       expiresAt: day(30), bidCount: 0, viewCount: 345,
@@ -840,7 +877,7 @@ async function main() {
       quantityAmount: 5000, quantityUnit: 'kg',
       deliveryLocation: 'Rotterdam, Netherlands',
       deliveryFrequency: 'monthly',
-      budgetMin: 14000, budgetMax: 20000, budgetCurrency: 'USD',
+      budgetMin: 14000, budgetMax: 20000, budgetCurrency: 'TZS',
       preferredQuality: 'Grade 1, 5-day fermentation minimum, moisture <7%',
       deadline: day(30), status: 'OPEN', isUrgent: false,
       expiresAt: day(60), bidCount: 0, viewCount: 678,
@@ -854,7 +891,7 @@ async function main() {
       quantityAmount: 500, quantityUnit: 'kg',
       deliveryLocation: 'Riyadh, Saudi Arabia',
       deliveryFrequency: 'monthly',
-      budgetMin: 5000, budgetMax: 8000, budgetCurrency: 'USD',
+      budgetMin: 5000, budgetMax: 8000, budgetCurrency: 'TZS',
       preferredQuality: 'Organic certified, Halal preferred, food-grade packaging',
       deadline: day(21), status: 'OPEN', isUrgent: false,
       expiresAt: day(45), bidCount: 0, viewCount: 289,
@@ -868,12 +905,12 @@ async function main() {
       quantityAmount: 10000, quantityUnit: 'kg',
       deliveryLocation: 'Riyadh, Saudi Arabia',
       deliveryFrequency: 'weekly',
-      budgetMin: 3000, budgetMax: 6000, budgetCurrency: 'USD',
+      budgetMin: 3000, budgetMax: 6000, budgetCurrency: 'TZS',
       preferredQuality: 'Grade A, green, M-L size, long shelf life',
       deadline: day(10), status: 'OPEN', isUrgent: true,
       expiresAt: day(30), bidCount: 0, viewCount: 412,
     },
-  ])
+  ], ['budgetMin','budgetMax']))
   console.log('📋 Created 6 requirements')
 
   // ─── 7. BIDS ─────────────────────────────────────────────────────────────────
@@ -881,7 +918,7 @@ async function main() {
     // req1 — Tomatoes — Nairobi
     {
       requirementId: req1._id, farmerId: farmer1._id,
-      pricePerUnit: 0.80, totalPrice: 400, currency: 'USD',
+      pricePerUnit: 0.80, totalPrice: 400, currency: 'TZS',
       deliveryTimeline: 'Every Monday by 5am, guaranteed.',
       deliveryNotes: 'Refrigerated van. Delivery to Westlands warehouse. Have done this for Nakumatt before.',
       message: 'We have been supplying organic tomatoes to Nairobi supermarkets for 8 years. KEPHIS certified. Can start immediately next week.',
@@ -890,7 +927,7 @@ async function main() {
     },
     {
       requirementId: req1._id, farmerId: farmer4._id,
-      pricePerUnit: 0.78, totalPrice: 390, currency: 'USD',
+      pricePerUnit: 0.78, totalPrice: 390, currency: 'TZS',
       deliveryTimeline: '2–3 days transit from Mbale to Nairobi.',
       message: 'We grow premium tomatoes and can supply weekly. Currently supplying 3 supermarkets in Kampala.',
       sampleAvailable: true, status: 'PENDING', score: 0.62,
@@ -898,7 +935,7 @@ async function main() {
     // req2 — Coffee — Dubai
     {
       requirementId: req2._id, farmerId: farmer2._id,
-      pricePerUnit: 6.20, totalPrice: 12400, currency: 'USD',
+      pricePerUnit: 6.20, totalPrice: 12400, currency: 'TZS',
       deliveryTimeline: 'Ready to ship within 2 weeks. FCA Dar es Salaam.',
       deliveryNotes: 'All export documents available: phytosanitary, COO, quality cert, Fair Trade cert, Rainforest Alliance cert.',
       message: 'Our Kilimanjaro AA Arabica scores 87 on SCA. We have exported to Japan, Germany and the UK. References available.',
@@ -907,7 +944,7 @@ async function main() {
     },
     {
       requirementId: req2._id, farmerId: farmer4._id,
-      pricePerUnit: 5.90, totalPrice: 11800, currency: 'USD',
+      pricePerUnit: 5.90, totalPrice: 11800, currency: 'TZS',
       deliveryTimeline: 'Ready in 3 weeks. FCA Kampala.',
       message: 'Our Bugisu AA scores 86 SCA. Distinct flavour profile. We have all export documents. Can arrange third-party quality inspection.',
       certifications: ['UCDA Certified', 'Organic Uganda'],
@@ -915,7 +952,7 @@ async function main() {
     },
     {
       requirementId: req2._id, farmerId: farmer5._id,
-      pricePerUnit: 8.10, totalPrice: 16200, currency: 'USD',
+      pricePerUnit: 8.10, totalPrice: 16200, currency: 'TZS',
       deliveryTimeline: 'Ready in 10 days. FCA Addis Ababa.',
       message: 'Yirgacheffe G1 scores 89 on SCA — above your requirement. May be slightly above budget but quality is unmatched. Sample available.',
       certifications: ['ECX Certified', 'Organic Ethiopia', 'Fair Trade'],
@@ -924,7 +961,7 @@ async function main() {
     // req3 — Spices — Nairobi
     {
       requirementId: req3._id, farmerId: farmer2._id,
-      pricePerUnit: 28.00, totalPrice: 4200, currency: 'USD',
+      pricePerUnit: 28.00, totalPrice: 4200, currency: 'TZS',
       deliveryTimeline: '5–7 business days to Nairobi by road.',
       message: 'We supply all three: cardamom ($28/kg), cloves ($14/kg), vanilla beans ($120/kg). All Grade A with Organic Tanzania certification. Open to 6-month contract with volume discount.',
       certifications: ['Organic Tanzania', 'Fair Trade'],
@@ -933,7 +970,7 @@ async function main() {
     // req4 — Cocoa — Rotterdam
     {
       requirementId: req4._id, farmerId: farmer3._id,
-      pricePerUnit: 3.20, totalPrice: 16000, currency: 'USD',
+      pricePerUnit: 3.20, totalPrice: 16000, currency: 'TZS',
       deliveryTimeline: 'Container ready in 14 days. CIF Rotterdam.',
       message: 'Osei Cocoa Estate supplies Grade 1 COCOBOD certified cocoa. 7-day fermentation, solar-dried. Currently supplying 2 Belgian chocolate makers. Happy to provide references.',
       certifications: ['COCOBOD Grade 1'],
@@ -942,7 +979,7 @@ async function main() {
     // req5 — Moringa/Teff — Riyadh
     {
       requirementId: req5._id, farmerId: farmer5._id,
-      pricePerUnit: 12.00, totalPrice: 6000, currency: 'USD',
+      pricePerUnit: 12.00, totalPrice: 6000, currency: 'TZS',
       deliveryTimeline: 'Ready in 7 days. FCA Addis Ababa.',
       message: 'We supply both moringa powder and white teff grain, both organic certified. Happy to arrange Halal certification. Can do private labelling. Established supplier to Europe.',
       certifications: ['Organic Ethiopia', 'Fair Trade'],
@@ -951,7 +988,7 @@ async function main() {
     // req6 — Plantain — Riyadh
     {
       requirementId: req6._id, farmerId: farmer3._id,
-      pricePerUnit: 0.45, totalPrice: 4500, currency: 'USD',
+      pricePerUnit: 0.45, totalPrice: 4500, currency: 'TZS',
       deliveryTimeline: 'Container ready in 7 days from Tema Port.',
       message: 'We export 10–20 tonnes of green plantain weekly from Kumasi. Currently shipping to UK, Netherlands, and France. Can add Saudi Arabia to route. Grade A guaranteed.',
       certifications: ['COCOBOD Grade 1'],
@@ -959,14 +996,14 @@ async function main() {
     },
     {
       requirementId: req6._id, farmerId: farmer4._id,
-      pricePerUnit: 0.60, totalPrice: 6000, currency: 'USD',
+      pricePerUnit: 0.60, totalPrice: 6000, currency: 'TZS',
       deliveryTimeline: 'Weekly container from Mombasa or Dar es Salaam.',
       message: 'We grow matooke and plantain year-round. Can supply weekly. Slightly higher price but shorter transit via Mombasa. Shelf life 4+ weeks when green-harvested.',
       sampleAvailable: true, status: 'PENDING', score: 0.58,
     },
   ]
 
-  await Bid.insertMany(bidsData)
+  await Bid.insertMany(inTZS(bidsData, ['pricePerUnit', 'totalPrice']))
 
   // Update bid counts
   await Promise.all([
@@ -1300,7 +1337,7 @@ async function main() {
     street: '42 Market Lane', city, region, country,
   })
 
-  const [order1, order2, order3, order4, order5, order6] = await Order.insertMany([
+  const [order1, order2, order3, order4, order5, order6] = await Order.insertMany(inTZS([
     {
       orderNumber: 'EM-TOM2401',
       buyerId: buyer1._id, sellerId: farmer1._id,
@@ -1310,7 +1347,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400',
         quantity: 500, unit: 'kg', unitPrice: 0.85, totalPrice: 425,
       }],
-      subtotal: 425, deliveryFee: 15, platformFee: 10.63, total: 450.63, currency: 'USD',
+      subtotal: 425, deliveryFee: 15, platformFee: 10.63, total: 450.63, currency: 'TZS',
       deliveryAddress: addr('Nairobi', 'Nairobi', 'Kenya'),
       notes: 'Deliver to Westlands warehouse gate B. Call on arrival.',
       status: 'COMPLETED',
@@ -1327,7 +1364,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400',
         quantity: 50, unit: 'kg', unitPrice: 7.50, totalPrice: 375,
       }],
-      subtotal: 375, deliveryFee: 50, platformFee: 9.38, total: 434.38, currency: 'USD',
+      subtotal: 375, deliveryFee: 50, platformFee: 9.38, total: 434.38, currency: 'TZS',
       deliveryAddress: addr('Dubai', 'Dubai', 'UAE'),
       status: 'SHIPPED',
       estimatedDelivery: day(5),
@@ -1342,7 +1379,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=400',
         quantity: 20, unit: 'kg', unitPrice: 12.00, totalPrice: 240,
       }],
-      subtotal: 240, deliveryFee: 30, platformFee: 6.00, total: 276.00, currency: 'USD',
+      subtotal: 240, deliveryFee: 30, platformFee: 6.00, total: 276.00, currency: 'TZS',
       deliveryAddress: addr('Riyadh', 'Riyadh', 'Saudi Arabia'),
       status: 'PAYMENT_CONFIRMED',
       estimatedDelivery: day(12),
@@ -1357,7 +1394,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=400',
         quantity: 100, unit: 'kg', unitPrice: 2.80, totalPrice: 280,
       }],
-      subtotal: 280, deliveryFee: 30, platformFee: 7.00, total: 317.00, currency: 'USD',
+      subtotal: 280, deliveryFee: 30, platformFee: 7.00, total: 317.00, currency: 'TZS',
       deliveryAddress: addr('Nairobi', 'Nairobi', 'Kenya'),
       status: 'PROCESSING',
       estimatedDelivery: day(10),
@@ -1372,7 +1409,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1559181567-c3190ca9d8da?w=400',
         quantity: 30, unit: 'kg', unitPrice: 6.80, totalPrice: 204,
       }],
-      subtotal: 204, deliveryFee: 40, platformFee: 5.10, total: 249.10, currency: 'USD',
+      subtotal: 204, deliveryFee: 40, platformFee: 5.10, total: 249.10, currency: 'TZS',
       deliveryAddress: addr('Dubai', 'Dubai', 'UAE'),
       status: 'PENDING',
       estimatedDelivery: day(18),
@@ -1387,7 +1424,7 @@ async function main() {
         image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
         quantity: 2, unit: 'tons', unitPrice: 280, totalPrice: 560,
       }],
-      subtotal: 560, deliveryFee: 80, platformFee: 14.00, total: 654.00, currency: 'USD',
+      subtotal: 560, deliveryFee: 80, platformFee: 14.00, total: 654.00, currency: 'TZS',
       deliveryAddress: addr('Riyadh', 'Riyadh', 'Saudi Arabia'),
       notes: 'Halal certified packing preferred.',
       status: 'COMPLETED',
@@ -1395,7 +1432,7 @@ async function main() {
       deliveredAt: daysAgo(3),
       createdAt: daysAgo(14),
     },
-  ])
+  ], ['subtotal','deliveryFee','platformFee','total']))
   console.log('🛒 Created 6 orders')
 
   // ─── 10. SOCIAL GRAPH — Follow, Like, Save, Review ──────────────────────────

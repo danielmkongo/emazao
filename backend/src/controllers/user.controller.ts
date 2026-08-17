@@ -83,7 +83,10 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 // PUT /api/users/me
 export const updateMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowed = ['name', 'bio', 'avatar', 'coverImage', 'location', 'country', 'region', 'currency', 'onboardingDone']
+    // `language` is whitelisted so the UI-language choice follows the account
+    // across devices — without it the update is silently dropped here and the
+    // preference only ever lives in one browser's localStorage.
+    const allowed = ['name', 'bio', 'avatar', 'coverImage', 'location', 'country', 'region', 'currency', 'language', 'onboardingDone']
     const updates: Record<string, unknown> = {}
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key]

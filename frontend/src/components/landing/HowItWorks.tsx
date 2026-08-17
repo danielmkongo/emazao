@@ -1,103 +1,19 @@
-import { motion } from 'framer-motion'
-import { Camera, Search, ShieldCheck } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowDown, BadgeCheck, MessagesSquare, Store, WalletCards } from 'lucide-react'
 
 const steps = [
-  {
-    icon: Camera,
-    step: '01',
-    title: 'Farmers Create',
-    desc: 'Set up your storefront, upload products, post harvest reels, and go live to reach buyers across Africa and beyond.',
-    color: 'brand-green',
-    glow: 'shadow-brand-green/40',
-  },
-  {
-    icon: Search,
-    step: '02',
-    title: 'Buyers Discover',
-    desc: 'Browse the social feed, post sourcing requirements, and receive bids from verified farms with the best offers.',
-    color: 'gold',
-    glow: 'shadow-gold/40',
-  },
-  {
-    icon: ShieldCheck,
-    step: '03',
-    title: 'Trade with Trust',
-    desc: 'Escrow payments hold funds until delivery. Verified badges, reviews, and dispute protection on every deal.',
-    color: 'brand-lime',
-    glow: 'shadow-brand-lime/40',
-  },
+  { icon: Store, step: '01', title: 'Set up your farm', desc: 'Create a trusted profile and turn what you grow into a storefront buyers can browse any time.', detail: 'Products · harvest dates · quantities' },
+  { icon: MessagesSquare, step: '02', title: 'Meet the right buyer', desc: 'Respond to active requests or let hotels, retailers and exporters discover your produce.', detail: 'Direct chat · bids · live selling' },
+  { icon: WalletCards, step: '03', title: 'Agree, deliver, get paid', desc: 'Confirm the order, track delivery and release payment through protected escrow.', detail: 'Escrow · order tracking · reviews' },
 ]
 
-const colorClass: Record<string, string> = {
-  'brand-green': 'bg-brand-green',
-  'gold': 'bg-gold',
-  'brand-lime': 'bg-brand-lime',
-}
-
-export const HowItWorks = () => (
-  <section className="py-32 px-6 lg:px-10 bg-brand-800/30 overflow-hidden">
-    <div className="max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="text-center mb-20"
-      >
-        <motion.span
-          initial={{ opacity: 0, letterSpacing: '0.3em' }}
-          whileInView={{ opacity: 1, letterSpacing: '0.2em' }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="text-brand-lime text-sm font-semibold tracking-widest uppercase"
-        >
-          How it works
-        </motion.span>
-        <h2
-          className="text-5xl md:text-6xl font-bold text-white mt-4"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          Simple. Fast. Trusted.
-        </h2>
-      </motion.div>
-
-      <div className="grid md:grid-cols-3 gap-8 relative">
-        {/* Animated connecting line */}
-        <div className="hidden md:block absolute top-16 left-[22%] right-[22%]">
-          <div className="h-px bg-white/10 w-full" />
-          <motion.div
-            className="h-px bg-gradient-to-r from-brand-green via-gold to-brand-lime absolute top-0 left-0"
-            initial={{ width: '0%' }}
-            whileInView={{ width: '100%' }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4, duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          />
-        </div>
-
-        {steps.map(({ icon: Icon, step, title, desc, color, glow }, i) => (
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, y: 50, filter: 'blur(8px)' }}
-            whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ delay: i * 0.18, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-center text-center"
-          >
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: [-2, 2, -2, 0] }}
-              transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-              className={`relative h-16 w-16 rounded-2xl ${colorClass[color]} flex items-center justify-center mb-6 shadow-2xl ${glow}`}
-            >
-              <Icon className="h-8 w-8 text-white" />
-              <span className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-brand-dark border border-white/10 text-xs font-bold text-white flex items-center justify-center">
-                {step.replace('0', '')}
-              </span>
-            </motion.div>
-            <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
-            <p className="text-white/50 leading-relaxed">{desc}</p>
-          </motion.div>
-        ))}
-      </div>
+export const HowItWorks = () => {
+  const reduceMotion = useReducedMotion()
+  return <section id="how-it-works" className="relative overflow-hidden bg-[#07110c] px-5 py-24 sm:px-8 lg:px-12 lg:py-36">
+    <div className="pointer-events-none absolute -right-40 top-20 h-[520px] w-[520px] rounded-full bg-green-500/[.07] blur-[100px]" />
+    <div className="relative mx-auto max-w-[1440px]">
+      <motion.div initial={{ opacity: 0, y: reduceMotion ? 0 : 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="grid gap-8 border-b border-white/10 pb-14 lg:grid-cols-2 lg:items-end"><div><p className="text-xs font-extrabold uppercase tracking-[.22em] text-[#d9ff43]">How eMazao works</p><h2 className="mt-5 text-5xl font-semibold leading-[.92] tracking-[-.05em] sm:text-6xl lg:text-7xl" style={{ fontFamily: 'var(--font-display)' }}>Three steps.<br />One clear path.</h2></div><p className="max-w-lg text-lg leading-8 text-white/50 lg:justify-self-end">From the first listing to the final payment, eMazao keeps every conversation, agreement and milestone in one place.</p></motion.div>
+      <div className="mt-8 grid lg:grid-cols-3">{steps.map(({ icon: Icon, step, title, desc, detail }, i) => <motion.article key={step} initial={{ opacity: 0, y: reduceMotion ? 0 : 35 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .3 }} transition={{ duration: .65, delay: i * .12 }} className="group relative border-b border-white/10 py-10 lg:border-b-0 lg:border-r lg:px-9 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"><div className="flex items-center justify-between"><span className="font-mono text-sm text-[#d9ff43]">/{step}</span><div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[.04] transition-colors group-hover:border-[#d9ff43]/30 group-hover:bg-[#d9ff43] group-hover:text-[#102014]"><Icon className="h-6 w-6" /></div></div><h3 className="mt-16 text-3xl font-semibold tracking-tight">{title}</h3><p className="mt-5 max-w-sm leading-7 text-white/50">{desc}</p><p className="mt-10 flex items-center gap-2 text-xs font-bold uppercase tracking-[.12em] text-white/35"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" />{detail}</p>{i < 2 && <ArrowDown className="absolute -bottom-3 right-3 z-10 h-6 w-6 rounded-full bg-[#07110c] p-1 text-white/30 lg:hidden" />}</motion.article>)}</div>
     </div>
   </section>
-)
+}

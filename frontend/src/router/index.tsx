@@ -41,6 +41,7 @@ const Thread = lazy(() => import('@/pages/messages/Thread'))
 const Orders = lazy(() => import('@/pages/orders/Orders'))
 const OrderDetail = lazy(() => import('@/pages/orders/OrderDetail'))
 const WalletPage = lazy(() => import('@/pages/wallet/Wallet'))
+const VerificationPage = lazy(() => import('@/pages/wallet/Verification'))
 const Notifications = lazy(() => import('@/pages/notifications/Notifications'))
 const Profile = lazy(() => import('@/pages/profile/Profile'))
 
@@ -63,6 +64,8 @@ const Settings = lazy(() => import('@/pages/profile/Settings'))
 const Admin = lazy(() => import('@/pages/admin/Admin'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminVerification = lazy(() => import('@/pages/admin/AdminVerification'))
+const AdminCompliance = lazy(() => import('@/pages/admin/Compliance'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
 const AdminDisputes = lazy(() => import('@/pages/admin/AdminDisputes'))
 const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'))
 
@@ -90,14 +93,15 @@ export const router = createBrowserRouter([
 
   // Fullscreen routes — no layout chrome
   {
-    // Optional :reelId so a reel tapped in the feed opens on that exact reel
+    // Optional :reelId so a reel tapped in the feed opens on that exact reel.
+    // Public: a reel link is the single most-shared thing a farmer produces, and
+    // the feed endpoint already uses optionalProtect. Liking, commenting and
+    // buying from within a reel still prompt for sign-in.
     path: '/reels/:reelId?',
     element: (
-      <ProtectedRoute>
-        <Suspense fallback={<div className="h-screen bg-black" />}>
-          <ReelFeed />
-        </Suspense>
-      </ProtectedRoute>
+      <Suspense fallback={<div className="h-screen bg-black" />}>
+        <ReelFeed />
+      </Suspense>
     ),
   },
   {
@@ -121,6 +125,22 @@ export const router = createBrowserRouter([
     ),
   },
 
+  // ── Public browsing ────────────────────────────────────────────────────────
+  // Produce, storefronts and farmer profiles are shareable outside the app —
+  // links get passed around on WhatsApp constantly — so a recipient can look
+  // before deciding to sign up. Anything that spends money, sends a message or
+  // exposes someone's private data stays behind auth in the group below.
+  {
+    element: <MainLayout />,
+    children: [
+      { path: '/marketplace', element: wrap(Marketplace) },
+      { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
+      { path: '/farm/:username', element: wrap(Storefront) },
+      { path: '/profile/:username', element: wrap(Profile) },
+      { path: '/explore', element: wrap(Explore) },
+    ],
+  },
+
   {
     element: (
       <ProtectedRoute>
@@ -129,22 +149,19 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/feed', element: wrap(Feed) },
-      { path: '/explore', element: wrap(Explore) },
-      { path: '/marketplace', element: wrap(Marketplace) },
-      { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
       { path: '/requirements', element: wrap(Requirements) },
       { path: '/requirements/post', element: wrap(PostRequirement) },
       { path: '/requirements/:id', element: wrap(RequirementDetail) },
-      { path: '/farm/:username', element: wrap(Storefront) },
       { path: '/messages', element: wrap(Inbox) },
       { path: '/messages/new', element: wrap(Thread) },
       { path: '/messages/:id', element: wrap(Thread) },
       { path: '/orders', element: wrap(Orders) },
       { path: '/orders/:id', element: wrap(OrderDetail) },
       { path: '/wallet', element: wrap(WalletPage) },
+      { path: '/wallet/verification', element: wrap(VerificationPage) },
       { path: '/notifications', element: wrap(Notifications) },
+      // Own profile only — the :username variant is public, above.
       { path: '/profile', element: wrap(Profile) },
-      { path: '/profile/:username', element: wrap(Profile) },
       { path: '/settings', element: wrap(Settings) },
 
       // Farmer Dashboard
@@ -167,6 +184,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="/admin/users" replace /> },
           { path: 'users', element: wrap(AdminUsers) },
           { path: 'verification', element: wrap(AdminVerification) },
+          { path: 'compliance', element: wrap(AdminCompliance) },
           { path: 'disputes', element: wrap(AdminDisputes) },
           { path: 'analytics', element: wrap(AdminAnalytics) },
         ],
@@ -174,5 +192,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  { path: '*', element: <Navigate to="/" replace /> },
+  // Show a real 404 instead of silently redirecting — shared product/reel
+  // links that break should say so rather than look like an empty homepage.
+  { path: '*', element: wrap(NotFound) },
 ])

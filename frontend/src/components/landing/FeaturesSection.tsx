@@ -1,95 +1,21 @@
-import { motion } from 'framer-motion'
-import { Sprout, Users, ShoppingBag, Zap, Shield, TrendingUp } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowUpRight, BadgeCheck, MessageCircle, ScanSearch, ShieldCheck, Store } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 const features = [
-  {
-    icon: Sprout,
-    title: 'Farm Storefronts',
-    desc: 'Build your digital farm. Upload products, post reels, go live, and grow your audience like a creator.',
-    color: 'brand-green',
-  },
-  {
-    icon: Users,
-    title: 'Buyer Requirements',
-    desc: 'Post what you need. Farmers bid. The best supplier wins. A reverse marketplace for agricultural procurement.',
-    color: 'gold',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Social Commerce Feed',
-    desc: 'A TikTok-style feed of crops, reels, and farm stories. Discover, engage, and buy — all in one scroll.',
-    color: 'brand-lime',
-  },
-  {
-    icon: Shield,
-    title: 'Escrow Protection',
-    desc: 'Funds held securely until delivery confirmed. Trust built into every transaction.',
-    color: 'brand-green',
-  },
-  {
-    icon: TrendingUp,
-    title: 'AI Analytics',
-    desc: 'AI-powered insights, pricing suggestions, and demand forecasting for smarter farming decisions.',
-    color: 'gold',
-  },
-  {
-    icon: Zap,
-    title: 'Real-time Commerce',
-    desc: 'Live bidding, instant messaging, live-stream sales, and real-time order tracking.',
-    color: 'brand-lime',
-  },
+  { icon: Store, n: '01', title: 'Your farm, online', desc: 'Turn every harvest into a beautiful storefront. Add products, prices, availability and the story behind your farm.' },
+  { icon: ScanSearch, n: '02', title: 'Demand finds you', desc: 'See active requests from hotels, shops and exporters — then send a competitive bid in minutes.' },
+  { icon: MessageCircle, n: '03', title: 'Trade directly', desc: 'Build buyer relationships with real-time chat, live product showcases and transparent order updates.' },
+  { icon: ShieldCheck, n: '04', title: 'Money moves safely', desc: 'Escrow, verified profiles and reviews give both sides confidence from agreement to delivery.' },
 ]
 
-const colorMap: Record<string, string> = {
-  'brand-green': 'from-brand-green/20 to-brand-green/5 border-brand-green/20 text-brand-green',
-  'gold': 'from-gold/20 to-gold/5 border-gold/20 text-gold',
-  'brand-lime': 'from-brand-lime/20 to-brand-lime/5 border-brand-lime/20 text-brand-lime',
-}
-
-export const FeaturesSection = () => (
-  <section className="py-32 px-6 lg:px-10">
-    <div className="max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="text-center mb-20"
-      >
-        <span className="text-brand-lime text-sm font-semibold tracking-widest uppercase">Platform</span>
-        <h2
-          className="text-5xl md:text-6xl font-bold text-white mt-4 mb-6"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          Everything agriculture needs
-        </h2>
-        <p className="text-white/50 text-xl max-w-2xl mx-auto">
-          One platform. Every tool a modern farmer or buyer needs to trade at scale.
-        </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {features.map(({ icon: Icon, title, desc, color }, i) => (
-          <motion.div
-            key={title}
-            initial={{ opacity: 0, y: 40, scale: 0.95, filter: 'blur(8px)' }}
-            whileInView={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ delay: i * 0.08, duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -6, scale: 1.02 }}
-            className={`bg-gradient-to-br ${colorMap[color]} border rounded-2xl p-6 cursor-default group transition-shadow duration-300 hover:shadow-2xl`}
-          >
-            <motion.div
-              className={`h-12 w-12 rounded-xl bg-brand-dark flex items-center justify-center mb-5 ${colorMap[color].split(' ')[3]}`}
-              whileHover={{ rotate: [0, -8, 8, 0] }}
-              transition={{ duration: 0.4 }}
-            >
-              <Icon className="h-6 w-6" />
-            </motion.div>
-            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-            <p className="text-white/50 text-sm leading-relaxed">{desc}</p>
-          </motion.div>
-        ))}
-      </div>
+export const FeaturesSection = () => {
+  const reduceMotion = useReducedMotion()
+  return <section className="bg-[#f2f0e6] px-5 py-24 text-[#102014] sm:px-8 lg:px-12 lg:py-36"><div className="mx-auto max-w-[1440px]">
+    <div className="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
+      <motion.div initial={{ opacity: 0, y: reduceMotion ? 0 : 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="lg:sticky lg:top-32 lg:self-start"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-green-700">Built for real trade</p><h2 className="mt-5 text-5xl font-semibold leading-[.95] tracking-[-.05em] sm:text-6xl lg:text-7xl" style={{ fontFamily: 'var(--font-display)' }}>Everything between soil and sale.</h2><p className="mt-7 max-w-md text-lg leading-8 text-black/55">One place to be discovered, win new buyers, get paid safely and grow a reputation that travels further than your produce.</p><Link to="/register" className="mt-8 inline-flex items-center gap-2 border-b border-black/30 pb-1 font-bold hover:border-black">See what you can do <ArrowUpRight className="h-4 w-4" /></Link></motion.div>
+      <div className="grid gap-px overflow-hidden rounded-[2rem] border border-black/10 bg-black/10 sm:grid-cols-2">{features.map(({ icon: Icon, n, title, desc }, i) => <motion.article key={title} initial={{ opacity: 0, y: reduceMotion ? 0 : 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .2 }} transition={{ delay: i * .08, duration: .6 }} className="group min-h-[300px] bg-[#fbfaf5] p-7 transition-colors hover:bg-[#d9ff43] sm:p-9"><div className="flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#102014] text-white"><Icon className="h-5 w-5" /></div><span className="font-mono text-xs text-black/35">{n}</span></div><h3 className="mt-14 text-2xl font-bold tracking-tight">{title}</h3><p className="mt-4 leading-7 text-black/55 group-hover:text-black/70">{desc}</p></motion.article>)}</div>
     </div>
-  </section>
-)
+    <div className="mt-20 grid overflow-hidden rounded-[2rem] bg-[#102014] text-white lg:grid-cols-2"><div className="min-h-[420px] overflow-hidden"><img src="/farmer-market-ready.png" alt="Black African farmer sorting market-ready vegetables on her farm" className="h-full w-full object-cover transition-transform duration-700 hover:scale-105" /></div><div className="flex flex-col justify-center p-8 sm:p-12 lg:p-16"><BadgeCheck className="h-10 w-10 text-[#d9ff43]" /><p className="mt-8 text-3xl font-medium leading-tight sm:text-4xl">“A strong market starts when the farmer is visible, trusted and connected.”</p><div className="mt-10 flex gap-10 border-t border-white/10 pt-7"><div><strong className="text-3xl text-[#d9ff43]">24/7</strong><p className="mt-1 text-sm text-white/45">Open marketplace</p></div><div><strong className="text-3xl text-[#d9ff43]">Escrow</strong><p className="mt-1 text-sm text-white/45">Payment held until you confirm delivery</p></div></div></div></div>
+  </div></section>
+}

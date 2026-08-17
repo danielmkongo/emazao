@@ -1,50 +1,8 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Sprout } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ArrowRight, Check } from 'lucide-react'
 
-export const CTASection = () => (
-  <section className="py-32 px-6">
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true }}
-      className="max-w-4xl mx-auto text-center"
-    >
-      <div className="relative rounded-3xl overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-green via-brand-emerald to-brand-dark" />
-        <div className="absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle at 70% 30%, rgba(245,158,11,0.4) 0%, transparent 60%)' }}
-        />
-
-        <div className="relative z-10 py-20 px-8">
-          <div className="inline-flex h-16 w-16 rounded-2xl bg-white/20 items-center justify-center mb-8">
-            <Sprout className="h-8 w-8 text-white" />
-          </div>
-          <h2
-            className="text-5xl md:text-6xl font-bold text-white mb-6"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Join 50,000+ farmers<br />already trading on eMazao
-          </h2>
-          <p className="text-white/70 text-xl mb-10 max-w-lg mx-auto">
-            Build your digital farm, find buyers, and grow your agricultural business today.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link to="/register">
-              <Button size="xl" className="bg-white text-brand-dark hover:bg-white/90 font-bold">
-                Get Started Free <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/marketplace">
-              <Button size="xl" className="bg-white/20 text-white hover:bg-white/30 border border-white/30">
-                Browse Products
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  </section>
-)
+export const CTASection = () => {
+  const reduceMotion = useReducedMotion()
+  return <section className="bg-[#f2f0e6] px-5 py-20 text-[#102014] sm:px-8 lg:px-12 lg:py-28"><motion.div initial={{ opacity: 0, scale: reduceMotion ? 1 : .97 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: .7 }} className="relative mx-auto max-w-[1440px] overflow-hidden rounded-[2rem] bg-[#d9ff43] px-7 py-16 sm:px-12 lg:px-20 lg:py-24"><div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border-[70px] border-[#102014]/[.06]" /><div className="relative grid gap-12 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-xs font-extrabold uppercase tracking-[.22em] text-green-800">Your next market is waiting</p><h2 className="mt-5 max-w-4xl text-5xl font-semibold leading-[.91] tracking-[-.055em] sm:text-6xl lg:text-8xl" style={{ fontFamily: 'var(--font-display)' }}>Join farmers already trading on eMazao.</h2><div className="mt-8 flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-black/60"><span className="flex items-center gap-2"><Check className="h-4 w-4" />Free to join</span><span className="flex items-center gap-2"><Check className="h-4 w-4" />Simple setup</span><span className="flex items-center gap-2"><Check className="h-4 w-4" />Secure payments</span></div></div><div className="flex flex-col gap-3 sm:flex-row lg:flex-col"><Link to="/register" className="group flex min-w-56 items-center justify-between gap-4 rounded-full bg-[#102014] px-7 py-4 font-bold text-white">Create your farm <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></Link><Link to="/marketplace" className="rounded-full border border-[#102014]/25 px-7 py-4 text-center font-bold transition-colors hover:bg-[#102014]/10">Explore first</Link></div></div></motion.div></section>
+}

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { Heart, Bookmark, ShoppingCart, Star, Leaf } from 'lucide-react'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -16,13 +17,30 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
   const seller = product.sellerId as User
   const navigate = useNavigate()
   const { isAuthenticated } = useAuthStore()
-  const [liked, setLiked] = useState(false)
+  // Seeded from the server's view of what this user already liked/saved. These
+  // used to be hardcoded false, so an already-liked product rendered un-liked and
+  // the first tap sent a toggle that removed the existing like while the icon lit
+  // up — the button did the opposite of what it showed.
+  const [liked, setLiked] = useState(product.userLiked ?? false)
   const [likeCount, setLikeCount] = useState(product.likeCount ?? 0)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState(product.userSaved ?? false)
+
+  // The feed refetches (filter change, cache update) reuse this component, so the
+  // server's state has to win when it arrives rather than staying on first render.
+  useEffect(() => { setLiked(product.userLiked ?? false) }, [product.userLiked])
+  useEffect(() => { setSaved(product.userSaved ?? false) }, [product.userSaved])
+  useEffect(() => { setLikeCount(product.likeCount ?? 0) }, [product.likeCount])
+
+  const likePendingRef = useRef(false)
+  const savePendingRef = useRef(false)
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (!isAuthenticated) { navigate('/login'); return }
+    // A rapid double-tap would otherwise fire two toggles that race the unique
+    // like index and leave the icon out of step with the server.
+    if (likePendingRef.current) return
+    likePendingRef.current = true
     const next = !liked
     setLiked(next)
     setLikeCount(c => next ? c + 1 : c - 1)
@@ -31,17 +49,22 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
     } catch {
       setLiked(!next)
       setLikeCount(c => next ? c - 1 : c + 1)
+    } finally {
+      likePendingRef.current = false
     }
   }
 
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (!isAuthenticated) { navigate('/login'); return }
+    if (savePendingRef.current) return
+    savePendingRef.current = true
     const next = !saved
     setSaved(next)
     try {
       await api.post('/social/save', { productId: product._id })
     } catch { setSaved(!next) }
+    finally { savePendingRef.current = false }
   }
 
   return (
@@ -53,18 +76,12 @@ export const FeedProductCard = ({ product }: FeedProductCardProps) => {
       {/* Image */}
       <Link to={`/marketplace/product/${product.slug || product._id}`} className="block cursor-pointer">
         <div className="relative aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
-          {product.images[0] ? (
-            <img
-              src={product.images[0]}
-              alt={product.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/5 to-brand-emerald/10">
-              <Leaf className="h-10 w-10 text-brand-green/25" />
-            </div>
-          )}
+          <ImageWithFallback
+            src={product.images[0]}
+            alt={product.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fallbackClassName="w-full h-full"
+          />
 
           {/* Bottom scrim */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />

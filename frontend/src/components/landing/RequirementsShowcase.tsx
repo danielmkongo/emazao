@@ -1,114 +1,18 @@
-import { motion } from 'framer-motion'
-import { MapPin, Package, Clock, ArrowRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowRight, Building2, MapPin, Package, Timer } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-const mockRequirements = [
-  {
-    id: 1,
-    title: '5 Tons of Fresh Tomatoes — Weekly',
-    location: 'Dar es Salaam, Tanzania',
-    quantity: '5 tons / week',
-    budget: '$800–$1,200',
-    bids: 12,
-    urgent: true,
-    buyer: { name: 'Serena Hotels Ltd', type: 'Hotel' },
-  },
-  {
-    id: 2,
-    title: 'Organic Maize — 20 Tons Monthly',
-    location: 'Nairobi, Kenya',
-    quantity: '20 tons / month',
-    budget: '$4,000–$6,000',
-    bids: 8,
-    urgent: false,
-    buyer: { name: 'EcoGrain Exports', type: 'Exporter' },
-  },
-  {
-    id: 3,
-    title: 'Mixed Tropical Fruits for Export',
-    location: 'Lagos, Nigeria',
-    quantity: '50 tons / shipment',
-    budget: '$15,000+',
-    bids: 23,
-    urgent: true,
-    buyer: { name: 'FreshLink Supermarkets', type: 'Retailer' },
-  },
+const requests = [
+  { category: 'Fresh produce', title: '5 tonnes of fresh tomatoes', location: 'Dar es Salaam', quantity: 'Weekly delivery', budget: 'TZS 2.1–3.1M', bids: 12, buyer: 'Serena Hotels', urgent: true },
+  { category: 'Grains', title: '20 tonnes of organic maize', location: 'Nairobi, Kenya', quantity: 'Monthly supply', budget: 'TZS 10.4–15.6M', bids: 8, buyer: 'EcoGrain Exports', urgent: false },
+  { category: 'Export', title: 'Mixed tropical fruit shipment', location: 'Lagos, Nigeria', quantity: '50 tonne lot', budget: 'Open to offers', bids: 23, buyer: 'FreshLink Retail', urgent: true },
 ]
 
-export const RequirementsShowcase = () => (
-  <section className="py-32 px-6 lg:px-10">
-    <div className="max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16"
-      >
-        <div>
-          <span className="text-brand-lime text-sm font-semibold tracking-widest uppercase">Reverse Marketplace</span>
-          <h2
-            className="text-5xl md:text-6xl font-bold text-white mt-4"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Buyers post.<br />Farmers bid.
-          </h2>
-        </div>
-        <p className="text-white/50 text-lg max-w-sm">
-          Hotels, restaurants, and exporters post what they need. Your farm submits the best offer.
-        </p>
-      </motion.div>
-
-      <div className="space-y-4">
-        {mockRequirements.map((req, i) => (
-          <motion.div
-            key={req.id}
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            whileHover={{ x: 4 }}
-            className="glass rounded-2xl p-5 flex flex-col md:flex-row md:items-center gap-4 group cursor-pointer"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <h3 className="text-base font-semibold text-white truncate">{req.title}</h3>
-                {req.urgent && <Badge variant="urgent">Urgent</Badge>}
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-white/40">
-                <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {req.location}</span>
-                <span className="flex items-center gap-1.5"><Package className="h-4 w-4" /> {req.quantity}</span>
-                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> {req.buyer.name}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-6 flex-shrink-0">
-              <div className="text-right">
-                <p className="text-sm text-white/40">Budget</p>
-                <p className="font-semibold text-white">{req.budget}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-white/40">Bids</p>
-                <p className="font-bold text-brand-lime text-lg">{req.bids}</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-white/20 group-hover:text-brand-green transition-colors" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        className="mt-10 text-center"
-      >
-        <Link to="/requirements">
-          <Button size="lg" variant="outline">
-            View All Requirements <ArrowRight className="h-4 w-4" />
-          </Button>
-        </Link>
-      </motion.div>
-    </div>
-  </section>
-)
+export const RequirementsShowcase = () => {
+  const reduceMotion = useReducedMotion()
+  return <section className="bg-[#0d1b13] px-5 py-24 sm:px-8 lg:px-12 lg:py-36"><div className="mx-auto max-w-[1440px]">
+    <div className="grid gap-8 lg:grid-cols-[1fr_.7fr] lg:items-end"><motion.div initial={{ opacity: 0, y: reduceMotion ? 0 : 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}><p className="text-xs font-extrabold uppercase tracking-[.22em] text-[#d9ff43]">Live buyer demand</p><h2 className="mt-5 text-5xl font-semibold leading-[.94] tracking-[-.05em] sm:text-6xl lg:text-7xl" style={{ fontFamily: 'var(--font-display)' }}>Don't wait for buyers.<br /><span className="text-white/35">See what they need.</span></h2></motion.div><p className="max-w-lg text-lg leading-8 text-white/50 lg:justify-self-end">Real requests from businesses looking for reliable supply. Find the right fit and put your farm forward.</p></div>
+    <div className="mt-16 overflow-hidden rounded-[1.75rem] border border-white/10">{requests.map((req, i) => <motion.article key={req.title} initial={{ opacity: 0, x: reduceMotion ? 0 : -24 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * .08 }} className="group grid gap-6 border-b border-white/10 bg-white/[.025] p-6 transition-colors last:border-0 hover:bg-white/[.06] md:grid-cols-[1fr_auto] md:items-center lg:p-8"><div><div className="flex flex-wrap items-center gap-3"><span className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white/45">{req.category}</span>{req.urgent && <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#d9ff43]"><Timer className="h-3.5 w-3.5" /> Closing soon</span>}</div><h3 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">{req.title}</h3><div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/40"><span className="flex items-center gap-1.5"><Building2 className="h-4 w-4" />{req.buyer}</span><span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{req.location}</span><span className="flex items-center gap-1.5"><Package className="h-4 w-4" />{req.quantity}</span></div></div><div className="flex items-center gap-8 md:pl-8"><div><p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Budget</p><p className="mt-1 font-bold text-[#d9ff43]">{req.budget}</p></div><div><p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Offers</p><p className="mt-1 font-bold">{req.bids}</p></div><ArrowRight className="h-5 w-5 text-white/20 transition-transform group-hover:translate-x-1 group-hover:text-[#d9ff43]" /></div></motion.article>)}</div>
+    <div className="mt-8 flex justify-end"><Link to="/requirements" className="group flex items-center gap-3 rounded-full bg-[#d9ff43] px-6 py-3.5 font-bold text-[#102014]">Browse all requests <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link></div>
+  </div></section>
+}

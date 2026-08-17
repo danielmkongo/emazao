@@ -33,7 +33,7 @@ const WalletSchema = new Schema<IWallet>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     balance: { type: Number, default: 0 },
     pendingBalance: { type: Number, default: 0 },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'TZS' },
     transactions: [
       {
         type: { type: String, enum: ['CREDIT', 'DEBIT', 'ESCROW_HOLD', 'ESCROW_RELEASE', 'REFUND', 'WITHDRAWAL', 'TOP_UP'] },

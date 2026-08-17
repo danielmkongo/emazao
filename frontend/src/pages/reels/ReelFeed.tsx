@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } fr
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, ArrowLeft, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -105,6 +105,14 @@ function CommentsDrawer({
 }
 
 // ─── Individual reel card ──────────────────────────────────────────────────────
+// Every render site below MUST pass `key={reel._id}`. The prev/current/next slots
+// are fixed JSX positions, so without a per-reel key React reuses the same
+// instance (and the same <video> DOM node) as `reel` changes underneath it —
+// the like/comment/share/view counts seeded from `reel.*` below go stale, and
+// worse, "current" always renders isActive={true} as a literal constant, so the
+// autoplay effect's [isActive] dependency never changes and never re-fires:
+// only the very first reel a slot ever holds would autoplay, every reel after
+// it would sit fully loaded and paused until manually tapped.
 function ReelCard({
   reel, isActive, muted, onMuteToggle, preloadHint = 'metadata',
 }: {
@@ -670,16 +678,24 @@ export default function ReelFeed() {
     return () => el.removeEventListener('wheel', onWheel)
   }, [snapTo])
 
+  // Where "close" goes. Reels are public so people arrive here from a shared
+  // link with no session; sending them to /feed would bounce them straight to
+  // the login wall. Signed-out visitors land in the marketplace instead — still
+  // public, and the natural next step after watching someone's produce.
+  const exitReels = useCallback(() => {
+    navigate(user ? '/feed' : '/marketplace')
+  }, [navigate, user])
+
   // Keyboard navigation (PC)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') { e.preventDefault(); snapTo(currentIndexRef.current + 1) }
       if (e.key === 'ArrowUp')   { e.preventDefault(); snapTo(currentIndexRef.current - 1) }
-      if (e.key === 'Escape')    navigate('/feed')
+      if (e.key === 'Escape')    exitReels()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [snapTo, navigate])
+  }, [snapTo, exitReels])
 
   // Waiting on a direct-linked reel to load — show a spinner, not the empty state
   if (reelId && !leadReel && !reels.length) return (
@@ -709,6 +725,7 @@ export default function ReelFeed() {
           style={{ y: prevCardY, willChange: 'transform' }}
         >
           <ReelCard
+            key={reels[currentIndex - 1]._id}
             reel={reels[currentIndex - 1]}
             isActive={false}
             muted={muted}
@@ -724,6 +741,7 @@ export default function ReelFeed() {
         style={{ y, willChange: 'transform' }}
       >
         <ReelCard
+          key={reels[currentIndex]._id}
           reel={reels[currentIndex]}
           isActive={true}
           muted={muted}
@@ -739,6 +757,7 @@ export default function ReelFeed() {
           style={{ y: nextCardY, willChange: 'transform' }}
         >
           <ReelCard
+            key={reels[currentIndex + 1]._id}
             reel={reels[currentIndex + 1]}
             isActive={false}
             muted={muted}
@@ -748,14 +767,21 @@ export default function ReelFeed() {
         </motion.div>
       )}
 
-      {/* Top-left: exit (desktop) + Go Live (farmers) */}
+      {/* Top-left: close + Go Live (farmers)
+          Shown at every width. This was `hidden lg:flex`, so on a tablet — which
+          has no swipe-back gesture and no bottom nav on this fullscreen route —
+          there was no way out of the reel player at all short of the browser's
+          back button. Deliberately quiet: an icon that sits at low opacity over
+          the video and only firms up on hover, so it never competes with the
+          content. Esc still works and is surfaced via the tooltip. */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <button
-          onClick={() => navigate('/feed')}
-          className="hidden lg:flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium border border-white/10 hover:bg-black/70 active:scale-95 transition-all"
+          onClick={exitReels}
+          aria-label="Close reels"
+          title="Close (Esc)"
+          className="flex items-center justify-center h-9 w-9 rounded-full bg-black/25 backdrop-blur-sm text-white/60 hover:text-white hover:bg-black/50 active:scale-95 transition-all"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Exit
+          <X className="h-[18px] w-[18px]" strokeWidth={2.5} />
         </button>
         {user?.role === 'FARMER' && (
           <button

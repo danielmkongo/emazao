@@ -83,35 +83,63 @@ export default function Storefront() {
         )}
       </motion.div>
 
-      {/* Profile row */}
-      <div className="flex items-end gap-4 -mt-16 mb-6 px-2">
-        <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified}
-          className="ring-4 ring-[var(--c-bg)] flex-shrink-0" />
-        <div className="flex-1 pb-2 min-w-0">
-          <h1 className="text-xl font-bold text-[var(--c-text)] truncate">
+      {/* Profile row
+          Previously a single -mt-16 row holding avatar, name, wrapping stats and
+          the action buttons. On a narrow screen the stats wrapped to four lines,
+          which pushed the whole block upward behind the banner — the farm name
+          disappeared entirely and "2 sales" ended up underneath the Message
+          button. Only the avatar overlaps the banner now; everything else flows
+          normally beneath it and reflows to its own row on mobile. */}
+      <div className="-mt-16 mb-6 px-2">
+        <div className="flex items-end gap-4">
+          <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified}
+            className="ring-4 ring-[var(--c-bg)] flex-shrink-0" />
+          {!isOwnProfile && (
+            <div className="hidden sm:flex gap-2 ml-auto pb-2 flex-shrink-0">
+              <Button size="sm" variant="outline" onClick={handleMessage}>
+                <MessageSquare className="h-3.5 w-3.5" /> Message
+              </Button>
+              <Button
+                size="sm"
+                variant={following ? 'secondary' : 'primary'}
+                onClick={() => isAuthenticated ? followMutation.mutate() : navigate('/login')}
+                disabled={followMutation.isPending}
+              >
+                {following
+                  ? <><UserCheck className="h-3.5 w-3.5" /> Following</>
+                  : <><UserPlus className="h-3.5 w-3.5" /> Follow</>
+                }
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 min-w-0">
+          <h1 className="text-xl font-bold text-[var(--c-text)] break-words">
             {sellerProfile?.farmName || user.name}
           </h1>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--c-text-3)] mt-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--c-text-3)] mt-1.5">
             {(user.location || user.country) && (
               <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />{user.location || user.country}
+                <MapPin className="h-3 w-3 flex-shrink-0" />{user.location || user.country}
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" />{formatNumber((user as any).followersCount ?? 0)} followers
+              <Users className="h-3 w-3 flex-shrink-0" />{formatNumber((user as any).followersCount ?? 0)} followers
             </span>
             <span className="flex items-center gap-1">
-              <Package className="h-3 w-3" />{formatNumber(products.length)} products
+              <Package className="h-3 w-3 flex-shrink-0" />{formatNumber(products.length)} products
             </span>
-            {sellerProfile?.totalSales && (
+            {!!sellerProfile?.totalSales && (
               <span className="text-brand-green font-semibold">{formatNumber(sellerProfile.totalSales)} sales</span>
             )}
           </div>
         </div>
 
+        {/* Mobile: full-width actions below the details rather than crowding them */}
         {!isOwnProfile && (
-          <div className="flex gap-2 pb-2 flex-shrink-0">
-            <Button size="sm" variant="outline" onClick={handleMessage}>
+          <div className="flex sm:hidden gap-2 mt-4">
+            <Button size="sm" variant="outline" onClick={handleMessage} className="flex-1">
               <MessageSquare className="h-3.5 w-3.5" /> Message
             </Button>
             <Button
@@ -119,6 +147,7 @@ export default function Storefront() {
               variant={following ? 'secondary' : 'primary'}
               onClick={() => isAuthenticated ? followMutation.mutate() : navigate('/login')}
               disabled={followMutation.isPending}
+              className="flex-1"
             >
               {following
                 ? <><UserCheck className="h-3.5 w-3.5" /> Following</>

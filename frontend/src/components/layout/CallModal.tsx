@@ -74,6 +74,11 @@ export default function CallModal({
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     localStreamRef.current = null
     remoteStreamRef.current = null
+    // Explicitly detach media from the <video> elements, not just stop() the
+    // tracks — some mobile browsers keep the camera-in-use indicator lit until
+    // the element's srcObject is actually cleared, not only when the track stops.
+    if (localVideoRef.current) localVideoRef.current.srcObject = null
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
     peerConnection?.close()
     peerConnection = null
     pendingCandidates = []

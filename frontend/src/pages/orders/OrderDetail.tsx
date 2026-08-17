@@ -66,7 +66,7 @@ export default function OrderDetail() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const [payingClientSecret, setPayingClientSecret] = useState('')
+  const [paying, setPaying] = useState(false)
 
   const { data: order, isLoading, isError, error } = useQuery({
     queryKey: ['order', id],
@@ -75,14 +75,6 @@ export default function OrderDetail() {
       return res.data.data
     },
     retry: 1,
-  })
-
-  const startPaymentMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post<ApiResponse<{ clientSecret: string }>>('/payments/intent', { orderId: id })
-      return res.data.data
-    },
-    onSuccess: (data) => setPayingClientSecret(data.clientSecret),
   })
 
   const confirmMutation = useMutation({
@@ -238,19 +230,22 @@ export default function OrderDetail() {
       {canPay && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5 mb-4">
-          {payingClientSecret ? (
+          {paying ? (
             <>
               <h3 className="font-semibold text-[var(--c-text)] mb-3">Complete Payment</h3>
               <PaymentForm
-                clientSecret={payingClientSecret}
-                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['order', id] })}
-                onCancel={() => setPayingClientSecret('')}
+                orderId={String(id)}
+                onSuccess={() => {
+                  setPaying(false)
+                  queryClient.invalidateQueries({ queryKey: ['order', id] })
+                }}
+                onCancel={() => setPaying(false)}
               />
             </>
           ) : (
-            <Button className="w-full" onClick={() => startPaymentMutation.mutate()} disabled={startPaymentMutation.isPending}>
+            <Button className="w-full" onClick={() => setPaying(true)}>
               <CreditCard className="h-4 w-4" />
-              {startPaymentMutation.isPending ? 'Loading…' : 'Complete Payment'}
+              Complete Payment
             </Button>
           )}
         </motion.div>

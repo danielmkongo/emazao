@@ -69,7 +69,7 @@ const OrderSchema = new Schema<IOrder>(
     deliveryFee: { type: Number, default: 0 },
     platformFee: { type: Number, default: 0 },
     total: { type: Number, required: true },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'TZS' },
     deliveryAddress: {
       street: String,
       city: String,

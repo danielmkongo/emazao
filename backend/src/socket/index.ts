@@ -66,9 +66,11 @@ export const initSocket = (io: Server): void => {
       if (convo && convo.participants.map(String).includes(userId)) socket.join(`conv:${id}`)
     })
     socket.on('leave_conversation', (id: string) => socket.leave(`conv:${id}`))
-    socket.on('send_message', (data: { conversationId: string; message: unknown }) => {
-      socket.to(`conv:${data.conversationId}`).emit('message:new', data.message)
-    })
+    // No `send_message` handler: messages are persisted via POST /api/messages,
+    // which does the membership check and emits `message:new` itself. The old
+    // client-driven relay took an unvalidated conversationId and payload, so any
+    // socket could broadcast a forged message into any thread without it ever
+    // touching the database. The frontend never used it.
 
     // ── Requirements ───────────────────────────────────────────────────────────
     socket.on('join_requirement', (id: string) => socket.join(`req:${id}`))

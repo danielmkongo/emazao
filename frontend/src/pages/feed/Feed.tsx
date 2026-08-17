@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
-import { Flame, Clock, MapPin, Play, Sprout } from 'lucide-react'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { Flame, Clock, MapPin, Play, Sprout, Loader2 } from 'lucide-react'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { LiveNowRow } from '@/components/feed/LiveNowRow'
 import { FeedPostSkeleton } from '@/components/ui/skeleton'
@@ -20,15 +20,36 @@ const filters = [
 export default function Feed() {
   const [activeFilter, setActiveFilter] = useState('trending')
 
-  const { data, isLoading } = useQuery({
+  // The API has always returned a nextCursor, but the feed only ever requested
+  // the first page — everything past the first 20 items was unreachable.
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['feed', activeFilter],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>(`/feed?limit=20&sort=${activeFilter}`)
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const cursor = pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''
+      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>(
+        `/feed?limit=20&sort=${activeFilter}${cursor}`,
+      )
       return res.data
     },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
 
-  const feedItems = data?.data ?? []
+  const feedItems = data?.pages.flatMap(p => p.data ?? []) ?? []
+
+  // Auto-load as the sentinel below scrolls into view, with a manual button as
+  // the fallback for browsers without IntersectionObserver.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasNextPage || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage() },
+      { rootMargin: '400px' }, // start fetching before the user reaches the end
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -90,16 +111,22 @@ export default function Feed() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {feedItems.map((item, i) => {
+            // Keyed by id, not index: appended pages would otherwise reuse the
+            // same keys and let one card's local state land on a different item.
+            // Stagger is capped to the first page so later pages don't animate in
+            // with an ever-growing delay.
+            const delay = Math.min(i, 11) * 0.04
             if (item.type === 'PRODUCT') {
+              const product = item.data as Product
               return (
-                <motion.div key={`product-${i}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-                  <FeedProductCard product={item.data as Product} />
+                <motion.div key={`product-${product._id}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+                  <FeedProductCard product={product} />
                 </motion.div>
               )
             }
             const reel = item.data as Reel
             return (
-              <motion.div key={`reel-${i}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+              <motion.div key={`reel-${reel._id}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
                 <Link to={`/reels/${reel._id}`} state={{ reel }} className="block">
                   <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden aspect-[4/3] relative cursor-pointer group shadow-sm hover:shadow-md transition-shadow">
                     {reel.thumbnailUrl ? (
@@ -124,6 +151,20 @@ export default function Feed() {
               </motion.div>
             )
           })}
+        </div>
+      )}
+
+      {!isLoading && feedItems.length > 0 && (
+        <div ref={sentinelRef} className="py-8 flex justify-center">
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2 text-sm text-[var(--c-text-3)]">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading more…
+            </span>
+          ) : hasNextPage ? (
+            <Button variant="outline" onClick={() => fetchNextPage()}>Load more</Button>
+          ) : (
+            <span className="text-sm text-[var(--c-text-4)]">You're all caught up</span>
+          )}
         </div>
       )}
     </div>

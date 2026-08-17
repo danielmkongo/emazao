@@ -4,9 +4,12 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Mail, Lock, Eye, EyeOff, Sprout } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTranslation } from 'react-i18next'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 
@@ -17,6 +20,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function Login() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const [showPass, setShowPass] = useState(false)
@@ -51,19 +55,17 @@ export default function Login() {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-10">
-          <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center shadow-lg shadow-brand-green/25">
-            <Sprout className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-            eMazao
-          </span>
+        {/* Shared <Logo>, same as the landing page and app sidebar. These pages used
+            a generic sprout glyph plus a typed wordmark, so the whole auth flow
+            looked like a different product from the one users came from. */}
+        <Link to="/" className="flex items-center justify-center mb-10">
+          <Logo className="h-20 w-auto" />
         </Link>
 
         <div className="glass rounded-2xl p-8 shadow-xl">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">Welcome back</h1>
-            <p className="text-[var(--c-text-3)] text-sm">Sign in to your account to continue trading</p>
+            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">{t('auth.welcomeBack')}</h1>
+            <p className="text-[var(--c-text-3)] text-sm">{t('auth.signInSubtitle')}</p>
           </div>
 
           {error && (
@@ -75,7 +77,7 @@ export default function Login() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <Input
               {...register('email')}
-              label="Email"
+              label={t('auth.email')}
               type="email"
               placeholder="you@example.com"
               leftIcon={<Mail className="h-4 w-4" />}
@@ -84,7 +86,7 @@ export default function Login() {
 
             <Input
               {...register('password')}
-              label="Password"
+              label={t('auth.password')}
               type={showPass ? 'text' : 'password'}
               placeholder="••••••••"
               leftIcon={<Lock className="h-4 w-4" />}
@@ -98,35 +100,47 @@ export default function Login() {
 
             <div className="flex justify-end -mt-2">
               <Link to="/forgot-password" className="text-xs text-brand-green hover:underline font-medium">
-                Forgot password?
+                {t('auth.forgotPassword')}
               </Link>
             </div>
 
             <Button type="submit" className="w-full" size="lg" loading={isSubmitting}>
-              Sign In
+              {t('auth.signInButton')}
             </Button>
           </form>
 
           <p className="text-center text-sm text-[var(--c-text-3)] mt-6">
-            Don't have an account?{' '}
+            {t('auth.noAccount')}{' '}
             <Link to="/register" className="text-brand-green hover:underline font-medium">
-              Create one
+              {t('auth.createOne')}
             </Link>
           </p>
 
-          <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
-            <p className="text-xs text-[var(--c-text-4)] text-center mb-2">Demo accounts (password: Demo1234!)</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-[var(--c-text-3)]">
-              <div className="bg-[var(--c-input)] rounded-lg p-2">
-                <p className="font-medium text-[var(--c-text-2)]">Farmer</p>
-                <p>james@emazao.demo</p>
-              </div>
-              <div className="bg-[var(--c-input)] rounded-lg p-2">
-                <p className="font-medium text-[var(--c-text-2)]">Buyer</p>
-                <p>sarah@emazao.demo</p>
+          {/* Dev-only: advertising working credentials on a public login page invites
+              anyone to sign in as a seeded account. Vite statically replaces
+              import.meta.env.DEV with false for `vite build`, so this block is
+              dropped from the production bundle entirely rather than just hidden. */}
+          {import.meta.env.DEV && (
+            <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
+              <p className="text-xs text-[var(--c-text-4)] text-center mb-2">Demo accounts (password: Demo1234!)</p>
+              <div className="grid grid-cols-2 gap-2 text-xs text-[var(--c-text-3)]">
+                <div className="bg-[var(--c-input)] rounded-lg p-2">
+                  <p className="font-medium text-[var(--c-text-2)]">Farmer</p>
+                  <p>james@emazao.demo</p>
+                </div>
+                <div className="bg-[var(--c-input)] rounded-lg p-2">
+                  <p className="font-medium text-[var(--c-text-2)]">Buyer</p>
+                  <p>sarah@emazao.demo</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* Offered before sign-in: a Swahili-first farmer shouldn't have to read
+            an English form to find the language toggle. */}
+        <div className="mt-6 max-w-[240px] mx-auto">
+          <LanguageSwitcher variant="compact" />
         </div>
       </motion.div>
     </div>
