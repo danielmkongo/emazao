@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Radio } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { useAuthStore } from '@/store/authStore'
-import { getSocket } from '@/lib/socket'
+import { useSocketEvent } from '@/hooks/useSocketEvent'
 import api from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
 import type { ApiResponse } from '@/types'
@@ -61,36 +61,31 @@ export const LiveNowRow = () => {
     if (data) setSessions(data)
   }, [data])
 
-  // Real-time: handle both old and new socket payload formats
-  useEffect(() => {
+  // Real-time: handle both old and new socket payload formats. Each event uses
+  // its own subscription (via useSocketEvent) rather than one shared effect
+  // with a blanket `socket.off(event)`, so this component's cleanup can never
+  // remove a listener some other component registered for the same event.
+  useSocketEvent('live:new', async (raw: any) => {
     if (!user?._id) return
-    const socket = getSocket()
-
-    socket.on('live:new', async (raw: any) => {
-      const session = await resolveSession(raw)
-      if (!session) return
-      setSessions(prev => {
-        const alreadyIn = prev.some(s => s.broadcasterId._id === session.broadcasterId._id)
-        return alreadyIn ? prev : [session, ...prev]
-      })
+    const session = await resolveSession(raw)
+    if (!session) return
+    setSessions(prev => {
+      const alreadyIn = prev.some(s => s.broadcasterId._id === session.broadcasterId._id)
+      return alreadyIn ? prev : [session, ...prev]
     })
+  }, [user?._id])
 
-    socket.on('live:removed', ({ broadcasterId }: { broadcasterId: string }) => {
-      setSessions(prev => prev.filter(s => s.broadcasterId._id !== broadcasterId))
-    })
+  useSocketEvent('live:removed', ({ broadcasterId }: { broadcasterId: string }) => {
+    if (!user?._id) return
+    setSessions(prev => prev.filter(s => s.broadcasterId._id !== broadcasterId))
+  }, [user?._id])
 
-    // Live viewer counts for streams shown here (not just ones this client has
-    // joined) — previously frozen at whatever value was present on fetch until
-    // the next 20s poll.
-    socket.on('live:viewer-count-global', ({ broadcasterId, count }: { broadcasterId: string; count: number }) => {
-      setSessions(prev => prev.map(s => s.broadcasterId._id === broadcasterId ? { ...s, viewerCount: count } : s))
-    })
-
-    return () => {
-      socket.off('live:new')
-      socket.off('live:removed')
-      socket.off('live:viewer-count-global')
-    }
+  // Live viewer counts for streams shown here (not just ones this client has
+  // joined) — previously frozen at whatever value was present on fetch until
+  // the next 20s poll.
+  useSocketEvent('live:viewer-count-global', ({ broadcasterId, count }: { broadcasterId: string; count: number }) => {
+    if (!user?._id) return
+    setSessions(prev => prev.map(s => s.broadcasterId._id === broadcasterId ? { ...s, viewerCount: count } : s))
   }, [user?._id])
 
   if (!sessions.length) return null

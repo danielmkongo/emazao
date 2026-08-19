@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { AlertOctagon, CheckCircle, XCircle } from 'lucide-react'
@@ -17,14 +18,21 @@ interface Dispute {
   createdAt: string
 }
 
+const STATUS_TABS = ['OPEN', 'UNDER_REVIEW', 'RESOLVED_BUYER', 'RESOLVED_SELLER', 'ESCALATED']
+const LIMIT = 20
+
 export default function AdminDisputes() {
   const queryClient = useQueryClient()
+  const [status, setStatus] = useState<string>('OPEN')
+  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-disputes'],
+    queryKey: ['admin-disputes', status, page],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Dispute[]>>('/admin/disputes')
-      return res.data.data
+      const res = await api.get<ApiResponse<Dispute[]> & { pagination: { total: number } }>(
+        `/admin/disputes?status=${status}&page=${page}&limit=${LIMIT}`
+      )
+      return { disputes: res.data.data, total: res.data.pagination.total }
     },
   })
 
@@ -34,20 +42,37 @@ export default function AdminDisputes() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-disputes'] }),
   })
 
+  const disputes = data?.disputes
+  const hasMore = data ? page * LIMIT < data.total : false
+
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-[var(--c-text)] mb-6">Disputes</h1>
+      <h1 className="text-xl font-bold text-[var(--c-text)] mb-4">Disputes</h1>
+
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
+        {STATUS_TABS.map(s => (
+          <button
+            key={s}
+            onClick={() => { setStatus(s); setPage(1) }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+              status === s ? 'bg-brand-green text-white' : 'bg-[var(--c-input)] text-[var(--c-text-2)]'
+            }`}
+          >
+            {s.replace(/_/g, ' ')}
+          </button>
+        ))}
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
-      ) : !data?.length ? (
+      ) : !disputes?.length ? (
         <div className="text-center py-20">
           <AlertOctagon className="h-12 w-12 text-[var(--c-text-4)] mx-auto mb-4" />
-          <p className="text-[var(--c-text-3)]">No active disputes</p>
+          <p className="text-[var(--c-text-3)]">No disputes in this status</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {data.map((d, i) => (
+          {disputes.map((d, i) => (
             <motion.div key={d._id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
               className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5">
               <div className="flex items-start justify-between mb-3">
@@ -73,6 +98,16 @@ export default function AdminDisputes() {
               )}
             </motion.div>
           ))}
+          {(page > 1 || hasMore) && (
+            <div className="flex justify-between gap-3 pt-2">
+              <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                Previous
+              </Button>
+              <Button variant="outline" disabled={!hasMore} onClick={() => setPage(p => p + 1)}>
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

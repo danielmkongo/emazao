@@ -7,13 +7,18 @@ import { initContentStats, recordInteraction } from '../services/recommendation/
 
 export const getReels = async (req: AuthRequest, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1
+    // Cursor on createdAt rather than skip/limit — reels are inserted
+    // continuously, so an offset-based page N shifts under concurrent
+    // inserts and duplicates/skips items between requests.
+    const cursor = req.query.cursor as string | undefined
     const limit = 10
-    const reels = await Reel.find({ status: 'PUBLISHED' })
+    const filter: Record<string, unknown> = { status: 'PUBLISHED' }
+    if (cursor) filter.createdAt = { $lt: new Date(cursor) }
+
+    const reels = await Reel.find(filter)
       .populate('userId', 'name username avatar isVerified')
       .populate('productId', 'title price priceUnit images slug')
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
       .limit(limit)
 
     let likedSet = new Set<string>()
@@ -31,7 +36,8 @@ export const getReels = async (req: AuthRequest, res: Response) => {
       userLiked: likedSet.has(r._id.toString()),
     }))
 
-    res.json({ success: true, data, page })
+    const nextCursor = reels.length === limit ? reels[reels.length - 1]!.createdAt.toISOString() : null
+    res.json({ success: true, data, nextCursor })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

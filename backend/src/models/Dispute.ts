@@ -31,4 +31,8 @@ const DisputeSchema = new Schema<IDispute>(
   { timestamps: true }
 )
 
+DisputeSchema.index({ status: 1, createdAt: -1 })
+DisputeSchema.index({ orderId: 1 })
+DisputeSchema.index({ raisedById: 1 })
+
 export default mongoose.model<IDispute>('Dispute', DisputeSchema)

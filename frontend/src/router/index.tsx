@@ -5,6 +5,7 @@ import { lazyWithReload as lazy } from '@/lib/lazyWithReload'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { useAuthStore } from '@/store/authStore'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const Loading = () => (
   <div className="p-6 space-y-4">
@@ -12,9 +13,12 @@ const Loading = () => (
   </div>
 )
 
+// Each route gets its own boundary — previously only the app root had one, so a
+// render error on any single page blanked the entire app (nav included) rather
+// than just that route's content.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const wrap = (Component: React.LazyExoticComponent<() => any>) => (
-  <Suspense fallback={<Loading />}><Component /></Suspense>
+  <ErrorBoundary><Suspense fallback={<Loading />}><Component /></Suspense></ErrorBoundary>
 )
 
 // Lazy pages

@@ -23,6 +23,7 @@ const NotificationSchema = new Schema<INotification>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
+      required: true,
       enum: [
         'ORDER', 'NEW_ORDER', 'ORDER_SHIPPED', 'ESCROW_RELEASED',
         'BID', 'NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'BID_SHORTLISTED',

@@ -61,8 +61,19 @@ export const unsuspendUser = async (req: AuthRequest, res: Response) => {
 
 export const listDisputes = async (req: AuthRequest, res: Response) => {
   try {
-    const disputes = await Dispute.find().populate('orderId', 'orderNumber total').populate('raisedById', 'name username').sort({ createdAt: -1 }).limit(50)
-    res.json({ success: true, data: disputes })
+    const { status, page = 1, limit = 50 } = req.query
+    const query: Record<string, any> = {}
+    if (status) query.status = status
+
+    const disputes = await Dispute.find(query)
+      .populate('orderId', 'orderNumber total')
+      .populate('raisedById', 'name username')
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+    const total = await Dispute.countDocuments(query)
+
+    res.json({ success: true, data: disputes, pagination: { page: Number(page), limit: Number(limit), total } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

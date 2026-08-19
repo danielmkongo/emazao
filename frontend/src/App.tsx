@@ -11,6 +11,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { getSocket } from '@/lib/socket'
 import { playNotificationSound } from '@/lib/sound'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
+import { useSocketEvent } from '@/hooks/useSocketEvent'
 
 function ThemeApplier() {
   const theme = useUIStore((s) => s.theme)
@@ -57,26 +58,24 @@ function GlobalRealtimeHandler() {
 
   useEffect(() => {
     if (!user?._id) return
-    const socket = getSocket()
     void refreshUnreadMessages()
+  }, [user?._id])
 
-    socket.on('notification:new', (n: { type: string; link?: string }) => {
-      playNotificationSound()
-      queryClient.setQueryData(['notifications-count'], (old: { unreadCount: number } | undefined) =>
-        old ? { ...old, unreadCount: old.unreadCount + 1 } : old
-      )
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+  useSocketEvent('notification:new', (n: { type: string; link?: string }) => {
+    if (!user?._id) return
+    playNotificationSound()
+    queryClient.setQueryData(['notifications-count'], (old: { unreadCount: number } | undefined) =>
+      old ? { ...old, unreadCount: old.unreadCount + 1 } : old
+    )
+    queryClient.invalidateQueries({ queryKey: ['notifications'] })
 
-      if (n.type === 'MESSAGE') {
-        const conversationId = n.link?.split('/messages/')[1]
-        const activeConversationId = useUnreadStore.getState().activeConversationId
-        if (conversationId && conversationId !== activeConversationId) {
-          incrementUnreadMessages()
-        }
+    if (n.type === 'MESSAGE') {
+      const conversationId = n.link?.split('/messages/')[1]
+      const activeConversationId = useUnreadStore.getState().activeConversationId
+      if (conversationId && conversationId !== activeConversationId) {
+        incrementUnreadMessages()
       }
-    })
-
-    return () => { socket.off('notification:new') }
+    }
   }, [user?._id, incrementUnreadMessages])
 
   return null

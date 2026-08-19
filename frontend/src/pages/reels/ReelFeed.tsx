@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, Reel, User, Product } from '@/types'
 
-interface ReelPage { data: Reel[]; page: number }
+interface ReelPage { data: Reel[]; nextCursor: string | null }
 interface CommentData { _id: string; userId: User; content: string; likeCount: number; createdAt: string }
 
 // ─── Comments drawer ───────────────────────────────────────────────────────────
@@ -231,6 +231,15 @@ function ReelCard({
   useEffect(() => {
     if (reel.userLiked !== undefined) setLiked(reel.userLiked)
   }, [reel.userLiked])
+
+  // Resync counters if the underlying query data ever changes underneath this
+  // card (e.g. a future refetch/invalidation) — mirrors FeedProductCard's
+  // pattern for the same class of "local optimistic count vs. server prop"
+  // state, so this card doesn't quietly go stale if that changes.
+  useEffect(() => { setLikeCount(reel.likeCount) }, [reel.likeCount])
+  useEffect(() => { setShareCount(reel.shareCount) }, [reel.shareCount])
+  useEffect(() => { setCommentCount(reel.commentCount) }, [reel.commentCount])
+  useEffect(() => { setViewCount(reel.viewCount ?? 0) }, [reel.viewCount])
 
   const likePendingRef = useRef(false)
 
@@ -509,12 +518,14 @@ export default function ReelFeed() {
 
   const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
     queryKey: ['reels'],
-    queryFn: async ({ pageParam = 1 }) => {
-      const res = await api.get<ApiResponse<Reel[]>>(`/reels?page=${pageParam}`)
-      return { data: res.data.data ?? [], page: pageParam } as ReelPage
+    queryFn: async ({ pageParam }: { pageParam: string | null }) => {
+      const res = await api.get<ApiResponse<Reel[]> & { nextCursor: string | null }>(
+        `/reels${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ''}`
+      )
+      return { data: res.data.data ?? [], nextCursor: res.data.nextCursor } as ReelPage
     },
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.data.length === 10 ? last.page + 1 : undefined),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
   })
 
   // Fetch the specifically-requested reel (only when we don't already have it from state)

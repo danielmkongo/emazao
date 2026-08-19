@@ -31,6 +31,18 @@ interface Candidate {
   topics: string[]
 }
 
+// The candidate pool is re-scored (with randomized exploration and constantly
+// arriving new content) on every call, so slicing a fresh `diversified` array
+// by numeric offset on each page request duplicates/skips items as the
+// underlying order shifts between requests — a classic offset-pagination
+// footgun made worse by the scoring being non-deterministic. Freezing the
+// ordering for a short window per (user, sort) fixes that without touching
+// the scoring/diversity logic itself: the first request (offset 0) computes
+// and caches the order; subsequent pages in the same browsing session slice
+// from that same frozen list instead of a freshly reshuffled one.
+const FEED_ORDER_CACHE_TTL_MS = 3 * 60 * 1000
+const feedOrderCache = new Map<string, { items: { c: Candidate; score: number }[]; expiresAt: number }>()
+
 const toCand = (doc: any, type: ContentType): Candidate => {
   const creator = type === 'REEL' ? doc.userId : doc.sellerId
   const creatorId = (creator?._id ?? creator)?.toString?.() ?? ''
@@ -131,8 +143,27 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
   // ── Diversity: cap consecutive same-creator + per-creator/topic per page ──
   const diversified = diversify(scored, cfg)
 
+  // ── Freeze the order for this browsing session (see comment above) ────────
+  const cacheKey = userId ? `${userId}:${sort}` : null
+  let ordered = diversified
+  if (cacheKey) {
+    const cached = feedOrderCache.get(cacheKey)
+    if (offset === 0 || !cached || cached.expiresAt < Date.now()) {
+      feedOrderCache.set(cacheKey, { items: diversified, expiresAt: Date.now() + FEED_ORDER_CACHE_TTL_MS })
+      // Opportunistic sweep so this Map can't grow unbounded across sessions —
+      // cheap relative to the rest of this function's DB work, and avoids
+      // needing a separate interval/timer for what's a low-value cache.
+      if (feedOrderCache.size > 500) {
+        const now = Date.now()
+        for (const [k, v] of feedOrderCache) if (v.expiresAt < now) feedOrderCache.delete(k)
+      }
+    } else {
+      ordered = cached.items
+    }
+  }
+
   // ── Paginate ──────────────────────────────────────────────────────────────
-  const page = diversified.slice(offset, offset + limit)
+  const page = ordered.slice(offset, offset + limit)
 
   // ── Record impressions (fire-and-forget) so TEST content accrues a sample ──
   if (userId) void recordImpressions(userId, page.map(p => p.c))

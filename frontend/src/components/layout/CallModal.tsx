@@ -60,6 +60,7 @@ export default function CallModal({
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -353,6 +354,23 @@ export default function CallModal({
     setCall({ type: 'idle', video: false })
   }
 
+  // Basic modal accessibility: move focus into the dialog when it opens (it
+  // previously stayed wherever it was on the page behind the call UI), and
+  // let Escape decline/hang up — there was no keyboard way to dismiss this
+  // modal at all before.
+  useEffect(() => {
+    if (call.type === 'idle') return
+    modalRef.current?.focus()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (call.type === 'incoming') declineCall()
+      else hangUp(true)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call.type])
+
   const toggleMic = () => {
     const track = localStreamRef.current?.getAudioTracks()[0]
     if (track) { track.enabled = !track.enabled; setMicMuted(m => !m) }
@@ -393,8 +411,13 @@ export default function CallModal({
   return (
     <AnimatePresence>
       <motion.div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={call.type === 'incoming' ? 'Incoming call' : 'Call'}
+        tabIndex={-1}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center"
+        className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center outline-none"
       >
         {/* Remote media. For video calls it fills the screen; for audio calls the
             same element is kept offscreen but still plays the remote sound (a

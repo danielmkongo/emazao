@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import morgan from 'morgan'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import rateLimit from 'express-rate-limit'
@@ -62,6 +63,11 @@ app.use(helmet({
 }))
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }))
 
+// Request logging — previously there was no record of what requests a
+// production incident even involved, only whatever a controller happened to
+// console.error inside its own catch block.
+app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'))
+
 app.use(express.json({ limit: '10mb' }))
 
 // Payment provider callback. Mounted outside the /api router stack so it bypasses
@@ -102,6 +108,11 @@ app.use('/api/events', eventRoutes)
 app.use('/api/recommendation', recommendationRoutes)
 app.use('/api/verification', verificationRoutes)
 
+// An unmatched /api/* path should 404 as JSON, not fall through to the SPA's
+// index.html below — otherwise a typo'd endpoint or a client bug looks like a
+// silent 200 instead of a clear error.
+app.use('/api', notFound)
+
 // Serve frontend static files if built
 const frontendDist = path.join(__dirname, '../../frontend/dist')
 if (fs.existsSync(frontendDist)) {
@@ -112,8 +123,13 @@ if (fs.existsSync(frontendDist)) {
   })
 } else {
   app.use(notFound)
-  app.use(errorHandler)
 }
+
+// Always mounted, regardless of whether the frontend build exists — previously
+// this only ran in the `else` branch above, so in production (where the built
+// frontend is served from this same process) a thrown error had nowhere to
+// land and fell through to Express's default handler instead.
+app.use(errorHandler)
 
 // Start
 const start = async () => {
