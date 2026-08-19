@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { ArrowRight, BadgeCheck, MapPin, Play, Star } from 'lucide-react'
+import { ArrowRight, BadgeCheck, Compass, MapPin, Star } from 'lucide-react'
 
 const ease = [0.16, 1, 0.3, 1] as const
 
@@ -26,14 +26,21 @@ export const HeroSection = () => {
             Grow it.<br />Show it. <span className="text-[#d9ff43]">Sell it.</span>
           </motion.h1>
           <motion.p {...reveal(.12)} className="mt-7 max-w-xl text-lg leading-8 text-white/65 sm:text-xl">
-            Where Africa's farmers meet serious buyers, build trusted relationships, and turn every harvest into opportunity.
+            Show your harvest, build an audience and sell directly to serious buyers—all in one agricultural network.
           </motion.p>
           <motion.div {...reveal(.22)} className="mt-9 flex flex-wrap gap-3">
-            <Link to="/register" className="group flex items-center gap-3 rounded-full bg-[#d9ff43] px-7 py-4 font-bold text-[#0b160e] transition-transform hover:scale-[1.03]">Open your storefront <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></Link>
-            <Link to="/marketplace" className="flex items-center gap-3 rounded-full border border-white/20 bg-white/10 px-7 py-4 font-semibold backdrop-blur-md hover:bg-white/15"><Play className="h-4 w-4 fill-white" /> Explore the market</Link>
+            <Link to="/register?intent=sell" className="group flex items-center gap-3 rounded-full bg-[#d9ff43] px-7 py-4 font-bold text-[#0b160e] transition-transform hover:scale-[1.03]">Join as a farmer <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></Link>
+            <Link to="/register?intent=buy" className="group flex items-center gap-3 rounded-full border border-white/25 bg-white/10 px-7 py-4 font-semibold backdrop-blur-md transition-colors hover:bg-white/15">Join as a buyer <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
           </motion.div>
-          <motion.div {...reveal(.32)} className="mt-11 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-6 text-sm text-white/45">
-            <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Verified sellers</span><span>Escrow-protected payments</span><span>Direct messaging</span>
+          <motion.div {...reveal(.28)} className="mt-5"><Link to="/marketplace" className="inline-flex items-center gap-2 text-sm font-semibold text-white/65 hover:text-white"><Compass className="h-4 w-4" /> Explore the market before joining</Link></motion.div>
+          <motion.div {...reveal(.32)} className="mt-11 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-6 text-sm text-white/65">
+            <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Verified sellers</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Escrow-protected payments</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Direct messaging</span>
+          </motion.div>
+          <motion.div {...reveal(.4)} className="mt-9 max-w-md lg:hidden">
+            <div className="flex items-center gap-4 rounded-2xl border border-white/15 bg-[#102018]/90 p-3 shadow-2xl backdrop-blur-xl">
+              <img src="https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=500&q=85" alt="Fresh Hass avocados ready for market" className="h-24 w-24 shrink-0 rounded-xl object-cover" />
+              <div className="min-w-0"><div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#d9ff43]"><BadgeCheck className="h-3.5 w-3.5" /> Fresh today</div><p className="mt-1 truncate text-lg font-bold">Hass Avocados</p><p className="mt-1 text-sm text-white/65">TZS 2,400 / kg · Mbeya</p><p className="mt-2 text-xs text-white/45">Available from Neema&apos;s Farm</p></div>
+            </div>
           </motion.div>
         </div>
 
@@ -48,7 +55,7 @@ export const HeroSection = () => {
           </motion.article>
         </motion.div>
       </div>
-      <div className="relative border-y border-white/[0.08] bg-white/[0.035] py-4 backdrop-blur-sm"><div className="mx-auto flex max-w-[1440px] items-center justify-between gap-5 overflow-hidden px-5 text-[11px] font-bold uppercase tracking-[.2em] text-white/40 sm:px-8 lg:px-12"><span>Harvest to market</span><span className="text-[#d9ff43]">•</span><span>Farmer to buyer</span><span className="text-[#d9ff43]">•</span><span>Local to global</span><span className="text-[#d9ff43]">•</span><span>Trade with trust</span></div></div>
+      <div className="relative border-y border-white/[0.08] bg-white/[0.035] py-4 backdrop-blur-sm"><div className="mx-auto flex max-w-[1440px] items-center justify-between gap-5 overflow-hidden px-5 text-[11px] font-bold uppercase tracking-[.16em] text-white/55 sm:px-8 lg:px-12 lg:tracking-[.2em]"><span className="whitespace-nowrap">Harvest to market</span><span className="text-[#d9ff43]">•</span><span className="whitespace-nowrap">Farmer to buyer</span><span className="hidden text-[#d9ff43] sm:inline">•</span><span className="hidden whitespace-nowrap sm:inline">Local to global</span><span className="hidden text-[#d9ff43] md:inline">•</span><span className="hidden whitespace-nowrap md:inline">Trade with trust</span></div></div>
     </section>
   )
 }

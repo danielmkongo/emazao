@@ -31,7 +31,7 @@ export const TopBar = () => {
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <Link to="/feed" className="flex items-center mr-auto pl-1">
-        <Logo className="h-[72px] w-auto" />
+        <Logo className="h-14 w-auto" />
       </Link>
 
       <button onClick={() => setSearchOpen(true)} aria-label="Search" className={iconBtn}>

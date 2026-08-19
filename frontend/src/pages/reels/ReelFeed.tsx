@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
@@ -445,7 +446,7 @@ function ReelCard({
             onPointerDown={e => e.stopPropagation()}
           >
             <div className="h-10 w-10 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-              {(product as any).images?.[0] && <img src={(product as any).images[0]} alt="" className="w-full h-full object-cover" />}
+              <ImageWithFallback src={(product as any).images?.[0]} alt="" className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">{(product as any).title}</p>
@@ -803,17 +804,6 @@ export default function ReelFeed() {
             Go Live
           </button>
         )}
-      </div>
-
-      {/* Mute toggle */}
-      <div className="absolute top-4 right-4 z-20">
-        <button
-          onClick={() => setMuted(m => !m)}
-          className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium border border-white/10 active:scale-95 transition-transform"
-        >
-          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-          {muted ? 'Sound off' : 'Sound on'}
-        </button>
       </div>
 
       {/* Desktop navigation arrows — click to move between reels (no janky drag) */}

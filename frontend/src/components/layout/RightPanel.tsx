@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, TrendingUp, Sprout, Trophy, Flame, ShieldCheck } from 'lucide-react'
+import { Search, TrendingUp, Trophy, Flame, ShieldCheck } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ApiResponse, Product, User } from '@/types'
@@ -154,9 +155,7 @@ export const RightPanel = () => {
                 <Link key={product._id} to={`/marketplace/product/${product.slug || product._id}`}>
                   <div className="flex items-center gap-3 p-2 -mx-2 rounded-xl hover:bg-[var(--c-raised)] transition-colors group">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--c-input)] flex-shrink-0">
-                      {product.images?.[0]
-                        ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-4 w-4 text-brand-green/50" /></div>}
+                      <ImageWithFallback src={product.images?.[0]} alt="" className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[var(--c-text)] text-xs font-medium truncate group-hover:text-brand-green transition-colors">{product.title}</p>

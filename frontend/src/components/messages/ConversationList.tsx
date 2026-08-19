@@ -16,6 +16,7 @@ interface Conversation {
   lastMessage: string
   lastMessageAt: string
   type: string
+  unreadCount?: number
 }
 
 function useDebounce<T>(value: T, ms: number): T {
@@ -29,7 +30,13 @@ const ROLE_LABELS: Record<string, string> = {
   LOGISTICS: 'Logistics', ADMIN: 'Admin', SUPER_ADMIN: 'Admin',
 }
 
-export default function Inbox() {
+/**
+ * The conversation list — shared by the mobile full-page inbox and the
+ * always-visible left column of the desktop split-pane (see MessagesLayout).
+ * `activeId` only matters on desktop, where the list stays on screen next to
+ * the open thread and needs to show which one that is.
+ */
+export function ConversationList({ activeId }: { activeId?: string }) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const [composing, setComposing] = useState(false)
@@ -76,9 +83,9 @@ export default function Inbox() {
   const displayedUsers = searchResults ?? []
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 lg:max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-[var(--c-text)]">Messages</h1>
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-4 lg:px-4 lg:py-3.5 border-b border-[var(--c-border)] shrink-0">
+        <h1 className="text-2xl lg:text-lg font-bold text-[var(--c-text)]">Messages</h1>
         <button
           onClick={openCompose}
           className="w-9 h-9 rounded-xl bg-[var(--c-raised)] flex items-center justify-center hover:bg-brand-green/10 hover:text-brand-green transition-colors text-[var(--c-text-3)]"
@@ -88,61 +95,76 @@ export default function Inbox() {
         </button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
-      ) : !conversations?.length ? (
-        <div className="text-center py-24">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--c-raised)] flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="h-7 w-7 text-[var(--c-text-4)]" />
+      <div className="flex-1 overflow-y-auto px-2 py-2 lg:px-2">
+        {isLoading ? (
+          <div className="space-y-2 p-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
+        ) : !conversations?.length ? (
+          <div className="text-center py-24 px-4">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--c-raised)] flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="h-7 w-7 text-[var(--c-text-4)]" />
+            </div>
+            <p className="text-[var(--c-text)] font-semibold mb-1">No conversations yet</p>
+            <p className="text-[var(--c-text-3)] text-sm mb-4">Message a farmer or buyer to get started</p>
+            <button
+              onClick={openCompose}
+              className="px-4 py-2 bg-brand-green text-white rounded-xl text-sm font-semibold hover:bg-brand-emerald transition-colors"
+            >
+              Start a conversation
+            </button>
           </div>
-          <p className="text-[var(--c-text)] font-semibold mb-1">No conversations yet</p>
-          <p className="text-[var(--c-text-3)] text-sm mb-4">Message a farmer or buyer to get started</p>
-          <button
-            onClick={openCompose}
-            className="px-4 py-2 bg-brand-green text-white rounded-xl text-sm font-semibold hover:bg-brand-emerald transition-colors"
-          >
-            Start a conversation
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {conversations.map((conv, i) => {
-            const other = conv.participants.find(p => p._id !== user?._id) ?? conv.participants[0]
-            return (
-              <motion.div
-                key={conv._id}
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.04 }}
-              >
-                <Link to={`/messages/${conv._id}`}>
-                  <div className="flex items-center gap-4 p-4 rounded-2xl hover:bg-[var(--c-raised)] transition-colors group">
-                    <Avatar src={other?.avatar} name={other?.name ?? 'User'} size="md" verified={other?.isVerified} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <p className="font-semibold text-[var(--c-text)] text-sm group-hover:text-brand-green transition-colors">
-                          {other?.name ?? 'User'}
-                        </p>
-                        {conv.lastMessageAt && (
-                          <p className="text-[var(--c-text-4)] text-xs flex-shrink-0 ml-2">{timeAgo(conv.lastMessageAt)}</p>
+        ) : (
+          <div className="space-y-1">
+            {conversations.map((conv, i) => {
+              const other = conv.participants.find(p => p._id !== user?._id) ?? conv.participants[0]
+              const isActive = conv._id === activeId
+              const hasUnread = (conv.unreadCount ?? 0) > 0
+              return (
+                <motion.div
+                  key={conv._id}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                >
+                  <Link to={`/messages/${conv._id}`}>
+                    <div className={`flex items-center gap-4 p-4 lg:p-3 rounded-2xl transition-colors group ${
+                      isActive ? 'bg-brand-green/10' : 'hover:bg-[var(--c-raised)]'
+                    }`}>
+                      <Avatar src={other?.avatar} name={other?.name ?? 'User'} size="md" verified={other?.isVerified} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className={`text-sm truncate transition-colors ${
+                            isActive ? 'text-brand-green' : 'text-[var(--c-text)] group-hover:text-brand-green'
+                          } ${hasUnread ? 'font-bold' : 'font-semibold'}`}>
+                            {other?.name ?? 'User'}
+                          </p>
+                          {conv.lastMessageAt && (
+                            <p className="text-[var(--c-text-4)] text-xs flex-shrink-0 ml-2">{timeAgo(conv.lastMessageAt)}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm truncate ${hasUnread ? 'text-[var(--c-text)] font-medium' : 'text-[var(--c-text-3)]'}`}>
+                            {conv.lastMessage || 'Start a conversation'}
+                          </p>
+                          {hasUnread && (
+                            <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-green text-white text-[10px] font-bold flex items-center justify-center">
+                              {conv.unreadCount! > 9 ? '9+' : conv.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        {conv.type === 'BID_NEGOTIATION' && (
+                          <span className="text-[10px] font-semibold text-gold bg-gold/10 rounded-full px-2 py-0.5 mt-1 inline-block">
+                            Bid Negotiation
+                          </span>
                         )}
                       </div>
-                      <p className="text-[var(--c-text-3)] text-sm truncate">
-                        {conv.lastMessage || 'Start a conversation'}
-                      </p>
-                      {conv.type === 'BID_NEGOTIATION' && (
-                        <span className="text-[10px] font-semibold text-gold bg-gold/10 rounded-full px-2 py-0.5 mt-1 inline-block">
-                          Bid Negotiation
-                        </span>
-                      )}
                     </div>
-                  </div>
-                </Link>
-              </motion.div>
-            )
-          })}
-        </div>
-      )}
+                  </Link>
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Compose Modal */}
       <AnimatePresence>

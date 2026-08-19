@@ -40,7 +40,7 @@ const Requirements = lazy(() => import('@/pages/requirements/Requirements'))
 const PostRequirement = lazy(() => import('@/pages/requirements/PostRequirement'))
 const RequirementDetail = lazy(() => import('@/pages/requirements/RequirementDetail'))
 const Storefront = lazy(() => import('@/pages/farm/Storefront'))
-const Inbox = lazy(() => import('@/pages/messages/Inbox'))
+const MessagesLayout = lazy(() => import('@/pages/messages/MessagesLayout'))
 const Thread = lazy(() => import('@/pages/messages/Thread'))
 const Orders = lazy(() => import('@/pages/orders/Orders'))
 const OrderDetail = lazy(() => import('@/pages/orders/OrderDetail'))
@@ -156,9 +156,14 @@ export const router = createBrowserRouter([
       { path: '/requirements', element: wrap(Requirements) },
       { path: '/requirements/post', element: wrap(PostRequirement) },
       { path: '/requirements/:id', element: wrap(RequirementDetail) },
-      { path: '/messages', element: wrap(Inbox) },
-      { path: '/messages/new', element: wrap(Thread) },
-      { path: '/messages/:id', element: wrap(Thread) },
+      {
+        path: '/messages',
+        element: wrap(MessagesLayout),
+        children: [
+          { path: 'new', element: wrap(Thread) },
+          { path: ':id', element: wrap(Thread) },
+        ],
+      },
       { path: '/orders', element: wrap(Orders) },
       { path: '/orders/:id', element: wrap(OrderDetail) },
       { path: '/wallet', element: wrap(WalletPage) },

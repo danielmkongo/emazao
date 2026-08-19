@@ -94,16 +94,16 @@ export const Sidebar = () => {
     >
       {/* Brand */}
       <NavLink to="/feed" className="flex items-center justify-center pt-6 pb-5 flex-shrink-0">
-        <Logo className="h-40 w-auto" />
+        <Logo className="h-20 w-auto" />
       </NavLink>
 
       {/* Primary action */}
       <div className="px-3 pb-3 flex-shrink-0">
         <NavLink
           to={cta.href}
-          className="flex items-center justify-center gap-2 h-9 rounded-md bg-brand-green text-white text-sm font-semibold hover:bg-brand-emerald transition-colors"
+          className="flex items-center gap-3 px-2.5 h-9 rounded-md bg-brand-green text-white text-sm font-semibold hover:bg-brand-emerald transition-colors"
         >
-          <Plus className="h-4 w-4" strokeWidth={2.5} /> {cta.label}
+          <Plus className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.5} /> {cta.label}
         </NavLink>
       </div>
 

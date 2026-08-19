@@ -1,10 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Plus, Package, Eye, Edit, Sprout } from 'lucide-react'
+import { Plus, Package, Eye, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
@@ -49,10 +50,7 @@ export default function DashboardProducts() {
               className="flex items-center gap-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-4"
             >
               <div className="h-16 w-16 rounded-xl overflow-hidden bg-[var(--c-input)] flex-shrink-0">
-                {product.images[0]
-                  ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center bg-brand-green/10"><Sprout className="h-6 w-6 text-brand-green/50" /></div>
-                }
+                <ImageWithFallback src={product.images[0]} alt="" className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-[var(--c-text)] truncate">{product.title}</h3>
