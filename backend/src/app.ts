@@ -137,17 +137,32 @@ const start = async () => {
   // tokens signed with (or accepting webhooks verified against) a fallback
   // value anyone could guess from the source.
   if (env.NODE_ENV === 'production') {
-    const required = [
-      'JWT_SECRET', 'JWT_REFRESH_SECRET', 'MONGO_URI',
-      // Without the checksum key the webhook accepts unsigned callbacks, which
-      // would let anyone who finds the URL mark orders paid.
-      'CLICKPESA_CLIENT_ID', 'CLICKPESA_API_KEY', 'CLICKPESA_CHECKSUM_KEY',
-      // Without these, national IDs would hash under a guessable default key and
-      // fingerprints would be trivially correlatable across deployments.
-      'NIDA_HASH_KEY', 'FINGERPRINT_SALT',
-    ]
+    // Hard requirements: tokens signed with a guessable fallback are forgeable,
+    // and there is no usable mode without a database.
+    const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'MONGO_URI']
     const missing = required.filter(k => !process.env[k])
     if (missing.length) throw new Error(`Missing required env var(s) in production: ${missing.join(', ')}`)
+
+    // Feature keys. These used to be hard requirements too, which meant a site
+    // with no payment provider yet could not start at all. Each unset key now
+    // disables its own feature at the point of use rather than the whole server:
+    // the webhook rejects every callback without CLICKPESA_CHECKSUM_KEY, and ID
+    // verification returns "not configured" without NIDA_HASH_KEY. So the site
+    // serves, and the parts that need credentials stay off until they have them.
+    const degraded: Record<string, string> = {
+      CLICKPESA_CLIENT_ID: 'payment collection disabled',
+      CLICKPESA_API_KEY: 'payment collection disabled',
+      CLICKPESA_CHECKSUM_KEY: 'payment webhooks rejected — orders cannot be confirmed paid',
+      NIDA_HASH_KEY: 'seller ID verification disabled',
+      // Falls back to a shared default, so fingerprints stay correlatable across
+      // deployments — a weaker signal for self-dealing detection, not an outage.
+      FINGERPRINT_SALT: 'risk fingerprints use the default salt',
+    }
+    const unset = Object.keys(degraded).filter(k => !process.env[k])
+    if (unset.length) {
+      console.warn('⚠️  Running with reduced functionality — unset in production:')
+      for (const k of unset) console.warn(`   ${k}: ${degraded[k]}`)
+    }
   }
 
   await connectDB()

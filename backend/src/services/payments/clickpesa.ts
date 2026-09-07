@@ -146,17 +146,21 @@ class ClickPesaProvider implements PaymentProvider {
     if (!body || typeof body !== 'object') return null
     const payload = body as { event?: string; data?: Record<string, unknown>; checksum?: string }
 
-    // When a checksum key is configured, an unsigned or mis-signed callback is
-    // rejected outright — otherwise anyone who learns the URL could mark orders
-    // paid. timingSafeEqual to avoid leaking the expected value byte by byte.
-    if (env.CLICKPESA_CHECKSUM_KEY) {
-      const received = payload.checksum
-      if (!received) return null
-      const expected = computeChecksum(env.CLICKPESA_CHECKSUM_KEY, payload as Record<string, unknown>)
-      const a = Buffer.from(received)
-      const b = Buffer.from(expected)
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
-    }
+    // With no key configured there is no way to tell a genuine callback from a
+    // forged one, so reject rather than trust it. This used to skip verification
+    // entirely, which meant an unconfigured deployment would accept anything and
+    // let anyone who found the URL mark orders paid. Failing closed instead costs
+    // nothing: without credentials no real payment can be in flight anyway.
+    if (!env.CLICKPESA_CHECKSUM_KEY) return null
+
+    // An unsigned or mis-signed callback is rejected outright.
+    // timingSafeEqual to avoid leaking the expected value byte by byte.
+    const received = payload.checksum
+    if (!received) return null
+    const expected = computeChecksum(env.CLICKPESA_CHECKSUM_KEY, payload as Record<string, unknown>)
+    const a = Buffer.from(received)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
 
     const data = payload.data ?? {}
     const orderReference = String(data['orderReference'] ?? '')
