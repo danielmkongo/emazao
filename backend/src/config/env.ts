@@ -1,8 +1,27 @@
+import fs from 'fs'
+import path from 'path'
 import dotenv from 'dotenv'
+
+const envPath = path.resolve(__dirname, '../../.env')
+const hasEnvFile = fs.existsSync(envPath)
+
+// A deploy that pulls the repo gets no .env (it is gitignored, and the commit
+// that untracked it deletes the file on every other clone). Without this notice
+// the process silently falls back to the defaults below — binding a different
+// port and pointing at a local Mongo that isn't there — which looks exactly
+// like "the deploy didn't take" rather than "the config vanished".
+if (!hasEnvFile) {
+  console.warn(`⚠️  No .env found at ${envPath} — using built-in defaults.`)
+  console.warn('   Copy backend/.env.example to backend/.env and fill it in.')
+}
+
 dotenv.config()
 
 export const env = {
-  PORT: process.env['PORT'] || '5000',
+  // Must match .env.example and the Vite dev proxy target (frontend/vite.config.ts).
+  // These disagreed before: the example said 9000 while this fell back to 5000, so a
+  // missing .env moved the API to a port nothing was proxying to.
+  PORT: process.env['PORT'] || '9000',
   MONGO_URI: process.env['MONGO_URI'] || 'mongodb://localhost:27017/emazao',
   JWT_SECRET: process.env['JWT_SECRET'] || 'fallback_secret',
   JWT_REFRESH_SECRET: process.env['JWT_REFRESH_SECRET'] || 'fallback_refresh',

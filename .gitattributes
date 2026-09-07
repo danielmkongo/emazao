@@ -1,0 +1,9 @@
+* text=auto
+
+# Checked out on a Linux server and executed there. Committing these with CRLF
+# makes the shebang read as "/usr/bin/env bash\r", which fails as
+# "bad interpreter: No such file or directory" — force LF regardless of the
+# platform they were authored on.
+*.sh text eol=lf
+ecosystem.config.cjs text eol=lf
+nginx.conf.example text eol=lf
