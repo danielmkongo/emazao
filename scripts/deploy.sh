@@ -24,14 +24,18 @@ fi
 echo "==> Pulling"
 git pull --ff-only
 
+# --include=dev is mandatory, not belt-and-braces: npm omits devDependencies
+# whenever NODE_ENV=production is exported, and both builds live there
+# (typescript, vite). Without it the install "succeeds" and the build then dies
+# on a missing compiler.
 echo "==> Building frontend"
 cd "$ROOT/frontend"
-npm ci
+npm ci --include=dev
 npm run build
 
 echo "==> Building backend"
 cd "$ROOT/backend"
-npm ci
+npm ci --include=dev
 npm run build
 
 # A stale process holding the port is the usual reason a rebuild appears to do
