@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "seed": "ts-node src/config/demoSeed.ts",
+    "purge:demo": "ts-node src/config/purgeDemo.ts",
     "test": "vitest run"
   },
   "keywords": [],
