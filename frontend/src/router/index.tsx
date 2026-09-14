@@ -164,7 +164,14 @@ export const router = createBrowserRouter([
         path: '/messages',
         element: wrap(MessagesLayout),
         children: [
-          { path: 'new', element: wrap(Thread) },
+          // 'new' is deliberately NOT a separate route. Thread decides it is
+          // composing a new conversation by reading `id === 'new'` from the
+          // params, and a static child route sets no param at all — so with one
+          // registered, /messages/new left `id` undefined, isNewConvo was always
+          // false, and the compose path never ran: the recipient was never read
+          // from the query string, the composer had no conversation to target,
+          // and sending posted with no recipientId, which is what created the
+          // participant-less conversations.
           { path: ':id', element: wrap(Thread) },
         ],
       },
