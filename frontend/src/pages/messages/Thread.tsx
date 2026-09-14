@@ -133,6 +133,10 @@ export default function Thread() {
         navigate(`/messages/${data.conversationId}`, { replace: true })
       } else {
         queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, data.message))
+        // Only the recipient receives 'notification:new', so nothing else would
+        // tell the sender's own inbox that this thread just moved to the top
+        // with a new last line.
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
         setText('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       }
@@ -145,6 +149,8 @@ export default function Thread() {
     socket.emit('join_conversation', id)
     socket.on('message:new', (msg: Message) => {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, msg))
+      // Keeps the list beside the thread (desktop split-pane) in step with it.
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
     socket.on('message:read', ({ readerId, readAt }: { readerId: string; readAt: string }) => {

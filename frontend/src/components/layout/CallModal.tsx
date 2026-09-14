@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, FlipHorizontal } from 'lucide-react'
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, FlipHorizontal, LayoutGrid, PictureInPicture } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { getSocket } from '@/lib/socket'
 import { ICE_SERVERS } from '@/lib/webrtc'
@@ -52,6 +52,10 @@ export default function CallModal({
   const [micMuted, setMicMuted] = useState(false)
   const [camOff, setCamOff] = useState(false)
   const [mirrored, setMirrored] = useState(true)
+  // 'pip'   — remote fills the screen, own camera in a small corner tile (default).
+  // 'split' — both cameras at equal size, so you can watch yourself and the other
+  //           person at once (framing a product on camera, showing a document).
+  const [layout, setLayout] = useState<'pip' | 'split'>('pip')
   const [duration, setDuration] = useState(0)
   const [rtcConnected, setRtcConnected] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -408,6 +412,9 @@ export default function CallModal({
   const displayName = call.direction === 'incoming' ? call.callerName : call.calleeName
   const displayAvatar = call.direction === 'incoming' ? call.callerAvatar : call.calleeAvatar
 
+  // Only meaningful once there are two live video feeds to place.
+  const isSplit = layout === 'split' && call.video && call.type === 'connected'
+
   return (
     <AnimatePresence>
       <motion.div
@@ -425,15 +432,22 @@ export default function CallModal({
             size/opacity instead). */}
         {call.type === 'connected' && (
           <video ref={remoteVideoRef} autoPlay playsInline
-            className={call.video
-              ? 'absolute inset-0 w-full h-full object-cover'
-              : 'absolute w-px h-px opacity-0 pointer-events-none'} />
+            className={!call.video
+              ? 'absolute w-px h-px opacity-0 pointer-events-none'
+              : isSplit
+                // Stacked on a portrait phone, side by side once there is width
+                // for it — halving a portrait screen vertically keeps both faces
+                // upright, whereas two narrow columns crops them.
+                ? 'absolute inset-x-0 top-0 h-1/2 w-full object-cover md:inset-y-0 md:left-0 md:w-1/2 md:h-full'
+                : 'absolute inset-0 w-full h-full object-cover'} />
         )}
 
         {/* Local video (pip) */}
         {call.video && (
           <video ref={localVideoRef} autoPlay playsInline muted
-            className="absolute bottom-28 right-4 w-28 h-40 rounded-xl object-cover border-2 border-white/20 z-10 cursor-pointer"
+            className={isSplit
+              ? 'absolute inset-x-0 bottom-0 h-1/2 w-full object-cover border-t-2 border-white/10 md:inset-y-0 md:left-auto md:right-0 md:w-1/2 md:h-full md:border-t-0 md:border-l-2'
+              : 'absolute bottom-28 right-4 w-28 h-40 rounded-xl object-cover border-2 border-white/20 z-10 cursor-pointer'}
             style={{ transform: mirrored ? 'scaleX(-1)' : 'none' }}
             onClick={() => setMirrored(m => !m)}
             title="Tap to mirror"
@@ -441,8 +455,10 @@ export default function CallModal({
         )}
 
         {/* Overlay UI */}
-        <div className="relative z-10 flex flex-col items-center gap-6 text-center px-6">
-          <div className="relative">
+        <div className={isSplit
+          ? 'absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 text-center px-6 pb-6 pt-10 bg-gradient-to-t from-black/80 to-transparent'
+          : 'relative z-10 flex flex-col items-center gap-6 text-center px-6'}>
+          <div className={isSplit ? 'hidden' : 'relative'}>
             {(call.type === 'incoming' || call.type === 'calling') && (
               <motion.span
                 className="absolute -inset-3 rounded-full border-2 border-brand-green/60"
@@ -452,7 +468,7 @@ export default function CallModal({
             )}
             <Avatar src={displayAvatar} name={displayName ?? 'User'} size="2xl" />
           </div>
-          <div>
+          <div className={isSplit ? 'hidden' : undefined}>
             <p className="text-brand-lime/80 text-xs font-semibold uppercase tracking-[0.18em] mb-1.5">
               {call.type === 'incoming' ? `Incoming ${call.video ? 'video' : 'voice'} call`
                 : call.type === 'calling' ? `Outgoing ${call.video ? 'video' : 'voice'} call`
@@ -516,6 +532,19 @@ export default function CallModal({
                     <FlipHorizontal className="h-6 w-6" />
                   </button>
                   <span className="text-white/40 text-xs">Flip</span>
+                </div>
+              )}
+
+              {/* Both cameras at once. Only offered once connected — before that
+                  there is no remote feed to place beside your own. */}
+              {call.video && call.type === 'connected' && (
+                <div className="flex flex-col items-center gap-2">
+                  <button onClick={() => setLayout(l => (l === 'split' ? 'pip' : 'split'))}
+                    aria-pressed={isSplit}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${isSplit ? 'bg-white/20' : 'bg-white/10'}`}>
+                    {isSplit ? <PictureInPicture className="h-6 w-6" /> : <LayoutGrid className="h-6 w-6" />}
+                  </button>
+                  <span className="text-white/40 text-xs">{isSplit ? 'Inset' : 'Both'}</span>
                 </div>
               )}
 

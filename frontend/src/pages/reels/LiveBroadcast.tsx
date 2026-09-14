@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Camera, CameraOff, Mic, MicOff, Radio, X, Send, Users, AlertCircle, RefreshCw, SwitchCamera, MessageCircle } from 'lucide-react'
+import { Camera, CameraOff, Mic, MicOff, Radio, X, Send, Users, AlertCircle, RefreshCw, SwitchCamera, MessageCircle, LayoutGrid } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 import { getSocket } from '@/lib/socket'
@@ -11,6 +11,20 @@ import { formatNumber } from '@/lib/utils'
 interface LiveComment { username: string; text: string; id: string }
 
 type PermState = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'insecure' | 'in_use'
+
+/**
+ * Draw `v` into the destination box using object-cover semantics: fill the box
+ * completely and crop the overflow, rather than letterboxing. Each camera has
+ * its own aspect ratio (and the back camera is often wider than the front), so
+ * scaling to fit would leave uneven black bars between the two panes.
+ */
+function drawCover(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, dx: number, dy: number, dw: number, dh: number) {
+  const vw = v.videoWidth, vh = v.videoHeight
+  if (!vw || !vh) return
+  const scale = Math.max(dw / vw, dh / vh)
+  const sw = dw / scale, sh = dh / scale
+  ctx.drawImage(v, (vw - sw) / 2, (vh - sh) / 2, sw, sh, dx, dy, dw, dh)
+}
 
 export default function LiveBroadcast() {
   const { user } = useAuthStore()
@@ -25,12 +39,22 @@ export default function LiveBroadcast() {
   const [duration, setDuration] = useState(0)
   const [permState, setPermState] = useState<PermState>('idle')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
+  const [dualCam, setDualCam] = useState(false)
+  const [dualError, setDualError] = useState<string | null>(null)
+  const [dualBusy, setDualBusy] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const peers = useRef<Map<string, RTCPeerConnection>>(new Map())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Dual-camera compositing. Viewers receive one video track, so both cameras are
+  // painted onto a canvas and that canvas's captureStream replaces the outgoing
+  // track — no second peer connection and no change required on the viewer side.
+  const dualRafRef = useRef<number | null>(null)
+  const secondStreamRef = useRef<MediaStream | null>(null)
+  const primaryTrackRef = useRef<MediaStreamTrack | null>(null)
+  const canvasTrackRef = useRef<MediaStreamTrack | null>(null)
 
   const socket = user ? getSocket() : null
 
@@ -87,6 +111,9 @@ export default function LiveBroadcast() {
   const stopStream = () => {
     if (!socket || !user) return
     socket.emit('live:end', { broadcasterId: user._id })
+    if (dualRafRef.current !== null) { cancelAnimationFrame(dualRafRef.current); dualRafRef.current = null }
+    secondStreamRef.current?.getTracks().forEach(t => t.stop())
+    primaryTrackRef.current?.stop()
     streamRef.current?.getTracks().forEach(t => t.stop())
     peers.current.forEach(pc => pc.close())
     peers.current.clear()
@@ -151,8 +178,120 @@ export default function LiveBroadcast() {
 
   const toggleCam = () => {
     const t = streamRef.current?.getVideoTracks()[0]
-    if (t) { t.enabled = !t.enabled; setCamOn(c => !c) }
+    if (!t) return
+    t.enabled = !t.enabled
+    // While compositing, the outgoing track is the canvas — blanking it alone
+    // would leave both source cameras running and the last frame painted.
+    primaryTrackRef.current && (primaryTrackRef.current.enabled = t.enabled)
+    secondStreamRef.current?.getVideoTracks().forEach(v => { v.enabled = t.enabled })
+    setCamOn(c => !c)
   }
+
+  // ── Dual camera ────────────────────────────────────────────────────────────
+  // Restore the single-camera track everywhere. Safe to call when dual is off.
+  const stopDualCamera = useCallback(() => {
+    if (dualRafRef.current !== null) { cancelAnimationFrame(dualRafRef.current); dualRafRef.current = null }
+    secondStreamRef.current?.getTracks().forEach(t => t.stop())
+    secondStreamRef.current = null
+
+    const stream = streamRef.current
+    const primary = primaryTrackRef.current
+    if (stream && primary) {
+      const canvasTrack = canvasTrackRef.current
+      if (canvasTrack) { stream.removeTrack(canvasTrack); canvasTrack.stop() }
+      if (!stream.getVideoTracks().includes(primary)) stream.addTrack(primary)
+      peers.current.forEach(pc => {
+        pc.getSenders().find(x => x.track?.kind === 'video')?.replaceTrack(primary).catch(() => {})
+      })
+      if (videoRef.current) videoRef.current.srcObject = stream
+    }
+    canvasTrackRef.current = null
+    primaryTrackRef.current = null
+    setDualCam(false)
+  }, [])
+
+  const startDualCamera = useCallback(async () => {
+    const stream = streamRef.current
+    const primary = stream?.getVideoTracks()[0]
+    if (!stream || !primary) return
+    setDualBusy(true)
+    setDualError(null)
+
+    const other = facingMode === 'user' ? 'environment' : 'user'
+    let second: MediaStream
+    try {
+      // `exact` first so we genuinely get the opposite lens; without it a device
+      // with one camera happily returns the same one twice and the two panes are
+      // identical. Fall back to a soft constraint for desktops with two webcams
+      // that do not report facingMode at all.
+      second = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: other } }, audio: false })
+    } catch {
+      try {
+        second = await navigator.mediaDevices.getUserMedia({ video: { facingMode: other }, audio: false })
+      } catch (err: any) {
+        // Most phones (iOS Safari in particular) refuse to open a second camera
+        // while one is already streaming. Say so plainly and stay single-camera
+        // rather than dropping the broadcast that is already running.
+        setDualError(err?.name === 'NotReadableError' || err?.name === 'OverconstrainedError'
+          ? 'This device can only use one camera at a time.'
+          : 'The second camera is unavailable on this device.')
+        setDualBusy(false)
+        return
+      }
+    }
+
+    const mkVideo = (src: MediaStream) => {
+      const v = document.createElement('video')
+      v.muted = true; v.autoplay = true; v.playsInline = true
+      v.srcObject = src
+      void v.play().catch(() => {})
+      return v
+    }
+    // The primary track keeps running as a draw source, so it is removed from the
+    // outgoing stream but deliberately never stopped.
+    const frontEl = mkVideo(new MediaStream([primary]))
+    const backEl = mkVideo(second)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 720
+    canvas.height = 1280
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { second.getTracks().forEach(t => t.stop()); setDualBusy(false); return }
+
+    const half = canvas.height / 2
+    const paint = () => {
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Rear lens on top: it is usually pointed at the produce, which is the
+      // subject, while the seller's face is the commentary underneath.
+      drawCover(ctx, other === 'environment' ? backEl : frontEl, 0, 0, canvas.width, half)
+      drawCover(ctx, other === 'environment' ? frontEl : backEl, 0, half, canvas.width, half)
+      dualRafRef.current = requestAnimationFrame(paint)
+    }
+    paint()
+
+    const canvasTrack = canvas.captureStream(30).getVideoTracks()[0]
+    canvasTrack.enabled = camOn
+    primaryTrackRef.current = primary
+    secondStreamRef.current = second
+    canvasTrackRef.current = canvasTrack
+
+    stream.removeTrack(primary)
+    stream.addTrack(canvasTrack)
+    peers.current.forEach(pc => {
+      pc.getSenders().find(x => x.track?.kind === 'video')?.replaceTrack(canvasTrack).catch(() => {})
+    })
+    if (videoRef.current) videoRef.current.srcObject = stream
+
+    setDualCam(true)
+    setDualBusy(false)
+  }, [facingMode, camOn])
+
+  useEffect(() => () => {
+    if (dualRafRef.current !== null) cancelAnimationFrame(dualRafRef.current)
+    secondStreamRef.current?.getTracks().forEach(t => t.stop())
+    primaryTrackRef.current?.stop()
+  }, [])
 
   // Flip between front/back camera, live-swapping the outgoing track for every viewer.
   const flipCamera = async () => {
@@ -323,6 +462,14 @@ export default function LiveBroadcast() {
       <div className="relative flex-1 min-w-0">
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
 
+        {/* Second camera could not be opened — the broadcast carries on with one. */}
+        {dualError && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 bg-black/85 border border-white/15 text-white text-xs px-3 py-2 rounded-xl max-w-[80%] text-center">
+            {dualError}
+            <button onClick={() => setDualError(null)} className="ml-2 text-white/50 hover:text-white">✕</button>
+          </div>
+        )}
+
         {/* Requesting permission overlay */}
         {permState === 'requesting' && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 px-6 text-center">
@@ -382,7 +529,15 @@ export default function LiveBroadcast() {
           <div className="absolute left-1/2 -translate-x-1/2 bottom-[76px] lg:bottom-6 flex items-center gap-3 lg:gap-4 z-20">
             <ControlButton on={micOn} onClick={toggleMic} onIcon={<Mic className="h-5 w-5" />} offIcon={<MicOff className="h-5 w-5" />} danger />
             <ControlButton on={camOn} onClick={toggleCam} onIcon={<Camera className="h-5 w-5" />} offIcon={<CameraOff className="h-5 w-5" />} danger />
-            <button onClick={flipCamera} aria-label="Flip camera"
+            <button
+              onClick={() => (dualCam ? stopDualCamera() : void startDualCamera())}
+              disabled={dualBusy}
+              aria-pressed={dualCam}
+              aria-label={dualCam ? 'Single camera' : 'Show both cameras'}
+              className={`w-11 h-11 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-40 ${dualCam ? 'bg-brand-green' : 'bg-white/10 hover:bg-white/20'}`}>
+              <LayoutGrid className="h-5 w-5" />
+            </button>
+            <button onClick={flipCamera} disabled={dualCam} aria-label="Flip camera"
               className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors flex-shrink-0">
               <SwitchCamera className="h-5 w-5" />
             </button>

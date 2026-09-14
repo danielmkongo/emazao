@@ -70,6 +70,12 @@ function GlobalRealtimeHandler() {
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
 
     if (n.type === 'MESSAGE') {
+      // Refresh the inbox itself, not just the badge. Without this the list of
+      // conversations — who you have talked to, each thread's last line, its
+      // timestamp and ordering — only changed on a hard reload, so a message
+      // from someone new simply did not appear.
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+
       const conversationId = n.link?.split('/messages/')[1]
       const activeConversationId = useUnreadStore.getState().activeConversationId
       if (conversationId && conversationId !== activeConversationId) {
