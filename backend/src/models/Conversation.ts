@@ -18,6 +18,9 @@ const ConversationSchema = new Schema<IConversation>(
   { timestamps: true }
 )
 
-ConversationSchema.index({ participants: 1 })
+// The inbox query is find({ participants }) sorted by lastMessageAt desc, and
+// it now runs on every incoming message rather than only on page load, so the
+// in-memory sort this avoids was about to get a lot more expensive.
+ConversationSchema.index({ participants: 1, lastMessageAt: -1 })
 
 export default mongoose.model<IConversation>('Conversation', ConversationSchema)

@@ -29,6 +29,22 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split the vendor code out of the app chunk. These libraries change
+        // only when a dependency is upgraded, while app code changes on every
+        // deploy — bundled together, one typo'd label forced every returning
+        // visitor to re-download React, Framer Motion and Socket.IO as well.
+        // Separated, those stay in the browser cache across releases, which is
+        // what most users on Tanzanian mobile data actually feel.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-motion': ['framer-motion'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

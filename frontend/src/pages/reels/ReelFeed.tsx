@@ -134,7 +134,6 @@ function ReelCard({
   const viewedRef = useRef(false) // ensure one view per reel mount
   const watchTimeSentRef = useRef(false) // ensure watch-time posts exactly once per reel mount
   const retriedRef = useRef(false) // one automatic retry on video load failure
-  const { user } = useAuthStore()
 
   const reelUser = reel.userId as unknown as User
   const product = reel.productId as unknown as Product | null

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Heart, Share2, Star, MapPin, Package, ChevronLeft,
   CheckCircle2, X, Plus, Minus, Truck, ShieldCheck, ChevronRight,
-  Sprout, AlertTriangle,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

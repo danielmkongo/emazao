@@ -182,7 +182,7 @@ export default function LiveBroadcast() {
     t.enabled = !t.enabled
     // While compositing, the outgoing track is the canvas — blanking it alone
     // would leave both source cameras running and the last frame painted.
-    primaryTrackRef.current && (primaryTrackRef.current.enabled = t.enabled)
+    if (primaryTrackRef.current) primaryTrackRef.current.enabled = t.enabled
     secondStreamRef.current?.getVideoTracks().forEach(v => { v.enabled = t.enabled })
     setCamOn(c => !c)
   }

@@ -93,8 +93,14 @@ const OrderSchema = new Schema<IOrder>(
   { timestamps: true }
 )
 
-OrderSchema.index({ buyerId: 1 })
-OrderSchema.index({ sellerId: 1 })
-OrderSchema.index({ status: 1 })
+// Compound rather than single-field: every list of orders sorts by createdAt
+// desc (getOrders for a buyer or seller, the admin ledger by status). With only
+// the match field indexed, Mongo finds the documents but then sorts them in
+// memory — which fails outright past 32MB once an account has real history.
+// A leading-equality prefix still serves the plain { buyerId } lookups these
+// replace, so nothing regresses.
+OrderSchema.index({ buyerId: 1, createdAt: -1 })
+OrderSchema.index({ sellerId: 1, createdAt: -1 })
+OrderSchema.index({ status: 1, createdAt: -1 })
 
 export default mongoose.model<IOrder>('Order', OrderSchema)

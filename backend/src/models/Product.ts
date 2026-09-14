@@ -77,7 +77,11 @@ const ProductSchema = new Schema<IProduct>(
 ProductSchema.index({ sellerId: 1 })
 ProductSchema.index({ categoryId: 1 })
 ProductSchema.index({ tags: 1 })
-ProductSchema.index({ status: 1, isBoosted: 1 })
+// Mirrors the marketplace's default query exactly: filter status: ACTIVE, sort
+// { isBoosted: -1, createdAt: -1 }. Directions match the sort, so this serves
+// the match, the ordering and the pagination from one index scan. This is the
+// most-requested query on the platform.
+ProductSchema.index({ status: 1, isBoosted: -1, createdAt: -1 })
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' })
 
 export default mongoose.model<IProduct>('Product', ProductSchema)

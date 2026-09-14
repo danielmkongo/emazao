@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Send, Phone, Video, Check, CheckCheck } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useUnreadStore } from '@/store/unreadStore'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
@@ -162,7 +161,7 @@ export default function Thread() {
       )
     })
     return () => { socket.off('message:new'); socket.off('message:read'); socket.emit('leave_conversation', id) }
-  }, [id, user?._id, isNewConvo])
+  }, [id, user?._id, isNewConvo, queryClient])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
