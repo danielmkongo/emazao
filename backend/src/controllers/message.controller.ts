@@ -9,7 +9,11 @@ import { sendNotification, emitToRoom } from '../services/notification.service'
 export const getConversations = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id
-    const conversations = await Conversation.find({ participants: userId })
+    // $size 2 excludes malformed rows written before recipients were validated:
+    // a [sender, null] conversation has no counterpart to show, so it rendered as
+    // a thread with no name and no avatar that could never deliver a message.
+    // Hiding them here keeps existing inboxes clean without a migration.
+    const conversations = await Conversation.find({ participants: userId, 'participants.1': { $exists: true } })
       .populate('participants', 'name username avatar isVerified')
       .sort({ lastMessageAt: -1 })
       .limit(50)
@@ -84,6 +88,24 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
     } else {
+      // Validate the recipient before creating anything. Without this an absent
+      // recipientId — the client sends null, because URLSearchParams.get()
+      // returns null for a missing query param — was cast straight into the
+      // participants array, producing a conversation of [sender, null]. It
+      // looked like a real thread to the sender: it appeared in their inbox with
+      // their message in it, showed "User" and a blank avatar because there was
+      // no counterpart to resolve, and could never be delivered to anyone.
+      if (!recipientId || !mongoose.isValidObjectId(recipientId)) {
+        return res.status(400).json({ success: false, message: 'A valid recipient is required' })
+      }
+      if (String(recipientId) === String(senderId)) {
+        return res.status(400).json({ success: false, message: 'You cannot message yourself' })
+      }
+      const recipient = await User.findById(recipientId).select('_id')
+      if (!recipient) {
+        return res.status(404).json({ success: false, message: 'Recipient not found' })
+      }
+
       conversation = await Conversation.findOne({ participants: { $all: [senderId, recipientId] }, type: 'DIRECT' })
       if (!conversation) {
         conversation = await Conversation.create({ participants: [senderId, recipientId], type: 'DIRECT' })

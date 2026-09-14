@@ -10,6 +10,7 @@
     "seed": "ts-node src/config/demoSeed.ts",
     "purge:demo": "ts-node src/config/purgeDemo.ts",
     "create:admin": "ts-node src/config/createAdmin.ts",
+    "repair:conversations": "ts-node src/config/repairConversations.ts",
     "test": "vitest run"
   },
   "keywords": [],

@@ -12,6 +12,7 @@ import { getSocket } from '@/lib/socket'
 import { playNotificationSound } from '@/lib/sound'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { useSocketEvent } from '@/hooks/useSocketEvent'
+import api from '@/lib/api'
 
 function ThemeApplier() {
   const theme = useUIStore((s) => s.theme)
@@ -52,6 +53,36 @@ function GlobalCallHandler() {
 // previously nothing subscribed to these events client-side, so a new message
 // or notification produced no indication at all until the user happened to
 // open Messages/Notifications and the next poll landed.
+/**
+ * Re-read the signed-in user from the server on every app load.
+ *
+ * The auth store was written once at login and thereafter only patched locally,
+ * so anything changed server-side — a role promotion, a verification, a
+ * suspension — stayed invisible until the user happened to log out and back in.
+ * Promoting an account to ADMIN and watching /admin still bounce to the feed is
+ * the symptom that surfaced it.
+ */
+function CurrentUserSync() {
+  const { isAuthenticated, updateUser } = useAuthStore()
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+    api.get('/users/me')
+      .then(res => {
+        const fresh = res.data?.data
+        if (!cancelled && fresh?._id) updateUser(fresh)
+      })
+      // A failure here is not worth disturbing the session for: the persisted
+      // user is still usable, and a genuinely invalid token is handled by the
+      // api client's own 401 path.
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isAuthenticated, updateUser])
+
+  return null
+}
+
 function GlobalRealtimeHandler() {
   const { user } = useAuthStore()
   const incrementUnreadMessages = useUnreadStore((s) => s.incrementUnreadMessages)
@@ -92,6 +123,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeApplier />
       <ErrorBoundary>
+        <CurrentUserSync />
         <RouterProvider router={router} />
         <GlobalCallHandler />
         <GlobalRealtimeHandler />

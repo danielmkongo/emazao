@@ -83,8 +83,13 @@ export default function Thread() {
     queryKey: ['messages', id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Message[]>>(`/messages/${id}`)
-      await api.put(`/messages/${id}/read`)
-      void refreshUnreadMessages()
+      // Marking the thread read is a side effect, not part of loading it. It used
+      // to be awaited inside this queryFn, so any failure there — a network blip,
+      // a 403 — rejected the whole query and the conversation rendered as empty,
+      // which reads as "chat is broken" rather than "the read receipt failed".
+      api.put(`/messages/${id}/read`)
+        .then(() => refreshUnreadMessages())
+        .catch(() => {})
       return res.data.data
     },
     enabled: !isNewConvo && !!id,
@@ -108,7 +113,16 @@ export default function Thread() {
   })
 
   const conversation = conversations?.find(c => c._id === id)
-  const conversationOther = conversation?.participants.find(p => p._id !== user?._id) ?? conversation?.participants[0]
+  // Resolve the counterpart by elimination, and never guess. The previous
+  // `?? participants[0]` fallback fired whenever the signed-in id was not yet
+  // known — during store rehydration, for instance — and participants[0] is the
+  // account that opened the conversation, i.e. usually you. That is how a thread
+  // ended up showing your own name and avatar as the person you were writing to.
+  // With no id to compare against, showing nothing is correct; showing the wrong
+  // person is not.
+  const conversationOther = user?._id
+    ? conversation?.participants.find(p => String(p._id) !== String(user._id))
+    : undefined
   const other = isNewConvo ? newConvoRecipient : conversationOther
 
   const sendMutation = useMutation({
@@ -167,8 +181,14 @@ export default function Thread() {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages])
 
+  // Starting a thread requires knowing who it is with. Reaching /messages/new
+  // without a recipientId used to still send: the param comes back as null from
+  // URLSearchParams and the server accepted it, creating a conversation with no
+  // second participant that could never be delivered.
+  const canSend = isNewConvo ? Boolean(recipientIdParam) : Boolean(id)
+
   const handleSend = () => {
-    if (!text.trim() || sendMutation.isPending) return
+    if (!text.trim() || sendMutation.isPending || !canSend) return
     sendMutation.mutate(text.trim())
     if (!isNewConvo) setText('')
   }
@@ -310,13 +330,14 @@ export default function Thread() {
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder={`Message ${other?.name ?? ''}…`}
+              disabled={!canSend}
+              placeholder={canSend ? `Message ${other?.name ?? ''}…` : 'Pick someone to message first'}
               className="flex-1 bg-transparent py-2.5 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none"
             />
           </div>
           <button
             onClick={handleSend}
-            disabled={!text.trim() || sendMutation.isPending}
+            disabled={!text.trim() || sendMutation.isPending || !canSend}
             className="w-10 h-10 rounded-full bg-brand-green flex items-center justify-center text-white disabled:opacity-40 hover:bg-brand-emerald transition-colors shrink-0"
           >
             <Send className="h-4 w-4" />

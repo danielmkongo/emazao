@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -21,19 +21,31 @@ export default function Storefront() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['storefront', username],
     queryFn: async () => {
-      const profileRes = await api.get<{ success: boolean; data: { user: User; sellerProfile: SellerProfile | null } }>(`/users/${username}`)
+      const profileRes = await api.get<{ success: boolean; data: { user: User; sellerProfile: SellerProfile | null; isFollowing?: boolean } }>(`/users/${username}`)
       if (!profileRes.data.success || !profileRes.data.data?.user) throw new Error('Farm not found')
-      const { user, sellerProfile } = profileRes.data.data
+      const { user, sellerProfile, isFollowing } = profileRes.data.data
       const productsRes = await api.get<ApiResponse<Product[]>>(`/products?sellerId=${user._id}`)
-      return { user, sellerProfile, products: productsRes.data.data ?? [] }
+      return { user, sellerProfile, isFollowing: isFollowing ?? false, products: productsRes.data.data ?? [] }
     },
     retry: false,
   })
 
+  // `following` started as false and was never seeded from the server, so an
+  // already-followed farm still showed "Follow" on every visit and the first
+  // press silently unfollowed them.
+  useEffect(() => {
+    if (data?.isFollowing !== undefined) setFollowing(data.isFollowing)
+  }, [data?.isFollowing])
+
   const followMutation = useMutation({
-    mutationFn: () => api.post(`/users/${data!.user._id}/follow`),
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<{ following: boolean }>>(`/users/${data!.user._id}/follow`)
+      return res.data.data?.following
+    },
     onMutate: () => setFollowing(f => !f),
     onError: () => setFollowing(f => !f),
+    // Settle on what the server actually recorded rather than on our guess.
+    onSuccess: (following) => { if (typeof following === 'boolean') setFollowing(following) },
   })
 
   const handleMessage = () => {

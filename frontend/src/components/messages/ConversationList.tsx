@@ -115,7 +115,12 @@ export function ConversationList({ activeId }: { activeId?: string }) {
         ) : (
           <div className="space-y-1">
             {conversations.map((conv, i) => {
-              const other = conv.participants.find(p => p._id !== user?._id) ?? conv.participants[0]
+              // Never fall back to participants[0]: that is whoever opened the
+              // conversation, so when the signed-in id is momentarily unknown the
+              // list would show your own name and avatar for every thread.
+              const other = user?._id
+                ? conv.participants.find(p => String(p._id) !== String(user._id))
+                : undefined
               const isActive = conv._id === activeId
               const hasUnread = (conv.unreadCount ?? 0) > 0
               return (

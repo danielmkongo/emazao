@@ -57,9 +57,30 @@ export const RightPanel = () => {
     staleTime: 60_000,
   })
 
+  // The button label was hardcoded to "Follow", so pressing it changed nothing on
+  // screen no matter what the server returned — the request succeeded silently
+  // and the UI stayed identical, before and after a refresh. Track the result
+  // per user id and render from it.
+  const [followed, setFollowed] = useState<Record<string, boolean>>({})
+
   const followMutation = useMutation({
-    mutationFn: (userId: string) => api.post(`/users/${userId}/follow`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rp-top-farmers'] }),
+    mutationFn: async (userId: string) => {
+      const res = await api.post<ApiResponse<{ following: boolean }>>(`/users/${userId}/follow`)
+      return { userId, following: res.data.data?.following ?? true }
+    },
+    onMutate: (userId: string) => {
+      // Optimistic: the press should register immediately, not after a round trip.
+      const previous = followed[userId] ?? false
+      setFollowed(f => ({ ...f, [userId]: !previous }))
+      return { userId, previous }
+    },
+    onError: (_err, _userId, ctx) => {
+      if (ctx) setFollowed(f => ({ ...f, [ctx.userId]: ctx.previous }))
+    },
+    onSuccess: ({ userId, following }) => {
+      setFollowed(f => ({ ...f, [userId]: following }))
+      queryClient.invalidateQueries({ queryKey: ['rp-top-farmers'] })
+    },
   })
 
   const submitSearch = (e: React.FormEvent) => {
@@ -112,9 +133,12 @@ export const RightPanel = () => {
                         <p className="text-[var(--c-text-4)] text-[11px] truncate">{f.user.country ?? 'Verified farmer'}</p>
                       )}
                     </div>
-                    <Button size="xs" variant="outline" className="text-xs flex-shrink-0"
+                    <Button
+                      size="xs"
+                      variant={followed[f.user._id] ? 'secondary' : 'outline'}
+                      className="text-xs flex-shrink-0"
                       onClick={e => { e.preventDefault(); followMutation.mutate(f.user._id) }}>
-                      Follow
+                      {followed[f.user._id] ? 'Following' : 'Follow'}
                     </Button>
                   </div>
                 </Link>
