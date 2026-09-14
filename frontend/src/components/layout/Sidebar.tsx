@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
   Package, Wallet, Bell, Settings, LogOut, LogIn, Sun, Moon, Radio, LayoutDashboard, Plus,
+  ShieldCheck, Receipt,
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { useTranslation } from 'react-i18next'
@@ -80,6 +81,10 @@ export const Sidebar = () => {
   const unreadMessages = useUnreadStore((s) => s.unreadMessages)
   const navigate = useNavigate()
   const isFarmer = user?.role === 'FARMER'
+  // The admin panel had no entry point anywhere in the app — it could only be
+  // reached by typing /admin into the address bar, which meant staff could sign
+  // in and reasonably conclude it did not exist.
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
   const cta = isFarmer
     ? { label: t('nav.shareReel'), href: '/dashboard/reels' }
@@ -142,6 +147,40 @@ export const Sidebar = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               </NavLink>
               <MenuItem icon={LayoutDashboard} label="nav.dashboard" href="/dashboard" />
+            </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div>
+            <p className="px-2.5 h-7 flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--c-text-4)]">
+              Admin
+            </p>
+            <div className="space-y-0.5">
+              <NavLink
+                to="/admin/overview"
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-md px-2.5 h-9 text-sm transition-colors',
+                    isActive ? 'bg-brand-green/10 text-brand-green font-medium' : 'text-[var(--c-text-2)] hover:bg-[var(--c-raised)]/60 hover:text-[var(--c-text)]'
+                  )
+                }
+              >
+                <ShieldCheck className="h-[18px] w-[18px] flex-shrink-0 text-brand-green" strokeWidth={2} />
+                <span className="flex-1">Admin panel</span>
+              </NavLink>
+              <NavLink
+                to="/admin/transactions"
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-md px-2.5 h-9 text-sm transition-colors',
+                    isActive ? 'bg-brand-green/10 text-brand-green font-medium' : 'text-[var(--c-text-2)] hover:bg-[var(--c-raised)]/60 hover:text-[var(--c-text)]'
+                  )
+                }
+              >
+                <Receipt className="h-[18px] w-[18px] flex-shrink-0 text-[var(--c-text-3)]" strokeWidth={2} />
+                <span className="flex-1">Transactions</span>
+              </NavLink>
             </div>
           </div>
         )}
