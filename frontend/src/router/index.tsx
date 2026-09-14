@@ -65,7 +65,7 @@ const DashboardStorefront = lazy(() => import('@/pages/dashboard/Storefront'))
 const Settings = lazy(() => import('@/pages/profile/Settings'))
 
 // Admin
-const Admin = lazy(() => import('@/pages/admin/Admin'))
+const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'))
 const AdminVerification = lazy(() => import('@/pages/admin/AdminVerification'))
 const AdminCompliance = lazy(() => import('@/pages/admin/Compliance'))
@@ -149,6 +149,27 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // The operations console is deliberately NOT under MainLayout. Rendering it
+  // there put the consumer sidebar and the "Trending"/"Hot Products" rail either
+  // side of the admin tables — roughly 576px of marketplace furniture around the
+  // screens used to run the marketplace. It gets its own chrome instead.
+  {
+    path: '/admin',
+    element: <AdminRoute><Suspense fallback={<Loading />}><AdminLayout /></Suspense></AdminRoute>,
+    children: [
+      { index: true, element: <Navigate to="/admin/overview" replace /> },
+      { path: 'overview', element: wrap(AdminOverview) },
+      { path: 'transactions', element: wrap(AdminTransactions) },
+      { path: 'users', element: wrap(AdminUsers) },
+      { path: 'verification', element: wrap(AdminVerification) },
+      { path: 'compliance', element: wrap(AdminCompliance) },
+      { path: 'disputes', element: wrap(AdminDisputes) },
+      { path: 'analytics', element: wrap(AdminAnalytics) },
+      { path: 'audit', element: wrap(AdminAudit) },
+      { path: 'settings', element: wrap(AdminSettings) },
+    ],
+  },
+
   {
     element: (
       <ProtectedRoute>
@@ -196,23 +217,7 @@ export const router = createBrowserRouter([
       { path: '/dashboard/bids', element: wrap(DashboardBids) },
       { path: '/dashboard/wallet', element: wrap(DashboardWallet) },
 
-      // Admin
-      {
-        path: '/admin',
-        element: <AdminRoute><Suspense fallback={<Loading />}><Admin /></Suspense></AdminRoute>,
-        children: [
-          { index: true, element: <Navigate to="/admin/overview" replace /> },
-          { path: 'overview', element: wrap(AdminOverview) },
-          { path: 'transactions', element: wrap(AdminTransactions) },
-          { path: 'users', element: wrap(AdminUsers) },
-          { path: 'verification', element: wrap(AdminVerification) },
-          { path: 'compliance', element: wrap(AdminCompliance) },
-          { path: 'disputes', element: wrap(AdminDisputes) },
-          { path: 'analytics', element: wrap(AdminAnalytics) },
-          { path: 'audit', element: wrap(AdminAudit) },
-          { path: 'settings', element: wrap(AdminSettings) },
-        ],
-      },
+
     ],
   },
 

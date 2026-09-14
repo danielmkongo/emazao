@@ -12,6 +12,9 @@ import Product from '../models/Product'
 import Dispute from '../models/Dispute'
 import RiskFlag from '../models/RiskFlag'
 import VerificationProfile from '../models/VerificationProfile'
+import LiveSession from '../models/LiveSession'
+import Reel from '../models/Reel'
+import Message from '../models/Message'
 
 // Orders that represent money actually committed. PENDING is excluded because an
 // unpaid order is an intention, not a transaction — counting it would inflate
@@ -55,6 +58,47 @@ export const getOverview = async (_req: AuthRequest, res: Response) => {
       ]),
     ])
 
+    // Second wave: the operational detail. Kept out of the batch above so the
+    // headline numbers are not held up by the heavier grouping work.
+    const [
+      revenueSeries, usersByRole, topSellers, liveNow,
+      reels24h, messages24h, newUsers24h, orders24h,
+      verificationFunnel, disputeTotal,
+    ] = await Promise.all([
+      // Daily gross and fees for the last 14 days, for the chart.
+      Order.aggregate([
+        { $match: { status: { $in: SETTLED }, createdAt: { $gte: daysAgo(14) } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            gross: { $sum: '$total' },
+            fees: { $sum: '$platformFee' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
+      // Who is actually carrying the marketplace.
+      Order.aggregate([
+        { $match: { status: { $in: SETTLED } } },
+        { $group: { _id: '$sellerId', gross: { $sum: '$total' }, orders: { $sum: 1 } } },
+        { $sort: { gross: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'seller' } },
+        { $unwind: { path: '$seller', preserveNullAndEmptyArrays: true } },
+        { $project: { gross: 1, orders: 1, name: '$seller.name', username: '$seller.username', avatar: '$seller.avatar' } },
+      ]),
+      LiveSession.find().select('broadcasterId title viewerCount startedAt')
+        .populate('broadcasterId', 'name username').limit(10).lean(),
+      Reel.countDocuments({ createdAt: { $gte: daysAgo(1) } }),
+      Message.countDocuments({ createdAt: { $gte: daysAgo(1) } }),
+      User.countDocuments({ createdAt: { $gte: daysAgo(1) } }),
+      Order.countDocuments({ createdAt: { $gte: daysAgo(1) } }),
+      VerificationProfile.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Dispute.countDocuments(),
+    ])
+
     res.json({
       success: true,
       data: {
@@ -76,6 +120,22 @@ export const getOverview = async (_req: AuthRequest, res: Response) => {
         queues: { openDisputes, openFlags, pendingVerifications },
         catalogue: { activeProducts },
         signupSeries: signupSeries.map(d => ({ date: d._id, count: d.count })),
+
+        revenueSeries: revenueSeries.map(d => ({ date: d._id, gross: d.gross, fees: d.fees, count: d.count })),
+        usersByRole: Object.fromEntries(usersByRole.map(r => [r._id ?? 'UNKNOWN', r.count])),
+        topSellers,
+        liveNow: liveNow.map((l: any) => ({
+          title: l.title,
+          viewerCount: l.viewerCount,
+          startedAt: l.startedAt,
+          broadcaster: l.broadcasterId?.name ?? 'Unknown',
+          username: l.broadcasterId?.username,
+        })),
+        // Last 24h, so staff can tell at a glance whether the platform is awake.
+        pulse24h: { newUsers: newUsers24h, orders: orders24h, reels: reels24h, messages: messages24h },
+        verificationFunnel: Object.fromEntries(verificationFunnel.map(v => [v._id, v.count])),
+        // Share of all orders that ended in a dispute — the trust number.
+        disputeRate: totalOrders ? disputeTotal / totalOrders : 0,
       },
     })
   } catch (err: any) {
