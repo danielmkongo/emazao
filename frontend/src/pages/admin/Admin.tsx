@@ -1,12 +1,16 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { Users, ShieldCheck, ShieldAlert, AlertOctagon, BarChart3 } from 'lucide-react'
+import { Users, ShieldCheck, ShieldAlert, AlertOctagon, BarChart3, LayoutDashboard, Receipt, ScrollText, Settings2 } from 'lucide-react'
 
 const nav = [
+  { to: '/admin/overview', label: 'Overview', icon: LayoutDashboard },
+  { to: '/admin/transactions', label: 'Transactions', icon: Receipt },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/verification', label: 'Verification', icon: ShieldCheck },
   { to: '/admin/compliance', label: 'Compliance', icon: ShieldAlert },
   { to: '/admin/disputes', label: 'Disputes', icon: AlertOctagon },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/admin/audit', label: 'Audit log', icon: ScrollText },
+  { to: '/admin/settings', label: 'Settings', icon: Settings2 },
 ]
 
 export default function Admin() {

@@ -72,6 +72,10 @@ const AdminCompliance = lazy(() => import('@/pages/admin/Compliance'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 const AdminDisputes = lazy(() => import('@/pages/admin/AdminDisputes'))
 const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'))
+const AdminOverview = lazy(() => import('@/pages/admin/AdminOverview'))
+const AdminTransactions = lazy(() => import('@/pages/admin/AdminTransactions'))
+const AdminAudit = lazy(() => import('@/pages/admin/AdminAudit'))
+const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore()
@@ -190,12 +194,16 @@ export const router = createBrowserRouter([
         path: '/admin',
         element: <AdminRoute><Suspense fallback={<Loading />}><Admin /></Suspense></AdminRoute>,
         children: [
-          { index: true, element: <Navigate to="/admin/users" replace /> },
+          { index: true, element: <Navigate to="/admin/overview" replace /> },
+          { path: 'overview', element: wrap(AdminOverview) },
+          { path: 'transactions', element: wrap(AdminTransactions) },
           { path: 'users', element: wrap(AdminUsers) },
           { path: 'verification', element: wrap(AdminVerification) },
           { path: 'compliance', element: wrap(AdminCompliance) },
           { path: 'disputes', element: wrap(AdminDisputes) },
           { path: 'analytics', element: wrap(AdminAnalytics) },
+          { path: 'audit', element: wrap(AdminAudit) },
+          { path: 'settings', element: wrap(AdminSettings) },
         ],
       },
     ],

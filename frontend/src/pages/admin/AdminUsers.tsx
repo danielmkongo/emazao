@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Search, ShieldCheck, Ban } from 'lucide-react'
+import { Search, ShieldCheck, Ban, KeyRound, Copy, Check, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,25 @@ export default function AdminUsers() {
   const suspendMutation = useMutation({
     mutationFn: (userId: string) => api.put(`/admin/users/${userId}/suspend`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+  })
+
+  // Support flow for "the reset email never arrived". The server issues the same
+  // expiring token as self-service and returns a link to read out or paste to
+  // the user — it never sets a password, so an admin cannot take over an account.
+  const [resetLink, setResetLink] = useState<{ email: string; link: string; expiresAt: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const resetMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await api.post<ApiResponse<{ resetLink: string; expiresAt: string; email: string }>>(
+        `/admin/users/${userId}/password-reset`
+      )
+      return res.data.data
+    },
+    onSuccess: (d) => {
+      if (d) setResetLink({ email: d.email, link: d.resetLink, expiresAt: d.expiresAt })
+      queryClient.invalidateQueries({ queryKey: ['admin-audit'] })
+    },
   })
 
   const unsuspendMutation = useMutation({
@@ -108,6 +127,11 @@ export default function AdminUsers() {
                           <ShieldCheck className="h-3.5 w-3.5" /> Verify
                         </Button>
                       )}
+                      <Button size="xs" variant="ghost" className="text-[var(--c-text-3)]"
+                        disabled={resetMutation.isPending}
+                        onClick={() => resetMutation.mutate(u._id)}>
+                        <KeyRound className="h-3.5 w-3.5" /> Reset link
+                      </Button>
                       {u.isSuspended ? (
                         <Button size="xs" variant="ghost" className="text-brand-green"
                           onClick={() => unsuspendMutation.mutate(u._id)}>
@@ -128,6 +152,52 @@ export default function AdminUsers() {
           {!data?.length && (
             <div className="text-center py-12 text-[var(--c-text-3)]">No users found</div>
           )}
+        </div>
+      )}
+
+      {/* One-time reset link. Shown once, here, rather than emailed — this exists
+          precisely for the case where the user's email is not reaching them. */}
+      {resetLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResetLink(null)} />
+          <div className="relative w-full max-w-lg bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl shadow-2xl p-5 z-10">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="font-semibold text-[var(--c-text)]">Password reset link</h2>
+                <p className="text-[var(--c-text-3)] text-sm mt-0.5">For {resetLink.email}</p>
+              </div>
+              <button onClick={() => setResetLink(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl p-3 mb-3">
+              <p className="text-[var(--c-text-2)] text-xs break-all font-mono">{resetLink.link}</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(resetLink.link)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-brand-green text-white text-sm font-semibold hover:bg-brand-emerald transition-colors"
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied' : 'Copy link'}
+              </button>
+              <p className="text-[var(--c-text-4)] text-xs">
+                Expires {new Date(resetLink.expiresAt).toLocaleTimeString()}. Single use.
+              </p>
+            </div>
+
+            <p className="text-[var(--c-text-4)] text-xs mt-4 leading-relaxed">
+              Send this only to the account owner, after you are satisfied they are who they say they
+              are. Issuing it has been recorded in the audit log against your account.
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import Dispute from '../models/Dispute'
 import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
 import { escapeRegex } from '../utils/regexEscape'
+import { recordAudit } from '../services/audit.service'
 
 export const listUsers = async (req: AuthRequest, res: Response) => {
   try {
@@ -33,6 +34,10 @@ export const verifyUser = async (req: AuthRequest, res: Response) => {
     const { verifiedType } = req.body
     const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true, verifiedType }, { returnDocument: 'after' })
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+    await recordAudit(req, {
+      action: 'USER_VERIFY', targetType: 'User', targetId: String(user._id), targetLabel: user.email,
+      summary: `Marked ${user.email} verified${verifiedType ? ` (${verifiedType})` : ''}`,
+    })
     res.json({ success: true, data: user })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -43,6 +48,11 @@ export const suspendUser = async (req: AuthRequest, res: Response) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { isSuspended: true }, { returnDocument: 'after' })
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+    await recordAudit(req, {
+      action: 'USER_SUSPEND', targetType: 'User', targetId: String(user._id), targetLabel: user.email,
+      summary: `Suspended ${user.email}`,
+      meta: { reason: req.body?.reason },
+    })
     res.json({ success: true, data: user })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -53,6 +63,10 @@ export const unsuspendUser = async (req: AuthRequest, res: Response) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { isSuspended: false }, { returnDocument: 'after' })
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+    await recordAudit(req, {
+      action: 'USER_UNSUSPEND', targetType: 'User', targetId: String(user._id), targetLabel: user.email,
+      summary: `Lifted suspension on ${user.email}`,
+    })
     res.json({ success: true, data: user })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -126,6 +140,16 @@ export const resolveDispute = async (req: AuthRequest, res: Response) => {
         )
       }
     }
+
+    // Money moved here, so this is the entry an auditor is most likely to need.
+    await recordAudit(req, {
+      action: 'DISPUTE_RESOLVE',
+      targetType: 'Dispute',
+      targetId: String(dispute._id),
+      targetLabel: order?.orderNumber,
+      summary: `Resolved dispute on order ${order?.orderNumber ?? '—'} as ${resolution}`,
+      meta: { resolution, orderTotal: order?.total, platformFee: order?.platformFee },
+    })
 
     res.json({ success: true, data: dispute })
   } catch (err: any) {
