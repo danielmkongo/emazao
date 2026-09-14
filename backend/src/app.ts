@@ -45,9 +45,46 @@ import LiveSession from './models/LiveSession'
 const app = express()
 const httpServer = createServer(app)
 
+/**
+ * Origins allowed to call the API and open a socket.
+ *
+ * CLIENT_URL used to be passed straight through as a single origin, which can
+ * only ever match one host. That broke realtime in two ordinary situations: a
+ * developer running Vite on :5173 against the API on :9000 (every socket
+ * handshake rejected by CORS, so live messages and calls silently never
+ * arrived), and a deployment served at both example.com and www.example.com,
+ * where whichever one is configured blocks the other.
+ *
+ * CLIENT_URL now accepts a comma-separated list, the www/apex counterpart is
+ * derived automatically, and local dev origins are allowed outside production.
+ */
+const allowedOrigins = (() => {
+  const configured = env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean)
+  const withCounterparts = configured.flatMap(o => {
+    try {
+      const u = new URL(o)
+      const host = u.host.startsWith('www.') ? u.host.slice(4) : `www.${u.host}`
+      return [o, `${u.protocol}//${host}`]
+    } catch {
+      return [o]
+    }
+  })
+  if (env.NODE_ENV !== 'production') {
+    withCounterparts.push('http://localhost:5173', 'http://127.0.0.1:5173')
+  }
+  return [...new Set(withCounterparts)]
+})()
+
+// A request with no Origin header (curl, a health check, a native app) is not a
+// browser cross-origin request, so there is nothing for CORS to protect against.
+const corsOrigin = (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+  if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+  cb(null, false)
+}
+
 // Socket.io — long ping timeout keeps live streams alive through nginx
 const io = new SocketServer(httpServer, {
-  cors: { origin: env.CLIENT_URL, methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'], credentials: true },
   pingTimeout: 60000,   // wait 60s for pong before disconnecting
   pingInterval: 25000,  // ping every 25s (well under nginx's 60s read timeout)
 })
@@ -61,7 +98,7 @@ app.use(helmet({
   originAgentCluster: false,        // same
   contentSecurityPolicy: false,     // CSP can block assets on HTTP
 }))
-app.use(cors({ origin: env.CLIENT_URL, credentials: true }))
+app.use(cors({ origin: corsOrigin, credentials: true }))
 
 // Request logging — previously there was no record of what requests a
 // production incident even involved, only whatever a controller happened to
