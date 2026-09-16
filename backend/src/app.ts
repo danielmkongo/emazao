@@ -37,6 +37,8 @@ import liveRoutes from './routes/live.routes'
 import eventRoutes from './routes/event.routes'
 import recommendationRoutes from './routes/recommendation.routes'
 import verificationRoutes from './routes/verification.routes'
+import reviewRoutes from './routes/review.routes'
+import feedbackRoutes from './routes/feedback.routes'
 import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
 import { startRequirementExpiryJob } from './services/requirementExpiry.job'
@@ -144,6 +146,8 @@ app.use('/api/live', liveRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/recommendation', recommendationRoutes)
 app.use('/api/verification', verificationRoutes)
+app.use('/api/reviews', reviewRoutes)
+app.use('/api/feedback', feedbackRoutes)
 
 // An unmatched /api/* path should 404 as JSON, not fall through to the SPA's
 // index.html below — otherwise a typo'd endpoint or a client bug looks like a

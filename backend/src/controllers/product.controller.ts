@@ -9,7 +9,7 @@ import { nanoid } from 'nanoid'
 // GET /api/products
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId } = req.query
+    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId, nutrition } = req.query
 
     const filter: Record<string, unknown> = {}
     if (status !== 'all') filter['status'] = status
@@ -19,6 +19,11 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     if (category) filter['categoryId'] = category
     if (tags) filter['tags'] = { $in: (tags as string).split(',') }
     if (organic === 'true') filter['isOrganic'] = true
+    // Comma-separated so the nutrition section can ask for one group or several.
+    if (nutrition) {
+      const wanted = String(nutrition).split(',').map(t => t.trim().toUpperCase()).filter(Boolean)
+      if (wanted.length) filter['nutritionTags'] = { $in: wanted }
+    }
     if (minPrice || maxPrice) {
       filter['price'] = {}
       if (minPrice) (filter['price'] as Record<string, number>)['$gte'] = parseFloat(minPrice as string)
@@ -55,12 +60,21 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 // POST /api/products
 export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, categoryId, price, priceUnit, images, tags, condition, isOrganic, minimumOrder, availableStock, stockUnit, origin, certifications, harvestDate } = req.body as {
+    const { title, description, categoryId, price, priceUnit, images, tags, condition, isOrganic, minimumOrder, availableStock, stockUnit, origin, certifications, harvestDate, nutritionTags } = req.body as {
       title: string; description: string; categoryId: string; price: number; priceUnit: string
       images?: string[]; tags?: string[]; condition?: string; isOrganic?: boolean
       minimumOrder?: number; availableStock?: number; stockUnit?: string
       origin?: string; certifications?: string[]; harvestDate?: string
+      nutritionTags?: string[]
     }
+
+    // Validate against the schema's own list rather than trusting the client:
+    // an unknown value would fail on save with a cast error the seller cannot
+    // act on, and these tags are read as dietary guidance.
+    const VALID_NUTRITION = ['CHILDREN', 'PREGNANT', 'NURSING', 'PATIENTS', 'ELDERLY']
+    const cleanNutrition = (nutritionTags ?? [])
+      .map(t => String(t).toUpperCase())
+      .filter(t => VALID_NUTRITION.includes(t))
 
     const slug = slugify(title, { lower: true, strict: true }) + '-' + nanoid(6)
 
@@ -69,6 +83,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       categoryId, title, slug, description,
       price, priceUnit, images: images || [],
       tags: tags || [], condition: condition as any, isOrganic,
+      nutritionTags: cleanNutrition,
       minimumOrder, availableStock, stockUnit,
       origin, certifications: certifications || [],
       harvestDate: harvestDate ? new Date(harvestDate) : undefined,

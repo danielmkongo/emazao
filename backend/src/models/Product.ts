@@ -17,6 +17,7 @@ export interface IProduct extends Document {
   stockUnit?: string
   condition: ProductCondition
   isOrganic: boolean
+  nutritionTags?: string[]
   harvestDate?: Date
   origin?: string
   certifications: string[]
@@ -53,6 +54,14 @@ const ProductSchema = new Schema<IProduct>(
       default: 'FRESH',
     },
     isOrganic: { type: Boolean, default: false },
+    // Who this crop is especially suitable for. Sellers tag their own produce,
+    // so this is a claim by the farmer, not a medical classification — the
+    // marketplace copy says as much, because getting it wrong here is not a
+    // display bug, it is dietary advice to someone feeding a sick relative.
+    nutritionTags: [{
+      type: String,
+      enum: ['CHILDREN', 'PREGNANT', 'NURSING', 'PATIENTS', 'ELDERLY'],
+    }],
     harvestDate: { type: Date },
     origin: { type: String },
     certifications: [{ type: String }],
@@ -82,6 +91,8 @@ ProductSchema.index({ tags: 1 })
 // the match, the ordering and the pagination from one index scan. This is the
 // most-requested query on the platform.
 ProductSchema.index({ status: 1, isBoosted: -1, createdAt: -1 })
+// Serves the nutrition section's filtered listing.
+ProductSchema.index({ nutritionTags: 1, status: 1 })
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' })
 
 export default mongoose.model<IProduct>('Product', ProductSchema)
