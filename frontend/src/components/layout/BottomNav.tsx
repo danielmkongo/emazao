@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Home, Search, Play, MessageSquare, User, Radio } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -6,20 +7,24 @@ import { useAuthStore } from '@/store/authStore'
 import { useUnreadStore } from '@/store/unreadStore'
 import { Avatar } from '@/components/ui/avatar'
 
+// i18n keys, resolved at render so switching language re-labels the bar without
+// a reload. These were hardcoded English, so the mobile tabs stayed in English
+// even with Kiswahili selected — and mobile is where most users are.
 const buyerTabs = [
-  { icon: Home,          label: 'Feed',     href: '/feed' },
-  { icon: Search,        label: 'Explore',  href: '/explore' },
-  { icon: Play,          label: 'Reels',    href: '/reels' },
-  { icon: MessageSquare, label: 'Messages', href: '/messages' },
+  { icon: Home,          label: 'nav.feed',     href: '/feed' },
+  { icon: Search,        label: 'nav.explore',  href: '/explore' },
+  { icon: Play,          label: 'nav.reels',    href: '/reels' },
+  { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
 ]
 
 const farmerTabs = [
-  { icon: Home,          label: 'Feed',     href: '/feed' },
-  { icon: Play,          label: 'Reels',    href: '/reels' },
-  { icon: MessageSquare, label: 'Messages', href: '/messages' },
+  { icon: Home,          label: 'nav.feed',     href: '/feed' },
+  { icon: Play,          label: 'nav.reels',    href: '/reels' },
+  { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
 ]
 
 function Tab({ icon: Icon, label, href, badge }: { icon: typeof Home; label: string; href: string; badge?: number }) {
+  const { t } = useTranslation()
   return (
     <NavLink to={href} className="relative flex-1">
       {({ isActive }) => (
@@ -40,7 +45,7 @@ function Tab({ icon: Icon, label, href, badge }: { icon: typeof Home; label: str
             )}
           </div>
           <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
-            {label}
+            {t(label)}
           </span>
         </div>
       )}
@@ -49,6 +54,7 @@ function Tab({ icon: Icon, label, href, badge }: { icon: typeof Home; label: str
 }
 
 export const BottomNav = () => {
+  const { t } = useTranslation()
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const unreadMessages = useUnreadStore((s) => s.unreadMessages)
@@ -64,13 +70,13 @@ export const BottomNav = () => {
         {isFarmer && (
           <button
             onClick={() => navigate('/live')}
-            aria-label="Go live"
+            aria-label={t('nav.goLive')}
             className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 active:scale-95 transition-transform flex-shrink-0"
           >
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/40">
               <Radio className="h-4 w-4 text-white" />
             </div>
-            <span className="text-[10px] font-bold text-red-400">Live</span>
+            <span className="text-[10px] font-bold text-red-400">{t('nav.goLive')}</span>
           </button>
         )}
 
@@ -93,7 +99,7 @@ export const BottomNav = () => {
                 <User className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
               )}
               <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
-                Profile
+                {t('nav.profile')}
               </span>
             </div>
           )}
