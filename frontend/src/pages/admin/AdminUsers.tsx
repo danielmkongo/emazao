@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Search, ShieldCheck, Ban, KeyRound, Copy, Check, X } from 'lucide-react'
+import { Search, ShieldCheck, Ban, KeyRound, Copy, Check, X, ShieldOff } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +54,27 @@ export default function AdminUsers() {
     onSuccess: (d) => {
       if (d) setResetLink({ email: d.email, link: d.resetLink, expiresAt: d.expiresAt })
       queryClient.invalidateQueries({ queryKey: ['admin-audit'] })
+    },
+  })
+
+  // Banning goes further than suspending: it blocks the phone number and the
+  // national ID so the same person cannot register again with a new email.
+  const [banTarget, setBanTarget] = useState<User | null>(null)
+  const [banReason, setBanReason] = useState('')
+
+  const banMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
+      const res = await api.post<ApiResponse<{ blocked: { phone: boolean; nida: boolean } }>>(
+        `/admin/users/${userId}/ban`, { reason }
+      )
+      return res.data.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-bans'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-audit'] })
+      setBanTarget(null)
+      setBanReason('')
     },
   })
 
@@ -132,6 +153,10 @@ export default function AdminUsers() {
                         onClick={() => resetMutation.mutate(u._id)}>
                         <KeyRound className="h-3.5 w-3.5" /> Reset link
                       </Button>
+                      <Button size="xs" variant="ghost" className="text-red-500"
+                        onClick={() => { setBanTarget(u); setBanReason('') }}>
+                        <ShieldOff className="h-3.5 w-3.5" /> Ban
+                      </Button>
                       {u.isSuspended ? (
                         <Button size="xs" variant="ghost" className="text-brand-green"
                           onClick={() => unsuspendMutation.mutate(u._id)}>
@@ -152,6 +177,61 @@ export default function AdminUsers() {
           {!data?.length && (
             <div className="text-center py-12 text-[var(--c-text-3)]">No users found</div>
           )}
+        </div>
+      )}
+
+      {/* Ban confirmation. A reason is mandatory — an unexplained ban cannot be
+          reviewed later by anyone, including the admin who issued it. */}
+      {banTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBanTarget(null)} />
+          <div className="relative w-full max-w-md bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl shadow-2xl p-5 z-10">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="font-semibold text-[var(--c-text)]">Ban {banTarget.name}</h2>
+                <p className="text-[var(--c-text-3)] text-sm mt-0.5">{banTarget.email}</p>
+              </div>
+              <button onClick={() => setBanTarget(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-red-500/[0.07] border border-red-500/25 rounded-xl p-3 mb-4">
+              <p className="text-[var(--c-text-2)] text-sm">
+                This suspends the account <em>and</em> blocks their phone number and national ID, so the same
+                person cannot sign up again with a different email. It can be lifted later from Blocked.
+              </p>
+            </div>
+
+            <label className="block text-[var(--c-text-2)] text-sm font-medium mb-1.5">Reason</label>
+            <textarea
+              id="ban-reason"
+              rows={3}
+              value={banReason}
+              onChange={e => setBanReason(e.target.value)}
+              placeholder="Fraudulent listings, repeated non-delivery…"
+              className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--c-text)] mb-4 focus:outline-none focus:border-brand-green"
+            />
+
+            {banMutation.isError && (
+              <p className="text-red-500 text-sm mb-3">
+                {(banMutation.error as any)?.response?.data?.message ?? 'Could not ban this account.'}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-red-500 hover:bg-red-600"
+                disabled={!banReason.trim() || banMutation.isPending}
+                onClick={() => banMutation.mutate({ userId: banTarget._id, reason: banReason.trim() })}
+              >
+                <ShieldOff className="h-4 w-4" />
+                {banMutation.isPending ? 'Banning…' : 'Ban this person'}
+              </Button>
+              <Button variant="secondary" onClick={() => setBanTarget(null)}>Cancel</Button>
+            </div>
+          </div>
         </div>
       )}
 

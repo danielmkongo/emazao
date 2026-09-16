@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ShoppingBag, ChevronRight, Clock, Package, Sprout } from 'lucide-react'
+import { ShoppingBag, ChevronRight, Clock, Package, Sprout, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, timeAgo } from '@/lib/utils'
@@ -53,13 +53,21 @@ export default function Orders() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-bold text-[var(--c-text)]">{title}</h1>
-        {data?.length ? (
-          <span className="text-sm text-[var(--c-text-3)]">
-            <span className="font-semibold text-[var(--c-text)]">{data.length}</span> order{data.length !== 1 ? 's' : ''}
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {data?.length ? (
+            <span className="text-sm text-[var(--c-text-3)]">
+              <span className="font-semibold text-[var(--c-text)]">{data.length}</span> order{data.length !== 1 ? 's' : ''}
+            </span>
+          ) : null}
+          <Link
+            to="/orders/track"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--c-raised)] text-[var(--c-text-2)] text-sm font-medium hover:text-[var(--c-text)] transition-colors"
+          >
+            <Search className="h-3.5 w-3.5" /> Track my product
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (

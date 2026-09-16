@@ -134,6 +134,11 @@ export interface Order {
   currency: string
   status: string
   estimatedDelivery?: string
+  deliveredAt?: string
+  trackingNumber?: string
+  carrier?: string
+  dispatchedAt?: string
+  trackingEvents?: { status: string; note?: string; location?: string; at: string }[]
   deliveryAddress?: {
     street: string
     city: string

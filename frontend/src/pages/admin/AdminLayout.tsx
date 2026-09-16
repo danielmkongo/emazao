@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Receipt, Users, ShieldCheck, ShieldAlert,
-  AlertOctagon, BarChart3, ScrollText, Settings2, ArrowLeft, Radio, Circle,
+  AlertOctagon, BarChart3, ScrollText, Settings2, ArrowLeft, Radio, Circle, Ban, UserSearch,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/lib/utils'
@@ -32,6 +32,7 @@ const NAV = [
     items: [
       { to: '/admin/overview', label: 'Overview', icon: LayoutDashboard },
       { to: '/admin/transactions', label: 'Transactions', icon: Receipt },
+      { to: '/admin/customers', label: 'Customers', icon: UserSearch },
       { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
@@ -42,6 +43,7 @@ const NAV = [
       { to: '/admin/compliance', label: 'Risk flags', icon: ShieldAlert, badge: 'openFlags' as const },
       { to: '/admin/verification', label: 'Verification', icon: ShieldCheck, badge: 'pendingVerifications' as const },
       { to: '/admin/users', label: 'Users', icon: Users },
+      { to: '/admin/bans', label: 'Blocked', icon: Ban },
     ],
   },
   {

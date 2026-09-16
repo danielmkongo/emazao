@@ -42,8 +42,15 @@ export const dispatchOrder = async (req: AuthRequest, res: Response) => {
         data: { trackingNumber: order.trackingNumber },
       })
     }
-    if (['CANCELLED', 'REFUNDED'].includes(order.status)) {
-      return res.status(409).json({ success: false, message: `Cannot dispatch a ${order.status.toLowerCase()} order` })
+    // Nothing can be dispatched that is already finished or cancelled. Allowing
+    // it produced timelines reading "dispatched 16th, delivered 11th", which is
+    // worse than no tracking at all — it makes the record untrustworthy.
+    const UNDISPATCHABLE = ['CANCELLED', 'REFUNDED', 'DELIVERED', 'COMPLETED']
+    if (UNDISPATCHABLE.includes(order.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot dispatch an order that is already ${order.status.toLowerCase()}`,
+      })
     }
 
     // Retry on the astronomically unlikely collision rather than failing the

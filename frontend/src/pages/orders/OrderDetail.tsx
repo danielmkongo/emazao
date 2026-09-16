@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Package, MapPin, CheckCircle, AlertTriangle, Truck, Clock, CreditCard } from 'lucide-react'
+import { ArrowLeft, Package, MapPin, CheckCircle, AlertTriangle, Truck, Clock, CreditCard, Copy, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -87,9 +87,21 @@ export default function OrderDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
   })
 
-  const markShippedMutation = useMutation({
-    mutationFn: () => api.put(`/orders/${id}/status`, { status: 'SHIPPED' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
+  // Dispatching issues the tracking number and opens the shipment's event
+  // history — a plain status flip to SHIPPED gave the buyer nothing to follow.
+  const [dispatchOpen, setDispatchOpen] = useState(false)
+  const [carrier, setCarrier] = useState('')
+  const [dispatchNote, setDispatchNote] = useState('')
+
+  const dispatchMutation = useMutation({
+    mutationFn: () => api.post(`/orders/${id}/dispatch`, {
+      carrier: carrier.trim() || undefined,
+      note: dispatchNote.trim() || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      setDispatchOpen(false)
+    },
   })
 
   if (isLoading) return (
@@ -252,13 +264,48 @@ export default function OrderDetail() {
       )}
 
       {/* Actions */}
+      {/* Shipment tracking — shown once the order has actually been dispatched. */}
+      {order.trackingNumber && (
+        <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl p-4 mb-4">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="min-w-0">
+              <p className="text-[var(--c-text-3)] text-xs uppercase tracking-wider mb-1">Tracking number</p>
+              <p className="font-mono font-semibold text-[var(--c-text)] break-all">{order.trackingNumber}</p>
+              {order.carrier && <p className="text-[var(--c-text-3)] text-sm mt-0.5">{order.carrier}</p>}
+            </div>
+            <button
+              onClick={() => navigator.clipboard?.writeText(order.trackingNumber!)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-raised)] text-[var(--c-text-2)] text-xs font-medium hover:text-[var(--c-text)] transition-colors"
+            >
+              <Copy className="h-3.5 w-3.5" /> Copy
+            </button>
+          </div>
+
+          {!!order.trackingEvents?.length && (
+            <ol className="relative border-l border-[var(--c-border)] ml-1.5 space-y-3 pt-1">
+              {[...order.trackingEvents].reverse().map((e, i) => (
+                <li key={i} className="pl-4 relative">
+                  <span className={`absolute -left-[5px] top-1.5 w-2 h-2 rounded-full ${i === 0 ? 'bg-brand-green' : 'bg-[var(--c-border)]'}`} />
+                  <p className={`text-sm font-medium ${i === 0 ? 'text-[var(--c-text)]' : 'text-[var(--c-text-2)]'}`}>
+                    {e.status.replace(/_/g, ' ')}
+                    {e.location && <span className="text-[var(--c-text-3)] font-normal"> · {e.location}</span>}
+                  </p>
+                  {e.note && <p className="text-[var(--c-text-3)] text-xs mt-0.5">{e.note}</p>}
+                  <p className="text-[var(--c-text-4)] text-[11px] mt-0.5">{new Date(e.at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+
       {(canConfirm || canDispute || canMarkShipped) && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
           className="flex gap-3">
           {canMarkShipped && (
-            <Button className="flex-1" onClick={() => markShippedMutation.mutate()} disabled={markShippedMutation.isPending}>
+            <Button className="flex-1" onClick={() => setDispatchOpen(true)} disabled={dispatchMutation.isPending}>
               <Truck className="h-4 w-4" />
-              {markShippedMutation.isPending ? 'Updating…' : 'Mark as Shipped'}
+              {dispatchMutation.isPending ? 'Dispatching…' : 'Dispatch order'}
             </Button>
           )}
           {canConfirm && (
@@ -274,6 +321,58 @@ export default function OrderDetail() {
             </Button>
           )}
         </motion.div>
+      )}
+
+      {/* Dispatch dialog */}
+      {dispatchOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDispatchOpen(false)} />
+          <div className="relative w-full max-w-md bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl shadow-2xl p-5 z-10">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="font-semibold text-[var(--c-text)]">Dispatch this order</h2>
+                <p className="text-[var(--c-text-3)] text-sm mt-0.5">
+                  A tracking number is issued and the buyer is notified.
+                </p>
+              </div>
+              <button onClick={() => setDispatchOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label className="block text-[var(--c-text-2)] text-sm font-medium mb-1.5">Carrier</label>
+            <input
+              value={carrier}
+              onChange={e => setCarrier(e.target.value)}
+              placeholder="DHL, Posta, own transport…"
+              className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--c-text)] mb-3 focus:outline-none focus:border-brand-green"
+            />
+
+            <label className="block text-[var(--c-text-2)] text-sm font-medium mb-1.5">Note <span className="text-[var(--c-text-4)] font-normal">(optional)</span></label>
+            <textarea
+              rows={2}
+              value={dispatchNote}
+              onChange={e => setDispatchNote(e.target.value)}
+              placeholder="Left Arusha depot this morning"
+              className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--c-text)] mb-4 focus:outline-none focus:border-brand-green"
+            />
+
+            {dispatchMutation.isError && (
+              <p className="text-red-500 text-sm mb-3">
+                {(dispatchMutation.error as any)?.response?.data?.message ?? 'Could not dispatch this order.'}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => dispatchMutation.mutate()} disabled={dispatchMutation.isPending}>
+                <Truck className="h-4 w-4" />
+                {dispatchMutation.isPending ? 'Dispatching…' : 'Dispatch'}
+              </Button>
+              <Button variant="secondary" onClick={() => setDispatchOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

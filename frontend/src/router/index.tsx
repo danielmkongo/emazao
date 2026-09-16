@@ -43,6 +43,7 @@ const Storefront = lazy(() => import('@/pages/farm/Storefront'))
 const MessagesLayout = lazy(() => import('@/pages/messages/MessagesLayout'))
 const Thread = lazy(() => import('@/pages/messages/Thread'))
 const Orders = lazy(() => import('@/pages/orders/Orders'))
+const TrackOrder = lazy(() => import('@/pages/orders/TrackOrder'))
 const OrderDetail = lazy(() => import('@/pages/orders/OrderDetail'))
 const WalletPage = lazy(() => import('@/pages/wallet/Wallet'))
 const VerificationPage = lazy(() => import('@/pages/wallet/Verification'))
@@ -76,6 +77,8 @@ const AdminOverview = lazy(() => import('@/pages/admin/AdminOverview'))
 const AdminTransactions = lazy(() => import('@/pages/admin/AdminTransactions'))
 const AdminAudit = lazy(() => import('@/pages/admin/AdminAudit'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminBans = lazy(() => import('@/pages/admin/AdminBans'))
+const AdminCustomers = lazy(() => import('@/pages/admin/AdminCustomers'))
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore()
@@ -160,6 +163,8 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/admin/overview" replace /> },
       { path: 'overview', element: wrap(AdminOverview) },
       { path: 'transactions', element: wrap(AdminTransactions) },
+      { path: 'customers', element: wrap(AdminCustomers) },
+      { path: 'bans', element: wrap(AdminBans) },
       { path: 'users', element: wrap(AdminUsers) },
       { path: 'verification', element: wrap(AdminVerification) },
       { path: 'compliance', element: wrap(AdminCompliance) },
@@ -197,6 +202,8 @@ export const router = createBrowserRouter([
         ],
       },
       { path: '/orders', element: wrap(Orders) },
+      // Before '/orders/:id' so 'track' is not read as an order id.
+      { path: '/orders/track', element: wrap(TrackOrder) },
       { path: '/orders/:id', element: wrap(OrderDetail) },
       { path: '/wallet', element: wrap(WalletPage) },
       { path: '/wallet/verification', element: wrap(VerificationPage) },
