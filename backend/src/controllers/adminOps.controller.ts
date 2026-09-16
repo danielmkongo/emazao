@@ -15,6 +15,8 @@ import VerificationProfile from '../models/VerificationProfile'
 import LiveSession from '../models/LiveSession'
 import Reel from '../models/Reel'
 import Message from '../models/Message'
+import BanEntry from '../models/BanEntry'
+import VerificationProfileModel from '../models/VerificationProfile'
 
 // Orders that represent money actually committed. PENDING is excluded because an
 // unpaid order is an intention, not a transaction — counting it would inflate
@@ -319,6 +321,168 @@ export const listAuditLogs = async (req: AuthRequest, res: Response) => {
       success: true,
       data: { rows, page, limit, total, pages: Math.ceil(total / limit), actions: actions.sort() },
     })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+
+/**
+ * GET /api/admin/customers — who joined, who trades, who has gone quiet.
+ *
+ * The last of those is the point: an account that signed up and never came back
+ * is invisible in a total, and is exactly the person worth contacting.
+ */
+export const getCustomerStats = async (_req: AuthRequest, res: Response) => {
+  try {
+    const now = Date.now()
+    const [joinedByMonth, joinedByDay, activity, transacted, dormant, missingIds] = await Promise.all([
+      User.aggregate([
+        { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: -1 } },
+        { $limit: 12 },
+      ]),
+      User.aggregate([
+        { $match: { createdAt: { $gte: daysAgo(30) } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Promise.all([
+        User.countDocuments({ lastSeenAt: { $gte: new Date(now - 86_400_000) } }),
+        User.countDocuments({ lastSeenAt: { $gte: daysAgo(7) } }),
+        User.countDocuments({ lastSeenAt: { $gte: daysAgo(30) } }),
+        User.countDocuments({ lastSeenAt: { $exists: false } }),
+      ]),
+      // Distinct buyers and sellers who actually moved money.
+      Order.aggregate([
+        { $match: { status: { $in: SETTLED } } },
+        { $group: { _id: null, buyers: { $addToSet: '$buyerId' }, sellers: { $addToSet: '$sellerId' } } },
+        { $project: { buyers: { $size: '$buyers' }, sellers: { $size: '$sellers' } } },
+      ]),
+      // Signed up, never returned, and not brand new — the follow-up list.
+      User.find({
+        createdAt: { $lt: daysAgo(7) },
+        $or: [{ lastSeenAt: { $exists: false } }, { lastSeenAt: { $lt: daysAgo(30) } }],
+      })
+        .select('name email customerId role createdAt lastSeenAt phone')
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean(),
+      User.countDocuments({ $or: [{ customerId: { $exists: false } }, { customerId: null }] }),
+    ])
+
+    const [active24h, active7d, active30d, neverSeen] = activity
+
+    res.json({
+      success: true,
+      data: {
+        joinedByMonth: joinedByMonth.map(m => ({ month: m._id, count: m.count })).reverse(),
+        joinedByDay: joinedByDay.map(d => ({ date: d._id, count: d.count })),
+        activity: { active24h, active7d, active30d, neverSeen },
+        transacted: { buyers: transacted[0]?.buyers ?? 0, sellers: transacted[0]?.sellers ?? 0 },
+        dormant,
+        // Accounts predating customer IDs; run the backfill script to clear this.
+        missingCustomerIds: missingIds,
+      },
+    })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/** GET /api/admin/bans */
+export const listBans = async (req: AuthRequest, res: Response) => {
+  try {
+    const includeLifted = req.query['includeLifted'] === 'true'
+    const rows = await BanEntry.find(includeLifted ? {} : { liftedAt: null })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean()
+    res.json({ success: true, data: rows })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/**
+ * POST /api/admin/users/:id/ban — suspend the account and block the identity.
+ *
+ * Suspending alone only stops one login. Banning records the phone number and
+ * the national ID hash so the same person cannot simply register again, which
+ * is the actual way back in.
+ */
+export const banUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { reason } = req.body as { reason?: string }
+    if (!reason?.trim()) {
+      // An unexplained ban is unreviewable later, by anyone including the admin
+      // who issued it.
+      return res.status(400).json({ success: false, message: 'A reason is required' })
+    }
+
+    const user = await User.findById(req.params['id'])
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+    const profile = await VerificationProfileModel.findOne({ userId: user._id }).select('nidaHash').lean()
+
+    user.isSuspended = true
+    await user.save()
+
+    const entry = await BanEntry.create({
+      phone: user.phone,
+      nidaHash: profile?.nidaHash,
+      reason: reason.trim(),
+      bannedBy: req.user!.id,
+      bannedByEmail: req.user!.email,
+      sourceUserId: user._id,
+    })
+
+    await recordAudit(req, {
+      action: 'USER_BAN',
+      targetType: 'User',
+      targetId: String(user._id),
+      targetLabel: user.email,
+      summary: `Banned ${user.email}${user.phone ? ` (phone ${user.phone})` : ''}${profile?.nidaHash ? ' and their national ID' : ''} — ${reason.trim()}`,
+      meta: { phoneBanned: Boolean(user.phone), nidaBanned: Boolean(profile?.nidaHash) },
+    })
+
+    res.json({
+      success: true,
+      data: {
+        ban: entry,
+        // Say plainly what was and was not blocked: an account with no phone and
+        // no verified ID can still re-register with a new email.
+        blocked: { phone: Boolean(user.phone), nida: Boolean(profile?.nidaHash) },
+      },
+    })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/** PUT /api/admin/bans/:id/lift */
+export const liftBan = async (req: AuthRequest, res: Response) => {
+  try {
+    const entry = await BanEntry.findById(req.params['id'])
+    if (!entry) return res.status(404).json({ success: false, message: 'Ban not found' })
+    if (entry.liftedAt) return res.status(409).json({ success: false, message: 'This ban has already been lifted' })
+
+    entry.liftedAt = new Date()
+    entry.liftedBy = new mongoose.Types.ObjectId(req.user!.id)
+    await entry.save()
+
+    if (entry.sourceUserId) {
+      await User.updateOne({ _id: entry.sourceUserId }, { isSuspended: false })
+    }
+
+    await recordAudit(req, {
+      action: 'BAN_LIFT',
+      targetType: 'BanEntry',
+      targetId: String(entry._id),
+      summary: `Lifted the ban on ${entry.phone ?? 'a national ID'} (originally: ${entry.reason})`,
+    })
+
+    res.json({ success: true, data: entry })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

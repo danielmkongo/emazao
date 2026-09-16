@@ -8,6 +8,8 @@ export type SubscriptionTier = 'FREE' | 'PRO_FARMER' | 'ENTERPRISE'
 export interface IUser extends Document {
   email: string
   phone?: string
+  customerId?: string
+  lastSeenAt?: Date
   name: string
   username: string
   passwordHash?: string
@@ -41,6 +43,14 @@ const UserSchema = new Schema<IUser>(
   {
     email: { type: String, unique: true, required: true, lowercase: true, trim: true },
     phone: { type: String, unique: true, sparse: true, trim: true },
+    // Human-quotable account reference (EMZ-000001). The ObjectId is unusable
+    // over a phone call or on a delivery note, so support and reconciliation
+    // need something a person can read aloud without mistakes.
+    customerId: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
+    // Last time this account made an authenticated request. Drives the "active
+    // vs gone quiet" split in the admin console — knowing who has stopped
+    // showing up is the point, so that they can be contacted.
+    lastSeenAt: { type: Date },
     name: { type: String, required: true, trim: true },
     username: { type: String, unique: true, required: true, lowercase: true, trim: true },
     passwordHash: { type: String },
@@ -75,6 +85,8 @@ const UserSchema = new Schema<IUser>(
 )
 
 UserSchema.index({ role: 1 })
+// Serves the activity breakdown and the dormant-user list.
+UserSchema.index({ lastSeenAt: -1 })
 UserSchema.index({ country: 1, region: 1 })
 
 export default mongoose.model<IUser>('User', UserSchema)

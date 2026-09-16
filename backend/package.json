@@ -11,6 +11,7 @@
     "purge:demo": "ts-node src/config/purgeDemo.ts",
     "create:admin": "ts-node src/config/createAdmin.ts",
     "repair:conversations": "ts-node src/config/repairConversations.ts",
+    "backfill:customer-ids": "ts-node src/config/backfillCustomerIds.ts",
     "test": "vitest run"
   },
   "keywords": [],

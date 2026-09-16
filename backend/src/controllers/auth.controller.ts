@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import { nextCustomerId, findActiveBan } from '../services/identity.service'
 import { nanoid } from 'nanoid'
 import { env } from '../config/env'
 import User from '../models/User'
@@ -43,6 +44,31 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
+    // A ban follows the person, not the account. Suspending a user stops that
+    // login; it does nothing about the same phone signing up again with a fresh
+    // email, which is the actual re-entry route.
+    if (phone) {
+      const ban = await findActiveBan({ phone })
+      if (ban) {
+        res.status(403).json({
+          success: false,
+          message: 'This phone number cannot be used to register. Contact support if you believe this is a mistake.',
+        })
+        return
+      }
+    }
+
+    // Phone carries a unique index, so a duplicate previously surfaced as a raw
+    // E11000 in a 500 — the caller saw a server error where the truthful answer
+    // is that the number is already in use.
+    if (phone) {
+      const phoneTaken = await User.findOne({ phone: phone.trim() }).select('_id').lean()
+      if (phoneTaken) {
+        res.status(409).json({ success: false, message: 'Phone number already registered' })
+        return
+      }
+    }
+
     const exists = await User.findOne({ email: email.toLowerCase() })
     if (exists) {
       res.status(409).json({ success: false, message: 'Email already registered' })
@@ -59,6 +85,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       username,
       passwordHash,
       role: role as any,
+      customerId: await nextCustomerId(),
+      lastSeenAt: new Date(),
     })
 
     // Create wallet for every user

@@ -9,6 +9,7 @@ import {
 import {
   getOverview, listTransactions, getSettings, updateSettings,
   issuePasswordReset, listAuditLogs,
+  getCustomerStats, listBans, banUser, liftBan,
 } from '../controllers/adminOps.controller'
 
 const router = Router()
@@ -27,6 +28,13 @@ router.get('/analytics/platform', getPlatformAnalytics)
 // Operations dashboard
 router.get('/overview', getOverview)
 router.get('/transactions', listTransactions)
+router.get('/customers', getCustomerStats)
+
+// Identity bans. Suspending stops one login; banning blocks the phone number
+// and national ID so the same person cannot register again.
+router.get('/bans', listBans)
+router.post('/users/:id/ban', banUser)
+router.put('/bans/:id/lift', liftBan)
 
 // Account support: hand the user a fresh reset link when the email never arrives.
 router.post('/users/:id/password-reset', issuePasswordReset)

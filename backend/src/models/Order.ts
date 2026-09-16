@@ -44,6 +44,10 @@ export interface IOrder extends Document {
   status: OrderStatus
   estimatedDelivery?: Date
   deliveredAt?: Date
+  trackingNumber?: string
+  carrier?: string
+  dispatchedAt?: Date
+  trackingEvents?: { status: string; note?: string; location?: string; at: Date }[]
   escrowId?: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
@@ -88,6 +92,21 @@ const OrderSchema = new Schema<IOrder>(
     },
     estimatedDelivery: { type: Date },
     deliveredAt: { type: Date },
+    // Issued when the seller marks the order dispatched. Quotable over the
+    // phone and printable on a delivery note, which an ObjectId is not.
+    trackingNumber: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
+    carrier: { type: String, trim: true },
+    dispatchedAt: { type: Date },
+    // Append-only history. A single status field answers "where is it now" but
+    // not "when did it leave" or "who said so", which is exactly what a buyer
+    // chasing a late shipment — and a dispute reviewer afterwards — needs.
+    trackingEvents: [{
+      _id: false,
+      status: { type: String, required: true },
+      note: { type: String },
+      location: { type: String },
+      at: { type: Date, default: Date.now },
+    }],
     escrowId: { type: Schema.Types.ObjectId, ref: 'Escrow' },
   },
   { timestamps: true }
@@ -102,5 +121,7 @@ const OrderSchema = new Schema<IOrder>(
 OrderSchema.index({ buyerId: 1, createdAt: -1 })
 OrderSchema.index({ sellerId: 1, createdAt: -1 })
 OrderSchema.index({ status: 1, createdAt: -1 })
+// Lookup by the reference a buyer actually types into "Track my product".
+OrderSchema.index({ trackingNumber: 1 })
 
 export default mongoose.model<IOrder>('Order', OrderSchema)
