@@ -5,6 +5,7 @@ import LiveSession from '../models/LiveSession'
 import User from '../models/User'
 import Follow from '../models/Follow'
 import Conversation from '../models/Conversation'
+import Message from '../models/Message'
 import { sendNotification } from '../services/notification.service'
 
 const onlineUsers  = new Map<string, string>()         // userId → socketId
@@ -37,6 +38,16 @@ function emitViewerCount(io: Server, broadcasterId: string) {
     .catch(err => console.error('[live] emitViewerCount update failed', err))
 }
 
+/**
+ * Is this user currently holding a socket?
+ *
+ * Used to decide whether a new message has reached their device. "Delivered"
+ * should mean it arrived on their phone, not that they happened to have the
+ * thread open — otherwise the state is unreachable, because opening the thread
+ * marks it read in the same breath.
+ */
+export const isUserOnline = (userId: string): boolean => onlineUsers.has(String(userId))
+
 export const initSocket = (io: Server): void => {
   // Every connecting socket must present a valid access token — the userId can no
   // longer be asserted directly by the client (it used to be trusted as-is, which
@@ -58,14 +69,69 @@ export const initSocket = (io: Server): void => {
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.userId as string
     onlineUsers.set(userId, socket.id)
+
+    // Resolved server-side so a client cannot present someone else's name in a
+    // typing indicator. Best-effort: the indicator degrades to "Typing…".
+    User.findById(userId).select('name').lean()
+      .then(u => { socket.data.userName = u?.name })
+      .catch(() => {})
     socket.join(`user:${userId}`)
 
     // ── Messaging ──────────────────────────────────────────────────────────────
     socket.on('join_conversation', async (id: string) => {
       const convo = await Conversation.findById(id).select('participants').lean()
-      if (convo && convo.participants.map(String).includes(userId)) socket.join(`conv:${id}`)
+      const allowed = Boolean(convo && convo.participants.map(String).includes(userId))
+      if (allowed) {
+        socket.join(`conv:${id}`)
+      } else {
+        // A refused join is silent to the client and shows up only as realtime
+        // never arriving, which is indistinguishable from a network problem.
+        console.warn(`socket: refused join_conversation ${id} for user ${userId} (found=${Boolean(convo)})`)
+      }
     })
-    socket.on('leave_conversation', (id: string) => socket.leave(`conv:${id}`))
+    socket.on('leave_conversation', (id: string) => {
+      socket.leave(`conv:${id}`)
+      // Leaving while mid-sentence would otherwise strand a "typing…" indicator
+      // on the other side until the next keystroke that never comes.
+      socket.to(`conv:${id}`).emit('typing', { conversationId: id, userId, isTyping: false })
+    })
+
+    // ── Typing ─────────────────────────────────────────────────────────────────
+    // Relayed, never stored. `socket.to(room)` excludes the sender, so nobody is
+    // told that they themselves are typing. Room membership was already checked
+    // in join_conversation, so a client cannot broadcast into a thread it is not
+    // part of.
+    socket.on('typing', (d: { conversationId: string; isTyping: boolean }) => {
+      if (!d?.conversationId) return
+      if (!socket.rooms.has(`conv:${d.conversationId}`)) return
+      socket.to(`conv:${d.conversationId}`).emit('typing', {
+        conversationId: d.conversationId,
+        userId,
+        name: socket.data.userName,
+        isTyping: Boolean(d.isTyping),
+      })
+    })
+
+    // ── Delivery receipts ──────────────────────────────────────────────────────
+    // The recipient's client confirms arrival. Only messages from the OTHER
+    // party are marked, so a client cannot mark its own messages delivered and
+    // fake a receipt to itself.
+    socket.on('message:delivered', async (d: { conversationId: string }) => {
+      if (!d?.conversationId) return
+      if (!socket.rooms.has(`conv:${d.conversationId}`)) return
+      const now = new Date()
+      const result = await Message.updateMany(
+        { conversationId: d.conversationId, senderId: { $ne: userId }, deliveredAt: null },
+        { deliveredAt: now }
+      )
+      if (result.modifiedCount > 0) {
+        io.to(`conv:${d.conversationId}`).emit('message:delivered', {
+          conversationId: d.conversationId,
+          deliveredTo: userId,
+          deliveredAt: now,
+        })
+      }
+    })
     // No `send_message` handler: messages are persisted via POST /api/messages,
     // which does the membership check and emits `message:new` itself. The old
     // client-driven relay took an unvalidated conversationId and payload, so any

@@ -5,6 +5,7 @@ import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import User from '../models/User'
 import { sendNotification, emitToRoom } from '../services/notification.service'
+import { isUserOnline } from '../socket'
 
 export const getConversations = async (req: AuthRequest, res: Response) => {
   try {
@@ -62,6 +63,16 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
+    // Opening the thread is proof of arrival for anything that was sent while
+    // this user was offline — the socket receipt only covers messages that
+    // landed while they were connected. Done before the read so the response
+    // already carries the new state and the sender's ticks settle in one round
+    // trip rather than two.
+    await Message.updateMany(
+      { conversationId, senderId: { $ne: req.user!.id }, deliveredAt: null },
+      { deliveredAt: new Date() }
+    )
+
     const messages = await Message.find({ conversationId })
       .populate('senderId', 'name username avatar')
       .sort({ createdAt: 1 })
@@ -114,7 +125,14 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     if (!conversation) return res.status(400).json({ success: false, message: 'Cannot create conversation' })
 
-    const message = await Message.create({ conversationId: conversation._id, senderId, content, mediaUrl })
+    // If the recipient is connected, the push below reaches their device
+    // immediately — so record delivery now rather than waiting for them to open
+    // the thread, which would mark it read in the same moment and make
+    // "delivered" a state the sender could never actually observe.
+    const deliverToId = conversation.participants.map(String).find(pid => pid !== senderId)
+    const deliveredAt = deliverToId && isUserOnline(deliverToId) ? new Date() : undefined
+
+    const message = await Message.create({ conversationId: conversation._id, senderId, content, mediaUrl, deliveredAt })
     conversation.lastMessage = content
     conversation.lastMessageAt = new Date()
     await conversation.save()
@@ -123,7 +141,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     emitToRoom(`conv:${conversation._id}`, 'message:new', message)
 
-    const notifyRecipientId = conversation.participants.map(String).find(id => id !== senderId)
+    const notifyRecipientId = deliverToId
     if (notifyRecipientId) {
       const sender = await User.findById(senderId).select('name')
       await sendNotification({

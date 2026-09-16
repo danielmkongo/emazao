@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, Check, CheckCheck } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/authStore'
@@ -16,8 +16,11 @@ interface Message {
   senderId: User | string
   content: string
   mediaUrl?: string
+  deliveredAt?: string
   readAt?: string
   createdAt: string
+  /** Set only on the optimistic copy shown before the server confirms. */
+  pending?: boolean
 }
 
 interface Conversation {
@@ -45,6 +48,19 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+/**
+ * Sent → delivered → read, plus the pending state before the server has
+ * confirmed anything. A single grey tick previously covered everything from
+ * "still uploading" to "sitting unread on their phone", which tells a seller
+ * chasing a shipment nothing useful.
+ */
+function MessageTicks({ msg }: { msg: Message }) {
+  if (msg.pending) return <Clock className="h-3 w-3 text-[var(--c-text-4)]" aria-label="Sending" />
+  if (msg.readAt) return <CheckCheck className="h-3 w-3 text-brand-green" aria-label="Read" />
+  if (msg.deliveredAt) return <CheckCheck className="h-3 w-3 text-[var(--c-text-4)]" aria-label="Delivered" />
+  return <Check className="h-3 w-3 text-[var(--c-text-4)]" aria-label="Sent" />
+}
+
 // Append a message only if it isn't already in the list. The backend broadcasts
 // 'message:new' to the whole conversation room — including the sender — so without
 // this the sender would see their own message twice (once optimistically, once echoed).
@@ -58,7 +74,11 @@ export default function Thread() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const [text, setText] = useState('')
+  const [peerTyping, setPeerTyping] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const typingSentRef = useRef(false)
+  const typingStopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const peerTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
@@ -140,11 +160,38 @@ export default function Thread() {
       )
       return res.data.data
     },
-    onSuccess: (data) => {
+    // Show the message the instant it is typed, marked pending, and swap in the
+    // saved copy when the server answers. On a slow connection the alternative
+    // is a composer that clears with nothing visibly happening.
+    onMutate: (content: string) => {
+      if (isNewConvo || !user?._id) return
+      const optimistic: Message = {
+        _id: `pending-${Date.now()}`,
+        senderId: user._id,
+        content,
+        createdAt: new Date().toISOString(),
+        pending: true,
+      }
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, optimistic])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      return { optimisticId: optimistic._id }
+    },
+    onError: (_err, _vars, ctx) => {
+      // Drop the optimistic copy rather than leaving a message that looks sent.
+      if (ctx?.optimisticId) {
+        queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+          old.filter(m => m._id !== ctx.optimisticId))
+      }
+    },
+    onSuccess: (data, _vars, ctx) => {
       if (isNewConvo) {
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
         navigate(`/messages/${data.conversationId}`, { replace: true })
       } else {
+        if (ctx?.optimisticId) {
+          queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+            old.filter(m => m._id !== ctx.optimisticId))
+        }
         queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, data.message))
         // Only the recipient receives 'notification:new', so nothing else would
         // tell the sender's own inbox that this thread just moved to the top
@@ -162,6 +209,8 @@ export default function Thread() {
     socket.emit('join_conversation', id)
     socket.on('message:new', (msg: Message) => {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, msg))
+      // It is on screen, so it has arrived — tell the sender.
+      if (getSenderId(msg) !== user._id) socket.emit('message:delivered', { conversationId: id })
       // Keeps the list beside the thread (desktop split-pane) in step with it.
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -174,7 +223,31 @@ export default function Thread() {
         old.map(m => (getSenderId(m) === user._id && !m.readAt) ? { ...m, readAt } : m)
       )
     })
-    return () => { socket.off('message:new'); socket.off('message:read'); socket.emit('leave_conversation', id) }
+    socket.on('message:delivered', ({ deliveredTo, deliveredAt }: { deliveredTo: string; deliveredAt: string }) => {
+      if (deliveredTo === user._id) return
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+        old.map(m => (getSenderId(m) === user._id && !m.deliveredAt) ? { ...m, deliveredAt } : m)
+      )
+    })
+    socket.on('typing', ({ userId: who, name, isTyping }: { userId: string; name?: string; isTyping: boolean }) => {
+      if (who === user._id) return
+      if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+      if (!isTyping) { setPeerTyping(null); return }
+      setPeerTyping(name || 'Typing')
+      // Safety net: if the other client disconnects mid-sentence its stop event
+      // never arrives, and the indicator would otherwise hang there forever.
+      peerTypingTimeoutRef.current = setTimeout(() => setPeerTyping(null), 6000)
+    })
+
+    // Confirm arrival of anything already on screen from the other party.
+    socket.emit('message:delivered', { conversationId: id })
+
+    return () => {
+      socket.off('message:new'); socket.off('message:read')
+      socket.off('message:delivered'); socket.off('typing')
+      if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+      socket.emit('leave_conversation', id)
+    }
   }, [id, user?._id, isNewConvo, queryClient])
 
   useEffect(() => {
@@ -187,7 +260,34 @@ export default function Thread() {
   // second participant that could never be delivered.
   const canSend = isNewConvo ? Boolean(recipientIdParam) : Boolean(id)
 
+  /**
+   * Emit typing on the first keystroke and stop after a pause, rather than one
+   * event per character — a chatty seller would otherwise put a socket message
+   * on the wire for every letter typed.
+   */
+  const signalTyping = () => {
+    if (isNewConvo || !id) return
+    const socket = getSocket()
+    if (!typingSentRef.current) {
+      typingSentRef.current = true
+      socket.emit('typing', { conversationId: id, isTyping: true })
+    }
+    if (typingStopRef.current) clearTimeout(typingStopRef.current)
+    typingStopRef.current = setTimeout(() => {
+      typingSentRef.current = false
+      socket.emit('typing', { conversationId: id, isTyping: false })
+    }, 2500)
+  }
+
+  const stopTyping = () => {
+    if (isNewConvo || !id || !typingSentRef.current) return
+    if (typingStopRef.current) clearTimeout(typingStopRef.current)
+    typingSentRef.current = false
+    getSocket().emit('typing', { conversationId: id, isTyping: false })
+  }
+
   const handleSend = () => {
+    stopTyping()
     if (!text.trim() || sendMutation.isPending || !canSend) return
     sendMutation.mutate(text.trim())
     if (!isNewConvo) setText('')
@@ -226,7 +326,18 @@ export default function Thread() {
         )}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-[var(--c-text)] text-sm leading-tight truncate">{other?.name ?? '…'}</p>
-          {other?.username && <p className="text-[var(--c-text-4)] text-xs">@{other.username}</p>}
+          {peerTyping ? (
+            <p className="text-brand-green text-xs font-medium flex items-center gap-1">
+              {peerTyping} is typing
+              <span className="inline-flex gap-0.5">
+                <span className="w-1 h-1 rounded-full bg-brand-green animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 rounded-full bg-brand-green animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 rounded-full bg-brand-green animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+            </p>
+          ) : other?.username ? (
+            <p className="text-[var(--c-text-4)] text-xs">@{other.username}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => startCall(false)} disabled={!other} aria-label="Voice call" className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] hover:text-[var(--c-text)] transition-colors disabled:opacity-40">
@@ -306,11 +417,7 @@ export default function Thread() {
                   {isLast && (
                     <div className={`flex items-center gap-1 mt-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[var(--c-text-4)] text-[10px]">{formatTime(msg.createdAt)}</span>
-                      {isMe && (
-                        msg.readAt
-                          ? <CheckCheck className="h-3 w-3 text-brand-green" />
-                          : <Check className="h-3 w-3 text-[var(--c-text-4)]" />
-                      )}
+                      {isMe && <MessageTicks msg={msg} />}
                     </div>
                   )}
                 </div>
@@ -328,7 +435,7 @@ export default function Thread() {
             <input
               ref={inputRef}
               value={text}
-              onChange={e => setText(e.target.value)}
+              onChange={e => { setText(e.target.value); signalTyping() }}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
               disabled={!canSend}
               placeholder={canSend ? `Message ${other?.name ?? ''}…` : 'Pick someone to message first'}
