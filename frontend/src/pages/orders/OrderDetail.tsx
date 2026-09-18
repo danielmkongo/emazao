@@ -92,6 +92,18 @@ export default function OrderDetail() {
   // history — a plain status flip to SHIPPED gave the buyer nothing to follow.
   const [dispatchOpen, setDispatchOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+
+  // Only invite a review the server will actually accept. Without this the
+  // prompt stayed up after the buyer had reviewed, and pressing it again just
+  // produced "You have already reviewed this order".
+  const { data: reviewable } = useQuery({
+    queryKey: ['reviewable'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: { _id: string }[] }>('/reviews/reviewable')
+      return res.data.data ?? []
+    },
+  })
+  const canReview = Boolean(reviewable?.some(r => r._id === id))
   const [carrier, setCarrier] = useState('')
   const [dispatchNote, setDispatchNote] = useState('')
 
@@ -267,7 +279,7 @@ export default function OrderDetail() {
 
       {/* Actions */}
       {/* Rate the seller once the goods have arrived. */}
-      {isBuyer && ['DELIVERED', 'COMPLETED'].includes(order.status) && (
+      {isBuyer && canReview && (
         <div className="flex items-center justify-between gap-3 bg-amber-400/[0.08] border border-amber-400/30 rounded-2xl p-4 mb-4">
           <div>
             <p className="text-[var(--c-text)] font-semibold text-sm">How was {seller?.name ?? 'the seller'}?</p>
