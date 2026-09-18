@@ -34,7 +34,7 @@ export const submitFeedback = async (req: AuthRequest, res: Response) => {
       // reply to them.
       name: req.user ? undefined : name?.trim(),
       email: req.user?.email ?? email?.trim(),
-      category: category ?? 'SUGGESTION',
+      category: (category ?? 'SUGGESTION') as 'BUG' | 'SUGGESTION' | 'COMPLAINT' | 'PRAISE' | 'OTHER',
       message: message.trim(),
       rating: rating && rating >= 1 && rating <= 5 ? rating : undefined,
       page: page?.trim().slice(0, 200),

@@ -4,7 +4,7 @@ export type NotificationType =
   | 'ORDER' | 'NEW_ORDER' | 'ORDER_SHIPPED' | 'ESCROW_RELEASED'
   | 'BID' | 'NEW_BID' | 'BID_ACCEPTED' | 'BID_REJECTED' | 'BID_SHORTLISTED'
   | 'MESSAGE' | 'LIKE' | 'FOLLOW' | 'COMMENT' | 'MISSED_CALL'
-  | 'PAYMENT' | 'PAYOUT_REVERSED' | 'DELIVERY' | 'PROMOTION' | 'SYSTEM'
+  | 'PAYMENT' | 'PAYOUT_REVERSED' | 'DELIVERY' | 'PROMOTION' | 'SYSTEM' | 'REVIEW'
 
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId
@@ -28,7 +28,7 @@ const NotificationSchema = new Schema<INotification>(
         'ORDER', 'NEW_ORDER', 'ORDER_SHIPPED', 'ESCROW_RELEASED',
         'BID', 'NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'BID_SHORTLISTED',
         'MESSAGE', 'LIKE', 'FOLLOW', 'COMMENT', 'MISSED_CALL',
-        'PAYMENT', 'PAYOUT_REVERSED', 'DELIVERY', 'PROMOTION', 'SYSTEM',
+        'PAYMENT', 'PAYOUT_REVERSED', 'DELIVERY', 'PROMOTION', 'SYSTEM', 'REVIEW',
       ],
     },
     title: { type: String, required: true },

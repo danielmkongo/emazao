@@ -85,7 +85,7 @@ export const createReview = async (req: AuthRequest, res: Response) => {
  */
 export const getSellerReviews = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params
+    const userId = String(req.params['userId'] ?? '')
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ success: false, message: 'Invalid seller' })
     }
