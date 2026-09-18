@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Receipt, Users, ShieldCheck, ShieldAlert,
-  AlertOctagon, BarChart3, ScrollText, Settings2, ArrowLeft, Radio, Circle, Ban, UserSearch,
+  AlertOctagon, BarChart3, ScrollText, Settings2, ArrowLeft, Radio, Circle, Ban, UserSearch, Inbox,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/lib/utils'
@@ -49,6 +49,7 @@ const NAV = [
   {
     group: 'Govern',
     items: [
+      { to: '/admin/feedback', label: 'Feedback', icon: Inbox },
       { to: '/admin/audit', label: 'Audit log', icon: ScrollText },
       { to: '/admin/settings', label: 'Settings', icon: Settings2 },
     ],

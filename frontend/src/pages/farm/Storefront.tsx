@@ -6,6 +6,7 @@ import { MapPin, Package, Star, Users, MessageSquare, UserCheck, UserPlus } from
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
+import { SellerReviews } from '@/components/reviews/SellerReviews'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatNumber } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -218,6 +219,13 @@ export default function Storefront() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Reviews come from delivered orders only, so the rating reflects buyers
+          who actually received something rather than anyone with an opinion. */}
+      <div className="mt-8">
+        <h2 className="text-base font-bold text-[var(--c-text)] mb-4">Customer reviews</h2>
+        <SellerReviews sellerId={data.user._id} />
       </div>
     </div>
   )

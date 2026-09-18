@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Package, MapPin, CheckCircle, AlertTriangle, Truck, Clock, CreditCard, Copy, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { ReviewDialog } from '@/components/reviews/ReviewDialog'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar } from '@/components/ui/avatar'
@@ -90,6 +91,7 @@ export default function OrderDetail() {
   // Dispatching issues the tracking number and opens the shipment's event
   // history — a plain status flip to SHIPPED gave the buyer nothing to follow.
   const [dispatchOpen, setDispatchOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [carrier, setCarrier] = useState('')
   const [dispatchNote, setDispatchNote] = useState('')
 
@@ -264,6 +266,17 @@ export default function OrderDetail() {
       )}
 
       {/* Actions */}
+      {/* Rate the seller once the goods have arrived. */}
+      {isBuyer && ['DELIVERED', 'COMPLETED'].includes(order.status) && (
+        <div className="flex items-center justify-between gap-3 bg-amber-400/[0.08] border border-amber-400/30 rounded-2xl p-4 mb-4">
+          <div>
+            <p className="text-[var(--c-text)] font-semibold text-sm">How was {seller?.name ?? 'the seller'}?</p>
+            <p className="text-[var(--c-text-3)] text-xs mt-0.5">Your review helps other buyers decide who to trust.</p>
+          </div>
+          <Button size="sm" onClick={() => setReviewOpen(true)}>Rate seller</Button>
+        </div>
+      )}
+
       {/* Shipment tracking — shown once the order has actually been dispatched. */}
       {order.trackingNumber && (
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl p-4 mb-4">
@@ -321,6 +334,16 @@ export default function OrderDetail() {
             </Button>
           )}
         </motion.div>
+      )}
+
+      {reviewOpen && (
+        <ReviewDialog
+          orderId={order._id}
+          orderNumber={order.orderNumber}
+          sellerName={seller?.name ?? 'the seller'}
+          sellerId={seller?._id}
+          onClose={() => setReviewOpen(false)}
+        />
       )}
 
       {/* Dispatch dialog */}

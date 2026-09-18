@@ -7,7 +7,7 @@ import User from '../models/User'
 import { sendNotification } from '../services/notification.service'
 
 /** Orders that represent a completed exchange worth reviewing. */
-const REVIEWABLE = ['DELIVERED', 'COMPLETED']
+const REVIEWABLE = ['DELIVERED', 'COMPLETED'] as const
 
 /**
  * POST /api/reviews — rate a seller after an order.
@@ -41,7 +41,7 @@ export const createReview = async (req: AuthRequest, res: Response) => {
     if (String(order.buyerId) !== req.user!.id) {
       return res.status(403).json({ success: false, message: 'Only the buyer on this order can review it' })
     }
-    if (!REVIEWABLE.includes(order.status)) {
+    if (!(REVIEWABLE as readonly string[]).includes(order.status)) {
       return res.status(409).json({
         success: false,
         message: 'You can review once the order has been delivered',
@@ -141,7 +141,7 @@ export const getSellerReviews = async (req: Request, res: Response) => {
  */
 export const getReviewableOrders = async (req: AuthRequest, res: Response) => {
   try {
-    const orders = await Order.find({ buyerId: req.user!.id, status: { $in: REVIEWABLE } })
+    const orders = await Order.find({ buyerId: req.user!.id, status: { $in: [...REVIEWABLE] } })
       .populate('sellerId', 'name username avatar')
       .sort({ createdAt: -1 })
       .limit(20)

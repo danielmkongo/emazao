@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
   Package, Wallet, Bell, Settings, LogOut, LogIn, Sun, Moon, Radio, LayoutDashboard, Plus,
-  ShieldCheck, Receipt,
+  ShieldCheck, Receipt, HeartPulse, MessageSquareHeart,
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +24,7 @@ const navGroups = [
       { icon: Search,      label: 'nav.explore',     href: '/explore' },
       { icon: Play,        label: 'nav.reels',       href: '/reels' },
       { icon: ShoppingBag, label: 'nav.marketplace', href: '/marketplace' },
+      { icon: HeartPulse,  label: 'nav.nutrition',   href: '/nutrition' },
     ],
   },
   {
@@ -39,6 +40,7 @@ const navGroups = [
     items: [
       { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
       { icon: Bell,          label: 'nav.alerts',   href: '/notifications' },
+      { icon: MessageSquareHeart, label: 'nav.feedback', href: '/feedback' },
     ],
   },
 ]

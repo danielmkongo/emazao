@@ -22,7 +22,9 @@
     "darkMode": "Mwonekano wa Giza",
     "lightMode": "Mwonekano wa Mwanga",
     "postRequirement": "Weka Hitaji",
-    "shareReel": "Shiriki Vidio Fupi"
+    "shareReel": "Shiriki Vidio Fupi",
+    "nutrition": "Lishe Maalum",
+    "feedback": "Maoni"
   },
   "auth": {
     "welcomeBack": "Karibu tena",

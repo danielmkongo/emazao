@@ -22,7 +22,9 @@
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
     "postRequirement": "Post a Requirement",
-    "shareReel": "Share a Reel"
+    "shareReel": "Share a Reel",
+    "nutrition": "Special nutrition",
+    "feedback": "Feedback"
   },
   "auth": {
     "welcomeBack": "Welcome back",

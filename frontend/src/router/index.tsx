@@ -79,6 +79,9 @@ const AdminAudit = lazy(() => import('@/pages/admin/AdminAudit'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 const AdminBans = lazy(() => import('@/pages/admin/AdminBans'))
 const AdminCustomers = lazy(() => import('@/pages/admin/AdminCustomers'))
+const AdminFeedback = lazy(() => import('@/pages/admin/AdminFeedback'))
+const Nutrition = lazy(() => import('@/pages/marketplace/Nutrition'))
+const FeedbackPage = lazy(() => import('@/pages/Feedback'))
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore()
@@ -149,6 +152,8 @@ export const router = createBrowserRouter([
       { path: '/farm/:username', element: wrap(Storefront) },
       { path: '/profile/:username', element: wrap(Profile) },
       { path: '/explore', element: wrap(Explore) },
+      { path: '/nutrition', element: wrap(Nutrition) },
+      { path: '/feedback', element: wrap(FeedbackPage) },
     ],
   },
 
@@ -165,6 +170,7 @@ export const router = createBrowserRouter([
       { path: 'transactions', element: wrap(AdminTransactions) },
       { path: 'customers', element: wrap(AdminCustomers) },
       { path: 'bans', element: wrap(AdminBans) },
+      { path: 'feedback', element: wrap(AdminFeedback) },
       { path: 'users', element: wrap(AdminUsers) },
       { path: 'verification', element: wrap(AdminVerification) },
       { path: 'compliance', element: wrap(AdminCompliance) },

@@ -52,12 +52,20 @@ export default function AddProduct() {
     defaultValues: { condition: 'FRESH', isOrganic: false, minimumOrder: 1 },
   })
 
+  // Who this produce is especially suited to. Feeds the Special nutrition
+  // section, which buyers use when shopping for a child, a pregnant or nursing
+  // mother, someone ill, or an elderly relative.
+  const [nutritionTags, setNutritionTags] = useState<string[]>([])
+  const toggleNutrition = (k: string) =>
+    setNutritionTags(t => (t.includes(k) ? t.filter(x => x !== k) : [...t, k]))
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const payload = {
         ...data,
         images,
         tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        nutritionTags,
       }
       const res = await api.post('/products', payload)
       return res.data
@@ -174,6 +182,34 @@ export default function AddProduct() {
           </div>
           <span className="text-[var(--c-text)] flex items-center gap-2"><Leaf className="h-4 w-4 text-brand-green" />Certified Organic</span>
         </label>
+
+        <fieldset>
+          <legend className="text-sm font-medium text-[var(--c-text-2)] mb-1">Especially good for <span className="text-[var(--c-text-4)] font-normal">(optional)</span></legend>
+          <p className="text-[var(--c-text-4)] text-xs mb-2.5">
+            Tick only what genuinely applies — buyers read this as guidance on what to feed people who depend on them.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['CHILDREN', 'Children'], ['PREGNANT', 'Pregnant women'], ['NURSING', 'Nursing mothers'],
+              ['PATIENTS', 'The sick'], ['ELDERLY', 'The elderly'],
+            ].map(([key, label]) => {
+              const on = nutritionTags.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleNutrition(key)}
+                  aria-pressed={on}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    on ? 'bg-brand-green text-white border-brand-green' : 'bg-[var(--c-input)] text-[var(--c-text-2)] border-[var(--c-border)] hover:text-[var(--c-text)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
 
         {mutation.isError && (
           <p className="text-red-400 text-sm">{(mutation.error as any)?.response?.data?.message || 'Failed to create product'}</p>
