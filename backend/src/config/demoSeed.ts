@@ -26,6 +26,7 @@ import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import Notification from '../models/Notification'
 import { seedCategories } from './seed'
+import { purgeDemoData } from './demoData'
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/emazao'
 
@@ -96,45 +97,32 @@ const vid = (_i?: number) => VIDEOS[_vidCursor++ % VIDEOS.length]
 const slug = (title: string) => slugify(title, { lower: true, strict: true })
 
 async function main() {
+  // Demo accounts share a public password. On a live site anyone could sign in
+  // as them, so seeding production has to be asked for explicitly.
+  if (process.env.NODE_ENV === 'production' && !process.argv.includes('--production')) {
+    console.error('NODE_ENV is production. Demo accounts have a public password (Demo1234!).')
+    console.error('If you really want demo data on this server, run:  npm run seed:add -- --production')
+    process.exit(1)
+  }
   await mongoose.connect(MONGO_URI)
   console.log('✅ Connected to MongoDB')
 
   // Ensure categories exist before seeding products
   await seedCategories()
 
-  await Promise.all([
-    User.deleteMany({ email: /@emazao\.demo$/ }),
-    SellerProfile.deleteMany({}),
-    Product.deleteMany({}),
-    Requirement.deleteMany({}),
-    Bid.deleteMany({}),
-    Order.deleteMany({}),
-    Wallet.deleteMany({}),
-    Reel.deleteMany({}),
-    Comment.deleteMany({}),
-    Follow.deleteMany({}),
-    Like.deleteMany({}),
-    Save.deleteMany({}),
-    Review.deleteMany({}),
-    Conversation.deleteMany({}),
-    Message.deleteMany({}),
-    Notification.deleteMany({}),
-  ])
-  console.log('🗑️  Cleared old demo data')
+  // Re-seeding replaces the previous demo set and nothing else. This used to
+  // run Product.deleteMany({}), Order.deleteMany({}) and the like, which on a
+  // live database would have erased every real listing, order and message.
+  const cleared = await purgeDemoData({ apply: true })
+  console.log(`🗑️  Cleared the previous demo set (${cleared.total} documents); real data untouched`)
 
   const hash = await bcrypt.hash('Demo1234!', 12)
 
   // ─── 1. USERS ───────────────────────────────────────────────────────────────
   const [
-    /* admin  */ , farmer1, farmer2, farmer3, farmer4, farmer5,
+    farmer1, farmer2, farmer3, farmer4, farmer5,
     buyer1, buyer2, buyer3
   ] = await User.insertMany([
-    {
-      name: 'Admin Emazao', email: 'admin@emazao.demo', username: 'admin_emazao',
-      passwordHash: hash, role: 'SUPER_ADMIN', isVerified: true, verifiedType: 'ID_VERIFIED',
-      country: 'Kenya', location: 'Nairobi', onboardingDone: true,
-      bio: 'Platform administrator',
-    },
     // ── Farmers ──
     {
       name: 'James Kamau', email: 'james@emazao.demo', username: 'james_kamau',
@@ -207,7 +195,7 @@ async function main() {
       onboardingDone: true,
     },
   ])
-  console.log('👥 Created 9 users (5 farmers, 3 buyers, 1 admin)')
+  console.log('👥 Created 8 users (5 farmers, 3 buyers)')
 
   // ─── 2. WALLETS ─────────────────────────────────────────────────────────────
   const daysAgo = (n: number) => new Date(Date.now() - n * 86400000)
@@ -1700,7 +1688,7 @@ async function main() {
   ])
   console.log('🔔 Created 24 notifications')
 
-  console.log('\n✅ Demo seed complete! (9 users, 25 products, 25 reels, 6 requirements, 10 bids, 6 orders, 15 follows, 23 likes, 10 saves, 2 reviews, 5 conversations, 24 notifications)')
+  console.log('\n✅ Demo seed complete! (8 users, 25 products, 25 reels, 6 requirements, 10 bids, 6 orders, 15 follows, 23 likes, 10 saves, 2 reviews, 5 conversations, 24 notifications)')
   console.log('══════════════════════════════════════════════')
   console.log('  Login credentials (password: Demo1234!)')
   console.log('──────────────────────────────────────────────')
@@ -1714,8 +1702,7 @@ async function main() {
   console.log('    sarah@emazao.demo      (FreshMart Supermarkets, Kenya)')
   console.log('    ali@emazao.demo        (Dubai Importer, UAE)')
   console.log('    fatima@emazao.demo     (Riyadh Food Co., Saudi Arabia)')
-  console.log('  Admin:')
-  console.log('    admin@emazao.demo')
+  console.log('  Admins are never seeded — create real ones with npm run create:admin')
   console.log('══════════════════════════════════════════════')
 
   await mongoose.disconnect()
