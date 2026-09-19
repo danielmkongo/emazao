@@ -1,7 +1,6 @@
 import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Reel from '../models/Reel'
-import Comment from '../models/Comment'
 import Like from '../models/Like'
 import Save from '../models/Save'
 import { initContentStats, recordInteraction } from '../services/recommendation/signals'
@@ -165,38 +164,7 @@ export const recordReelView = async (req: AuthRequest, res: Response) => {
   }
 }
 
-export const getComments = async (req: AuthRequest, res: Response) => {
-  try {
-    const comments = await Comment.find({ reelId: req.params.id })
-      .populate('userId', 'name username avatar isVerified')
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean()
-    res.json({ success: true, data: comments })
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message })
-  }
-}
 
-export const postComment = async (req: AuthRequest, res: Response) => {
-  try {
-    const { content } = req.body
-    if (!content?.trim()) return res.status(400).json({ success: false, message: 'Content required' })
-    const created = await Comment.create({
-      userId: req.user!.id,
-      reelId: req.params.id as any,
-      content: content.trim(),
-    })
-    await Reel.findByIdAndUpdate(req.params.id, { $inc: { commentCount: 1 } })
-    // Fetch with populate rather than calling .populate() on the instance (more reliable in Mongoose 8)
-    const comment = await Comment.findById(created.id)
-      .populate('userId', 'name username avatar isVerified')
-      .lean()
-    res.status(201).json({ success: true, data: comment })
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message })
-  }
-}
 
 export const incrementShareCount = async (req: AuthRequest, res: Response) => {
   try {

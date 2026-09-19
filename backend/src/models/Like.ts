@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface ILike extends Document {
   userId: mongoose.Types.ObjectId
   targetId: mongoose.Types.ObjectId
-  targetType: 'Product' | 'Reel'
+  targetType: 'Product' | 'Reel' | 'Comment'
   createdAt: Date
 }
 
@@ -11,7 +11,7 @@ const LikeSchema = new Schema<ILike>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     targetId: { type: Schema.Types.ObjectId, required: true, refPath: 'targetType' },
-    targetType: { type: String, enum: ['Product', 'Reel'], required: true },
+    targetType: { type: String, enum: ['Product', 'Reel', 'Comment'], required: true },
   },
   { timestamps: true }
 )

@@ -10,101 +10,10 @@ import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import { ShareSheet } from '@/components/reels/ShareSheet'
+import { CommentsDrawer } from '@/components/reels/CommentsDrawer'
 import type { ApiResponse, Reel, User, Product } from '@/types'
 
 interface ReelPage { data: Reel[]; nextCursor: string | null }
-interface CommentData { _id: string; userId: User; content: string; likeCount: number; createdAt: string }
-
-// ─── Comments drawer ───────────────────────────────────────────────────────────
-function CommentsDrawer({
-  reelId, count, onClose, onCommentAdded,
-}: {
-  reelId: string; count: number; onClose: () => void; onCommentAdded: () => void
-}) {
-  const { user } = useAuthStore()
-  const [text, setText] = useState('')
-  const queryClient = useQueryClient()
-
-  const { data: comments, isLoading } = useQuery({
-    queryKey: ['reel-comments', reelId],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CommentData[]>>(`/reels/${reelId}/comments`)
-      return (res.data.data ?? []).filter(Boolean) as CommentData[]
-    },
-  })
-
-  const postMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const res = await api.post<ApiResponse<CommentData>>(`/reels/${reelId}/comments`, { content })
-      return res.data.data
-    },
-    onSuccess: (comment) => {
-      if (!comment) return
-      queryClient.setQueryData(['reel-comments', reelId], (old: CommentData[] = []) =>
-        [comment, ...old.filter(c => c && c._id !== comment._id)]
-      )
-      onCommentAdded()
-      setText('')
-    },
-  })
-
-  return (
-    <motion.div
-      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="absolute inset-x-0 bottom-0 bg-[#111827]/97 backdrop-blur-xl rounded-t-3xl z-30 flex flex-col"
-      style={{ maxHeight: '70%' }}
-      onPointerDown={e => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-        <h3 className="font-semibold text-white">{formatNumber(count)} Comments</h3>
-        <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-        {isLoading ? (
-          <div className="text-center text-white/30 text-sm py-8">Loading...</div>
-        ) : !comments?.length ? (
-          <div className="text-center text-white/30 text-sm py-8">No comments yet. Be the first!</div>
-        ) : comments.filter(c => c?._id).map(c => {
-          const author = c.userId as unknown as { name?: string; username?: string; avatar?: string } | null
-          return (
-            <div key={c._id} className="flex items-start gap-3">
-              <Avatar src={author?.avatar} name={author?.name} size="xs" />
-              <div className="flex-1">
-                <p className="text-white/80 text-xs font-semibold mb-0.5">@{author?.username ?? 'user'}</p>
-                <p className="text-white text-sm leading-relaxed">{c.content}</p>
-                <p className="text-white/30 text-xs mt-1">{c.createdAt ? timeAgo(c.createdAt) : ''}</p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {user && (
-        <div className="px-4 py-3 border-t border-white/10 flex items-center gap-3">
-          <Avatar src={user.avatar} name={user.name} size="xs" />
-          <input
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && text.trim() && postMutation.mutate(text.trim())}
-            placeholder="Add a comment..."
-            className="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:bg-white/15"
-          />
-          <button
-            onClick={() => text.trim() && postMutation.mutate(text.trim())}
-            disabled={!text.trim() || postMutation.isPending}
-            className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center text-white disabled:opacity-40 transition-opacity"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-    </motion.div>
-  )
-}
 
 // ─── Individual reel card ──────────────────────────────────────────────────────
 // Every render site below MUST pass `key={reel._id}`. The prev/current/next slots
@@ -557,9 +466,10 @@ function ReelCard({
         {showComments && (
           <CommentsDrawer
             reelId={reel._id}
+            reelOwnerId={reelUser?._id}
             count={commentCount}
             onClose={() => setShowComments(false)}
-            onCommentAdded={() => setCommentCount(n => n + 1)}
+            onCountChange={d => setCommentCount(n => Math.max(0, n + d))}
           />
         )}
       </AnimatePresence>

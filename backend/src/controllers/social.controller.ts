@@ -5,11 +5,15 @@ import Like from '../models/Like'
 import Save from '../models/Save'
 import Product from '../models/Product'
 import Reel from '../models/Reel'
+import Comment from '../models/Comment'
 import { recordInteraction } from '../services/recommendation/signals'
 import type { ContentType } from '../models/InteractionEvent'
 
 type Target = 'Product' | 'Reel'
 const TARGETS: Target[] = ['Product', 'Reel']
+// Comments can be liked but not saved, and carry no ranking signal.
+type LikeTarget = Target | 'Comment'
+const LIKE_TARGETS: LikeTarget[] = ['Product', 'Reel', 'Comment']
 const PAGE = 24
 
 // Resolve the creator of a liked/saved item so signals carry creator affinity
@@ -19,12 +23,13 @@ async function creatorOf(targetType: string, targetId: string): Promise<string |
   return undefined
 }
 
-const counterModel = (t: Target) => (t === 'Reel' ? Reel : Product) as unknown as mongoose.Model<any>
+const counterModel = (t: LikeTarget) =>
+  (t === 'Reel' ? Reel : t === 'Comment' ? Comment : Product) as unknown as mongoose.Model<any>
 
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
     const { targetId, targetType } = req.body
-    if (!TARGETS.includes(targetType) || !mongoose.isValidObjectId(targetId)) {
+    if (!LIKE_TARGETS.includes(targetType) || !mongoose.isValidObjectId(targetId)) {
       return res.status(400).json({ success: false, message: 'Invalid target' })
     }
     const userId = req.user!.id
@@ -51,6 +56,7 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
     // The signal store's content type is 'REEL' | 'PRODUCT'. This used to pass
     // 'Reel' / 'Product' straight through, which failed the enum on every call
     // inside a swallowed try — so likes never reached the ranking engine at all.
+    if (targetType === 'Comment') return
     const creatorId = await creatorOf(targetType, targetId)
     void recordInteraction({ userId, contentId: targetId, contentType: targetType.toUpperCase() as ContentType, creatorId, event: 'like' })
   } catch (err: any) {
