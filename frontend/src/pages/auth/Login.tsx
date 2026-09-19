@@ -116,25 +116,6 @@ export default function Login() {
             </Link>
           </p>
 
-          {/* Dev-only: advertising working credentials on a public login page invites
-              anyone to sign in as a seeded account. Vite statically replaces
-              import.meta.env.DEV with false for `vite build`, so this block is
-              dropped from the production bundle entirely rather than just hidden. */}
-          {import.meta.env.DEV && (
-            <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
-              <p className="text-xs text-[var(--c-text-4)] text-center mb-2">Demo accounts (password: Demo1234!)</p>
-              <div className="grid grid-cols-2 gap-2 text-xs text-[var(--c-text-3)]">
-                <div className="bg-[var(--c-input)] rounded-lg p-2">
-                  <p className="font-medium text-[var(--c-text-2)]">Farmer</p>
-                  <p>james@emazao.demo</p>
-                </div>
-                <div className="bg-[var(--c-input)] rounded-lg p-2">
-                  <p className="font-medium text-[var(--c-text-2)]">Buyer</p>
-                  <p>sarah@emazao.demo</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Offered before sign-in: a Swahili-first farmer shouldn't have to read

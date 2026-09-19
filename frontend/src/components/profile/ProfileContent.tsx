@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ReelThumb } from '@/components/reels/ReelThumb'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Clapperboard, Grid3x3, Bookmark, Heart, Play, Lock, Package } from 'lucide-react'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
@@ -105,7 +105,10 @@ function GridSkeleton({ tall }: { tall?: boolean }) {
  * Instagram and TikTok — what someone bookmarks or likes is theirs to know.
  */
 export function ProfileContent({ userId, isOwnProfile, isSeller }: { userId: string; isOwnProfile: boolean; isSeller: boolean }) {
-  const [tab, setTab] = useState<Tab>('reels')
+  // ?tab=saved (from the menu's Saved entry) opens straight onto that tab.
+  const [params] = useSearchParams()
+  const wanted = params.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(wanted && ['reels', 'posts', 'saved', 'liked'].includes(wanted) ? wanted : 'reels')
   const [savedKind, setSavedKind] = useState<Kind>('Reel')
   const [likedKind, setLikedKind] = useState<Kind>('Reel')
 

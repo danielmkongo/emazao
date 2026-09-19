@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import {
-  Home, Search, Store, Clapperboard, MessageCircle, Bell, PlusSquare, Menu, User,
-  Package, Wallet, FileText, HeartPulse, LayoutDashboard, ShieldCheck, Settings, MessageSquareHeart,
-  Sun, Moon, LogOut, LogIn, Receipt, ShoppingBag,
-} from 'lucide-react'
+import { Home, Search, Store, Clapperboard, MessageCircle, Bell, PlusSquare, Menu, User, LogIn } from 'lucide-react'
 import { Wordmark } from '@/components/ui/Wordmark'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
+import { AppMenuList } from './AppMenu'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { useUnreadStore } from '@/store/unreadStore'
@@ -53,15 +49,12 @@ function Item({ to, icon: Icon, label, count = 0, onClick }: {
 
 export const Sidebar = () => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const { user, clearAuth } = useAuthStore()
-  const { theme, toggleTheme, setCreateOpen } = useUIStore()
+  const user = useAuthStore(s => s.user)
+  const setCreateOpen = useUIStore(s => s.setCreateOpen)
   const unreadMessages = useUnreadStore(s => s.unreadMessages)
   const unread = useNotificationCount()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
-  const isFarmer = user?.role === 'FARMER'
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
   useEffect(() => {
     if (!moreOpen) return
@@ -71,13 +64,6 @@ export const Sidebar = () => {
     window.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey) }
   }, [moreOpen])
-
-  const menuLink = (to: string, Icon: typeof Home, label: string) => (
-    <button key={to} onClick={() => { setMoreOpen(false); navigate(to) }}
-      className="w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14.5px] text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-colors text-left">
-      <Icon className="h-5 w-5 text-[var(--c-text-2)]" strokeWidth={1.9} /> {label}
-    </button>
-  )
 
   return (
     <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 z-30 w-[76px] xl:w-[244px] px-3 pt-6 pb-4 bg-[var(--c-rail)] border-r border-[var(--c-border)]">
@@ -125,28 +111,7 @@ export const Sidebar = () => {
                 transition={{ duration: 0.14 }}
                 className="absolute bottom-full left-0 mb-2 w-[266px] p-2 rounded-2xl bg-[var(--c-card)] border border-[var(--c-border)] shadow-[var(--shadow-float)] z-50"
               >
-                {menuLink('/orders', Package, t('nav.orders'))}
-                {menuLink('/cart', ShoppingBag, t('nav.cart'))}
-                {menuLink('/wallet', Wallet, t('nav.wallet'))}
-                {menuLink('/requirements', FileText, t('nav.requirements'))}
-                {menuLink('/nutrition', HeartPulse, t('nav.nutrition'))}
-                {isFarmer && menuLink('/dashboard', LayoutDashboard, t('nav.dashboard'))}
-                {isAdmin && menuLink('/admin/overview', ShieldCheck, 'Admin panel')}
-                {isAdmin && menuLink('/admin/transactions', Receipt, 'Transactions')}
-                <div className="h-px bg-[var(--c-border)] my-1.5 mx-2" />
-                {menuLink('/settings', Settings, t('nav.settings'))}
-                {menuLink('/feedback', MessageSquareHeart, t('nav.feedback'))}
-                <button onClick={toggleTheme}
-                  className="w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14.5px] text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-colors">
-                  {theme === 'dark' ? <Sun className="h-5 w-5 text-[var(--c-text-2)]" /> : <Moon className="h-5 w-5 text-[var(--c-text-2)]" />}
-                  {theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')}
-                </button>
-                <div className="px-1 py-1"><LanguageSwitcher variant="compact" /></div>
-                <div className="h-px bg-[var(--c-border)] my-1.5 mx-2" />
-                <button onClick={() => { clearAuth(); navigate('/login') }}
-                  className="w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14.5px] text-red-500 hover:bg-red-500/10 transition-colors">
-                  <LogOut className="h-5 w-5" /> {t('nav.signOut')}
-                </button>
+                <AppMenuList onDone={() => setMoreOpen(false)} />
               </motion.div>
             )}
           </AnimatePresence>

@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, Calendar, Star, Phone, Video, UserCheck, X, Settings, BadgeCheck, Store, Check } from 'lucide-react'
+import { MapPin, Calendar, Star, Phone, Video, UserCheck, X, Menu, BadgeCheck, Store, Check } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatNumber, verifiedLabel } from '@/lib/utils'
 import { ProfileContent } from '@/components/profile/ProfileContent'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
 import { useStoryUI } from '@/lib/stories'
+import { AppMenuSheet } from '@/components/layout/AppMenu'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User, SellerProfile } from '@/types'
@@ -91,6 +92,7 @@ export default function Profile() {
   const [followed, setFollowed] = useState(false)
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
   const [copied, setCopied] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const openComposer = useStoryUI(s => s.openComposer)
 
   const targetUsername = username ?? me?.username
@@ -213,9 +215,11 @@ export default function Profile() {
           {user.isVerified && <BadgeCheck className="h-[18px] w-[18px] text-white fill-brand-green flex-shrink-0" />}
         </h1>
         {isOwnProfile && (
-          <Link to="/settings" aria-label="Settings" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-[var(--c-text)] press">
-            <Settings className="h-6 w-6" strokeWidth={1.9} />
-          </Link>
+          // Orders, wallet, requests, special nutrition, settings and the rest
+          // live behind this menu on phones, as on Instagram's profile.
+          <button onClick={() => setMenuOpen(true)} aria-label="Menu" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-[var(--c-text)] press">
+            <Menu className="h-[26px] w-[26px]" strokeWidth={1.9} />
+          </button>
         )}
       </div>
 
@@ -285,6 +289,8 @@ export default function Profile() {
       </header>
 
       <ProfileContent userId={user._id} isOwnProfile={isOwnProfile} isSeller={user.role === 'FARMER'} />
+
+      <AppMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       {/* Followers / Following modal */}
       <AnimatePresence>
