@@ -7,6 +7,7 @@ import { X, Camera, Images, Type, Tag, Loader2, ChevronRight, Check } from 'luci
 import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/lib/utils'
 import api from '@/lib/api'
+import { prepareImage, uploadMedia, uploadErrorMessage, isImageFile, isVideoFile } from '@/lib/media'
 import { useStoryUI, refreshStories, STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
 import type { ApiResponse, Product } from '@/types'
 
@@ -37,7 +38,7 @@ function Composer() {
 
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
-  const isVideo = !!file?.type.startsWith('video/')
+  const isVideo = !!file && isVideoFile(file) && !isImageFile(file)
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
   useEffect(() => {
@@ -48,11 +49,18 @@ function Composer() {
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey) }
   }, [close])
 
-  const onFile = (f?: File | null) => {
-    if (!f) return
-    if (!/^(image|video)\//.test(f.type)) { setError(t('stories.badFile')); return }
-    if (f.size > 100 * 1024 * 1024) { setError(t('stories.tooBig')); return }
+  const onFile = async (picked?: File | null) => {
+    if (!picked) return
+    const image = isImageFile(picked)
+    if (!image && !isVideoFile(picked)) { setError(t('stories.badFile')); return }
+    if (picked.size > 100 * 1024 * 1024) { setError(t('stories.tooBig')); return }
     setError(null)
+    // Photos are converted and shrunk right away, so the preview is exactly
+    // what gets posted and HEIC (iPhone) photos work in every browser.
+    let f = picked
+    if (image) {
+      try { f = await prepareImage(picked) } catch (e: any) { setError(e.message); return }
+    }
     setFile(f)
     setPreview(URL.createObjectURL(f))
     setMode('media')
@@ -67,13 +75,7 @@ function Composer() {
       let mediaUrl: string | undefined
       if (mode === 'media' && file) {
         setProgress(0)
-        const form = new FormData()
-        form.append('file', file)
-        const res = await api.post<ApiResponse<{ url: string }>>(isVideo ? '/upload/video' : '/upload/image', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: e => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
-        })
-        mediaUrl = res.data.data.url
+        mediaUrl = (await uploadMedia(file, setProgress)).url
       }
       setProgress(100)
       await api.post('/stories', mode === 'media'
@@ -83,7 +85,7 @@ function Composer() {
       close()
     } catch (err: any) {
       setProgress(null)
-      setError(err?.response?.data?.message ?? t('stories.shareFailed'))
+      setError(err?.response ? uploadErrorMessage(err) : (err?.message || t('stories.shareFailed')))
     }
   }
 

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import api from '@/lib/api'
+import { uploadMedia, uploadErrorMessage } from '@/lib/media'
 import { useAuthStore } from '@/store/authStore'
 import type { ApiResponse, Category, Product } from '@/types'
 
@@ -118,14 +119,14 @@ export default function EditProduct() {
     if (!files?.length) return
     setUploading(true)
     try {
+      // Shrunk on the phone first: full-size photos are slow on mobile data
+      // and bigger than the server accepts.
       for (const file of Array.from(files)) {
-        const formData = new FormData()
-        formData.append('file', file)
-        const res = await api.post<ApiResponse<{ url: string }>>('/upload/image', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
-        setImages(prev => [...prev, res.data.data.url])
+        const { url } = await uploadMedia(file)
+        setImages(prev => [...prev, url])
       }
+    } catch (err: any) {
+      window.alert(err?.response ? uploadErrorMessage(err) : (err?.message || 'Upload failed'))
     } finally {
       setUploading(false)
     }

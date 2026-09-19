@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { useAuthStore } from '@/store/authStore'
 import { useNavigate } from 'react-router-dom'
 import api from '@/lib/api'
+import { prepareImage } from '@/lib/media'
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -56,7 +57,8 @@ export default function Settings() {
     setAvatarError('')
     try {
       const form = new FormData()
-      form.append('file', file)
+      // A profile photo is shown small; 640px is plenty and uploads instantly.
+      form.append('file', await prepareImage(file, 640))
       const uploadRes = await api.post<{ success: boolean; data: { url: string } }>(
         '/upload/image', form, { headers: { 'Content-Type': 'multipart/form-data' } }
       )
