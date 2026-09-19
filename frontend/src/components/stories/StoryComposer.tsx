@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/lib/utils'
 import api from '@/lib/api'
 import { prepareImage, uploadMedia, uploadErrorMessage, isImageFile, isVideoFile } from '@/lib/media'
+import { StoryCamera } from './StoryCamera'
 import { useStoryUI, refreshStories, STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
 import type { ApiResponse, Product } from '@/types'
 
@@ -35,6 +36,7 @@ function Composer() {
   const [picking, setPicking] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
 
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
@@ -118,7 +120,7 @@ function Composer() {
             <div className="w-full h-full flex flex-col items-center justify-center gap-4 px-8"
               style={{ background: 'radial-gradient(120% 80% at 50% 0%, #14532d 0%, #052e16 45%, #000 100%)' }}>
               <p className="text-white text-2xl font-bold text-center mb-4" style={{ fontFamily: 'var(--font-display)' }}>{t('stories.whatToShare')}</p>
-              <PickButton icon={Camera} label={t('stories.camera')} hint={t('stories.cameraHint')} onClick={() => cameraRef.current?.click()} />
+              <PickButton icon={Camera} label={t('stories.camera')} hint={t('stories.cameraHint')} onClick={() => ('mediaDevices' in navigator ? setCameraOpen(true) : cameraRef.current?.click())} />
               <PickButton icon={Images} label={t('stories.gallery')} hint={t('stories.galleryHint')} onClick={() => galleryRef.current?.click()} />
               <PickButton icon={Type} label={t('stories.text')} hint={t('stories.textHint')} onClick={() => setMode('text')} />
             </div>
@@ -180,6 +182,14 @@ function Composer() {
           </div>
         )}
         {mode === 'pick' && error && <p className="relative z-10 mt-auto mb-10 text-center text-sm text-red-300 font-medium">{error}</p>}
+
+        {cameraOpen && (
+          <StoryCamera
+            onCapture={f => { setCameraOpen(false); void onFile(f) }}
+            onGallery={() => { setCameraOpen(false); galleryRef.current?.click() }}
+            onClose={() => setCameraOpen(false)}
+          />
+        )}
 
         <AnimatePresence>
           {picking && <ProductPicker sellerId={me!._id} selected={product?._id} onPick={p => { setProduct(p); setPicking(false) }} onClose={() => setPicking(false)} />}

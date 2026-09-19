@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, FlipHorizontal, LayoutGrid, PictureInPicture } from 'lucide-react'
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, SwitchCamera, LayoutGrid, PictureInPicture, Layers } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { getSocket } from '@/lib/socket'
 import { ICE_SERVERS } from '@/lib/webrtc'
 import { useAuthStore } from '@/store/authStore'
 import { playRingtone } from '@/lib/sound'
+import { openCamera, startDualCamera, type DualCamera, type Facing } from '@/lib/camera'
 
 interface CallState {
   type: 'idle' | 'calling' | 'incoming' | 'connected'
@@ -51,7 +52,11 @@ export default function CallModal({
   const { user } = useAuthStore()
   const [micMuted, setMicMuted] = useState(false)
   const [camOff, setCamOff] = useState(false)
-  const [mirrored, setMirrored] = useState(true)
+  const [facing, setFacing] = useState<Facing>('user')
+  const [dual, setDual] = useState(false)
+  const [cameraBusy, setCameraBusy] = useState(false)
+  const [bigView, setBigView] = useState<'remote' | 'local'>('remote')
+  const dualRef = useRef<DualCamera | null>(null)
   // 'pip'   — remote fills the screen, own camera in a small corner tile (default).
   // 'split' — both cameras at equal size, so you can watch yourself and the other
   //           person at once (framing a product on camera, showing a document).
@@ -76,6 +81,11 @@ export default function CallModal({
   callRef.current = call
 
   const cleanup = useCallback(() => {
+    dualRef.current?.stop()
+    dualRef.current = null
+    setDual(false)
+    setFacing('user')
+    setBigView('remote')
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     localStreamRef.current = null
     remoteStreamRef.current = null
@@ -107,7 +117,7 @@ export default function CallModal({
   }, [user, cleanup, setCall])
 
   const startLocalStream = async (video: boolean) => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video })
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false })
     localStreamRef.current = stream
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream
@@ -289,7 +299,7 @@ export default function CallModal({
   // Keep the local preview attached whenever a video call is on screen.
   useEffect(() => {
     if (call.video && localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current
+      localVideoRef.current.srcObject = dualRef.current ? new MediaStream([dualRef.current.track]) : localStreamRef.current
     }
   }, [call.type, call.video])
 
@@ -380,9 +390,68 @@ export default function CallModal({
     if (track) { track.enabled = !track.enabled; setMicMuted(m => !m) }
   }
 
+  // The track actually being sent: the composite while both cameras are on.
+  const outgoingVideo = () => dualRef.current?.track ?? localStreamRef.current?.getVideoTracks()[0]
+  const sendVideo = (track: MediaStreamTrack) =>
+    peerConnection?.getSenders().find(s => s.track?.kind === 'video')?.replaceTrack(track).catch(() => {})
+  const showLocal = (stream: MediaStream | null) => {
+    if (localVideoRef.current) { localVideoRef.current.srcObject = stream; localVideoRef.current.play?.().catch(() => {}) }
+  }
+
   const toggleCam = () => {
-    const track = localStreamRef.current?.getVideoTracks()[0]
-    if (track) { track.enabled = !track.enabled; setCamOff(c => !c) }
+    const next = camOff // turning on if currently off
+    localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = next })
+    if (dualRef.current) dualRef.current.track.enabled = next
+    setCamOff(c => !c)
+  }
+
+  // A real switch between front and back lenses, sent to the other person.
+  // ("Flip" used to only mirror your own preview.)
+  const flipCamera = async () => {
+    if (dualRef.current) { dualRef.current.swap(); return }
+    const stream = localStreamRef.current
+    if (!stream || cameraBusy) return
+    setCameraBusy(true)
+    const next: Facing = facing === 'user' ? 'environment' : 'user'
+    try {
+      const fresh = await openCamera(next)
+      const track = fresh.getVideoTracks()[0]
+      track.enabled = !camOff
+      const old = stream.getVideoTracks()[0]
+      await sendVideo(track)
+      if (old) { stream.removeTrack(old); old.stop() }
+      stream.addTrack(track)
+      showLocal(stream)
+      setFacing(next)
+    } catch {
+      setErrorMsg('Could not switch camera on this device.')
+    } finally { setCameraBusy(false) }
+  }
+
+  // Both cameras at once, as one picture the other person sees: the back
+  // camera full frame (the produce), your face in the corner.
+  const toggleDual = async () => {
+    const stream = localStreamRef.current
+    if (!stream || cameraBusy) return
+    if (dualRef.current) {
+      const cam = stream.getVideoTracks()[0]
+      if (cam) await sendVideo(cam)
+      dualRef.current.stop(); dualRef.current = null
+      showLocal(stream)
+      setDual(false)
+      return
+    }
+    setCameraBusy(true)
+    try {
+      const d = await startDualCamera({ stream, facing })
+      d.track.enabled = !camOff
+      dualRef.current = d
+      await sendVideo(d.track)
+      showLocal(new MediaStream([d.track]))
+      setDual(true)
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? 'Both cameras are not available on this device.')
+    } finally { setCameraBusy(false) }
   }
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -396,7 +465,7 @@ export default function CallModal({
             key="call-error"
             initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
             onClick={() => setErrorMsg(null)}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl max-w-[90vw] text-center cursor-pointer"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[90] bg-red-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl max-w-[90vw] text-center cursor-pointer"
           >
             {errorMsg}
           </motion.div>
@@ -412,8 +481,33 @@ export default function CallModal({
   const displayName = call.direction === 'incoming' ? call.callerName : call.calleeName
   const displayAvatar = call.direction === 'incoming' ? call.callerAvatar : call.calleeAvatar
 
-  // Only meaningful once there are two live video feeds to place.
-  const isSplit = layout === 'split' && call.video && call.type === 'connected'
+  const liveVideo = call.video && call.type === 'connected'
+  const isSplit = layout === 'split' && liveVideo
+  // Which feed fills the screen in the usual layout; tap the small tile to swap.
+  const localBig = liveVideo && !isSplit && bigView === 'local'
+  const mirrorLocal = facing === 'user' && !dual
+  const status = call.type === 'incoming' ? `Incoming ${call.video ? 'video' : 'voice'} call`
+    : call.type === 'calling' ? 'Ringing…'
+    : rtcConnected ? fmt(duration) : 'Connecting…'
+
+  const big = 'absolute inset-0 w-full h-full object-cover'
+  const tile = 'absolute top-[calc(env(safe-area-inset-top,0px)+76px)] right-3 w-[104px] h-[148px] md:w-[150px] md:h-[210px] rounded-2xl object-cover ring-2 ring-white/25 shadow-2xl z-20 cursor-pointer'
+  const splitTop = 'absolute inset-x-0 top-0 h-1/2 w-full object-cover md:inset-y-0 md:left-0 md:w-1/2 md:h-full'
+  const splitBottom = 'absolute inset-x-0 bottom-0 h-1/2 w-full object-cover md:inset-y-0 md:left-auto md:right-0 md:w-1/2 md:h-full'
+
+  const Control = ({ onClick, active, label, children, danger, disabled }: {
+    onClick: () => void; active?: boolean; label: string; children: React.ReactNode; danger?: boolean; disabled?: boolean
+  }) => (
+    <div className="flex flex-col items-center gap-1.5 min-w-[56px]">
+      <motion.button whileTap={{ scale: 0.9 }} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={active}
+        className={`w-[54px] h-[54px] rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
+          danger ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+          : active ? 'bg-white text-black' : 'bg-white/15 text-white hover:bg-white/25'}`}>
+        {children}
+      </motion.button>
+      <span className="text-white/70 text-[11px] font-medium">{label}</span>
+    </div>
+  )
 
   return (
     <AnimatePresence>
@@ -424,140 +518,121 @@ export default function CallModal({
         aria-label={call.type === 'incoming' ? 'Incoming call' : 'Call'}
         tabIndex={-1}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center outline-none"
+        className="fixed inset-0 z-[85] bg-neutral-950 overflow-hidden outline-none"
       >
-        {/* Remote media. For video calls it fills the screen; for audio calls the
-            same element is kept offscreen but still plays the remote sound (a
-            display:none element can be muted by some browsers, so we hide it via
-            size/opacity instead). */}
+        {/* Backdrop for voice calls and while ringing: the person, blurred. */}
+        {(!liveVideo) && displayAvatar && (
+          <img src={displayAvatar} alt="" className="absolute inset-0 w-full h-full object-cover scale-125 blur-3xl opacity-50" />
+        )}
+        {!liveVideo && <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/80" />}
+
+        {/* Remote media. For voice calls the element stays mounted but invisible
+            so it still plays the other person's audio (display:none can mute it). */}
         {call.type === 'connected' && (
           <video ref={remoteVideoRef} autoPlay playsInline
-            className={!call.video
-              ? 'absolute w-px h-px opacity-0 pointer-events-none'
-              : isSplit
-                // Stacked on a portrait phone, side by side once there is width
-                // for it — halving a portrait screen vertically keeps both faces
-                // upright, whereas two narrow columns crops them.
-                ? 'absolute inset-x-0 top-0 h-1/2 w-full object-cover md:inset-y-0 md:left-0 md:w-1/2 md:h-full'
-                : 'absolute inset-0 w-full h-full object-cover'} />
+            className={!call.video ? 'absolute w-px h-px opacity-0 pointer-events-none'
+              : isSplit ? splitTop : localBig ? tile : big}
+            onClick={localBig ? () => setBigView('remote') : undefined} />
         )}
 
-        {/* Local video (pip) */}
+        {/* Your camera */}
         {call.video && (
           <video ref={localVideoRef} autoPlay playsInline muted
-            className={isSplit
-              ? 'absolute inset-x-0 bottom-0 h-1/2 w-full object-cover border-t-2 border-white/10 md:inset-y-0 md:left-auto md:right-0 md:w-1/2 md:h-full md:border-t-0 md:border-l-2'
-              : 'absolute bottom-28 right-4 w-28 h-40 rounded-xl object-cover border-2 border-white/20 z-10 cursor-pointer'}
-            style={{ transform: mirrored ? 'scaleX(-1)' : 'none' }}
-            onClick={() => setMirrored(m => !m)}
-            title="Tap to mirror"
+            className={isSplit ? splitBottom : !liveVideo ? `${big} opacity-90` : localBig ? big : tile}
+            style={{ transform: mirrorLocal ? 'scaleX(-1)' : 'none' }}
+            onClick={liveVideo && !isSplit && !localBig ? () => setBigView('local') : undefined}
+            title={liveVideo && !isSplit && !localBig ? 'Tap to make big' : undefined}
           />
         )}
 
-        {/* Overlay UI */}
-        <div className={isSplit
-          ? 'absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 text-center px-6 pb-6 pt-10 bg-gradient-to-t from-black/80 to-transparent'
-          : 'relative z-10 flex flex-col items-center gap-6 text-center px-6'}>
-          <div className={isSplit ? 'hidden' : 'relative'}>
-            {(call.type === 'incoming' || call.type === 'calling') && (
-              <motion.span
-                className="absolute -inset-3 rounded-full border-2 border-brand-green/60"
-                animate={{ scale: [1, 1.25, 1], opacity: [0.8, 0, 0.8] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-              />
-            )}
-            <Avatar src={displayAvatar} name={displayName ?? 'User'} size="2xl" />
+        {/* Top bar: who and how long */}
+        {liveVideo && (
+          <div className="absolute inset-x-0 top-0 z-30 px-4 pt-[calc(env(safe-area-inset-top,0px)+14px)] pb-10 bg-gradient-to-b from-black/60 to-transparent flex items-center gap-3">
+            <Avatar src={displayAvatar} name={displayName ?? 'User'} size="sm" />
+            <div className="min-w-0">
+              <p className="text-white font-semibold text-[15px] truncate">{displayName}</p>
+              <p className="text-white/70 text-[12.5px] tabular">{status}</p>
+            </div>
+            {dual && <span className="ml-auto text-[11px] font-bold uppercase tracking-wide bg-white/90 text-black px-2 py-1 rounded-full">Both cameras</span>}
           </div>
-          <div className={isSplit ? 'hidden' : undefined}>
-            <p className="text-brand-lime/80 text-xs font-semibold uppercase tracking-[0.18em] mb-1.5">
-              {call.type === 'incoming' ? `Incoming ${call.video ? 'video' : 'voice'} call`
-                : call.type === 'calling' ? `Outgoing ${call.video ? 'video' : 'voice'} call`
-                : call.video ? 'Video call' : 'Voice call'}
-            </p>
-            <h2 className="text-2xl font-bold text-white">{displayName}</h2>
-            <p className="text-white/60 mt-1 text-sm">
-              {call.type === 'incoming' ? 'Ringing…' :
-               call.type === 'calling' ? 'Ringing…' :
-               rtcConnected ? fmt(duration) : 'Connecting…'}
-            </p>
-          </div>
+        )}
 
-          {/* Incoming call actions */}
-          {call.type === 'incoming' && (
-            <div className="flex gap-8 mt-4">
+        {/* Ringing / voice-call centre */}
+        {!liveVideo && (
+          <div className="relative z-10 h-full flex flex-col items-center pt-[18vh] text-center px-6">
+            <div className="relative mb-6">
+              {(call.type === 'incoming' || call.type === 'calling') && (
+                <motion.span className="absolute -inset-4 rounded-full border-2 border-white/40"
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.7, 0, 0.7] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }} />
+              )}
+              <Avatar src={displayAvatar} name={displayName ?? 'User'} size="2xl" className="ring-4 ring-white/15" />
+            </div>
+            <h2 className="text-[28px] font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{displayName}</h2>
+            <p className="text-white/70 mt-1.5 text-[15px] tabular">{status}</p>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="absolute inset-x-0 bottom-0 z-30 pb-[calc(env(safe-area-inset-bottom,0px)+26px)] pt-12 bg-gradient-to-t from-black/75 via-black/40 to-transparent">
+          {call.type === 'incoming' ? (
+            <div className="flex justify-center gap-20">
               <div className="flex flex-col items-center gap-2">
-                <motion.button whileTap={{ scale: 0.9 }}
-                  onClick={declineCall}
-                  className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-xl">
+                <motion.button whileTap={{ scale: 0.9 }} onClick={declineCall} aria-label="Decline"
+                  className="w-[70px] h-[70px] rounded-full bg-red-500 flex items-center justify-center text-white shadow-xl shadow-red-500/30">
                   <PhoneOff className="h-7 w-7" />
                 </motion.button>
-                <span className="text-white/60 text-xs">Decline</span>
+                <span className="text-white/80 text-[13px]">Decline</span>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <motion.button whileTap={{ scale: 0.9 }}
-                  onClick={acceptCall}
-                  className="w-16 h-16 rounded-full bg-brand-green flex items-center justify-center text-white shadow-xl">
-                  <Phone className="h-7 w-7" />
+                <motion.button whileTap={{ scale: 0.9 }} onClick={acceptCall} aria-label="Accept"
+                  animate={{ y: [0, -5, 0] }} transition={{ duration: 1.2, repeat: Infinity }}
+                  className="w-[70px] h-[70px] rounded-full bg-brand-green flex items-center justify-center text-white shadow-xl shadow-brand-green/40">
+                  {call.video ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
                 </motion.button>
-                <span className="text-white/60 text-xs">Accept</span>
+                <span className="text-white/80 text-[13px]">Accept</span>
               </div>
             </div>
-          )}
-
-          {/* Active call controls */}
-          {(call.type === 'calling' || call.type === 'connected') && (
-            <div className="flex gap-5 mt-4">
-              <div className="flex flex-col items-center gap-2">
-                <button onClick={toggleMic}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${micMuted ? 'bg-white/20' : 'bg-white/10'}`}>
-                  {micMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                </button>
-                <span className="text-white/40 text-xs">{micMuted ? 'Unmute' : 'Mute'}</span>
-              </div>
-
+          ) : (
+            <div className="flex justify-center flex-wrap gap-x-3 gap-y-4 px-3 max-w-md mx-auto">
+              <Control onClick={toggleMic} active={micMuted} label={micMuted ? 'Unmute' : 'Mute'}>
+                {micMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+              </Control>
               {call.video && (
-                <div className="flex flex-col items-center gap-2">
-                  <button onClick={toggleCam}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${camOff ? 'bg-white/20' : 'bg-white/10'}`}>
-                    {camOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                  </button>
-                  <span className="text-white/40 text-xs">{camOff ? 'Camera on' : 'Camera off'}</span>
-                </div>
+                <Control onClick={toggleCam} active={camOff} label={camOff ? 'Camera on' : 'Camera off'}>
+                  {camOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                </Control>
               )}
-
               {call.video && (
-                <div className="flex flex-col items-center gap-2">
-                  <button onClick={() => setMirrored(m => !m)}
-                    className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white">
-                    <FlipHorizontal className="h-6 w-6" />
-                  </button>
-                  <span className="text-white/40 text-xs">Flip</span>
-                </div>
+                <Control onClick={flipCamera} label={dual ? 'Swap' : 'Flip'} disabled={cameraBusy}>
+                  <SwitchCamera className="h-6 w-6" />
+                </Control>
               )}
-
-              {/* Both cameras at once. Only offered once connected — before that
-                  there is no remote feed to place beside your own. */}
-              {call.video && call.type === 'connected' && (
-                <div className="flex flex-col items-center gap-2">
-                  <button onClick={() => setLayout(l => (l === 'split' ? 'pip' : 'split'))}
-                    aria-pressed={isSplit}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${isSplit ? 'bg-white/20' : 'bg-white/10'}`}>
-                    {isSplit ? <PictureInPicture className="h-6 w-6" /> : <LayoutGrid className="h-6 w-6" />}
-                  </button>
-                  <span className="text-white/40 text-xs">{isSplit ? 'Inset' : 'Both'}</span>
-                </div>
+              {liveVideo && (
+                <Control onClick={toggleDual} active={dual} label="Both cams" disabled={cameraBusy}>
+                  <Layers className="h-6 w-6" />
+                </Control>
               )}
-
-              <div className="flex flex-col items-center gap-2">
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => hangUp(true)}
-                  className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center text-white shadow-xl">
-                  <PhoneOff className="h-6 w-6" />
-                </motion.button>
-                <span className="text-white/40 text-xs">End</span>
-              </div>
+              {liveVideo && (
+                <Control onClick={() => setLayout(l => (l === 'split' ? 'pip' : 'split'))} active={isSplit} label={isSplit ? 'Inset' : 'Side by side'}>
+                  {isSplit ? <PictureInPicture className="h-6 w-6" /> : <LayoutGrid className="h-6 w-6" />}
+                </Control>
+              )}
+              <Control onClick={() => hangUp(true)} label="End" danger>
+                <PhoneOff className="h-6 w-6" />
+              </Control>
             </div>
           )}
         </div>
+
+        <AnimatePresence>
+          {errorMsg && (
+            <motion.div key="err" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              onClick={() => setErrorMsg(null)}
+              className="absolute top-[calc(env(safe-area-inset-top,0px)+80px)] left-1/2 -translate-x-1/2 z-40 bg-black/80 text-white text-sm px-4 py-2.5 rounded-xl max-w-[88vw] text-center">
+              {errorMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </AnimatePresence>
   )
