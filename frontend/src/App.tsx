@@ -8,6 +8,8 @@ import { useUnreadStore } from '@/store/unreadStore'
 import { queryClient } from '@/lib/queryClient'
 import CallModal, { useCallStore } from '@/components/layout/CallModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import StoryViewer from '@/components/stories/StoryViewer'
+import StoryComposer from '@/components/stories/StoryComposer'
 import { getSocket } from '@/lib/socket'
 import { playNotificationSound } from '@/lib/sound'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
@@ -21,7 +23,7 @@ function ThemeApplier() {
     // Recolor the browser/OS chrome (status bar with battery & clock on mobile,
     // installed-PWA title bar) to follow the app theme.
     const meta = document.querySelector('meta[name="theme-color"]')
-    meta?.setAttribute('content', theme === 'dark' ? '#0A0F0D' : '#ffffff')
+    meta?.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff')
   }, [theme])
   return null
 }
@@ -137,6 +139,8 @@ function App() {
         <RouterProvider router={router} />
         <GlobalCallHandler />
         <GlobalRealtimeHandler />
+        <StoryViewer />
+        <StoryComposer />
       </ErrorBoundary>
     </QueryClientProvider>
   )

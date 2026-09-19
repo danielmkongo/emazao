@@ -12,6 +12,9 @@
   --color-gold:          #F59E0B;
   --color-gold-light:    #FCD34D;
   --color-surface:       #F9FAFB;
+  --color-harvest:       #F59E0B;  /* the orange stripes of the logo */
+  --color-leaf:          #84CC16;  /* the leaf */
+  --color-ink:           #0B3D2C;  /* the deep field green */
 
   --font-display: "Bricolage Grotesque", sans-serif;
   --font-body:    "Inter", sans-serif;
@@ -24,39 +27,52 @@
   --animate-pulse-green: pulseGreen 2s ease-in-out infinite;
 }
 
-/* ─── Semantic color tokens — light is default ─── */
+/* ─── Semantic color tokens — light is default ───
+   Content-first, like Instagram: a white canvas so photos of produce carry the
+   colour, and muted text dark enough to read in sunlight on a cheap phone (the
+   old text-3 was #94a3b8, under 3:1 on white). */
 :root {
-  --c-bg:          #f8fafc;
+  --c-bg:          #ffffff;
   --c-card:        #ffffff;
   --c-rail:        #ffffff;   /* left sidebar + right info panel */
-  --c-input:       #f1f5f9;
-  --c-raised:      #e9f0fb;
-  --c-border:      #e2e8f0;
+  --c-input:       #f2f4f3;
+  --c-raised:      #eef1ef;
+  --c-border:      #e5e8e6;
   --c-border-sub:  rgba(0, 0, 0, 0.05);
-  --c-text:        #0f172a;
-  --c-text-2:      #475569;
-  --c-text-3:      #94a3b8;
-  --c-text-4:      #cbd5e1;
-  --c-scroll-track: #e2e8f0;
-  --c-scroll-thumb: #cbd5e1;
-  --c-scroll-hover: #94a3b8;
+  --c-text:        #0b0f0d;
+  --c-text-2:      #414a45;
+  --c-text-3:      #66706a;
+  --c-text-4:      #9ba39e;
+  --c-scroll-track: transparent;
+  --c-scroll-thumb: #d5dad7;
+  --c-scroll-hover: #9ba39e;
+  --c-bar:         rgba(255, 255, 255, 0.86);  /* top & bottom bars */
+  --c-overlay:     rgba(11, 15, 13, 0.55);
+  --shadow-float:  0 8px 30px -12px rgba(11, 15, 13, 0.25);
+  --c-brand-ink:   #0B3D2C;
 }
 
+/* True black, as TikTok and Instagram do it: video and photos sit on nothing,
+   and OLED screens — most phones people here buy — spend less battery on it. */
 [data-theme="dark"] {
-  --c-bg:          #0A0F0D;
-  --c-card:        #111827;
-  --c-rail:        #121519;   /* side panels — dark silver / gunmetal vs the black canvas */
-  --c-input:       #1F2937;
-  --c-raised:      #1F2937;
-  --c-border:      rgba(255, 255, 255, 0.06);
-  --c-border-sub:  rgba(255, 255, 255, 0.04);
-  --c-text:        #F9FAFB;
-  --c-text-2:      rgba(255, 255, 255, 0.60);
-  --c-text-3:      rgba(255, 255, 255, 0.40);
-  --c-text-4:      rgba(255, 255, 255, 0.25);
-  --c-scroll-track: #111827;
-  --c-scroll-thumb: #1F2937;
-  --c-scroll-hover: #374151;
+  --c-bg:          #000000;
+  --c-card:        #0e100f;
+  --c-rail:        #000000;
+  --c-input:       #1a1d1b;
+  --c-raised:      #1d211f;
+  --c-border:      rgba(255, 255, 255, 0.10);
+  --c-border-sub:  rgba(255, 255, 255, 0.05);
+  --c-text:        #f4f6f5;
+  --c-text-2:      rgba(255, 255, 255, 0.74);
+  --c-text-3:      rgba(255, 255, 255, 0.55);
+  --c-text-4:      rgba(255, 255, 255, 0.34);
+  --c-scroll-track: transparent;
+  --c-scroll-thumb: #262a28;
+  --c-scroll-hover: #3a403c;
+  --c-bar:         rgba(0, 0, 0, 0.82);
+  --c-overlay:     rgba(0, 0, 0, 0.7);
+  --shadow-float:  0 10px 34px -10px rgba(0, 0, 0, 0.9);
+  --c-brand-ink:   #ffffff;
 }
 
 /* ─── Keyframes ─── */
@@ -80,6 +96,7 @@
   }
 
   body {
+    -webkit-tap-highlight-color: transparent;
     font-family: var(--font-body);
     background-color: var(--c-bg);
     color: var(--c-text);
@@ -115,6 +132,28 @@
 
 /* ─── Component layer ─── */
 @layer components {
+  /* Story ring — the logo's own harvest gradient, orange through leaf to field
+     green, instead of borrowing Instagram's pink. Seen stories go quiet grey. */
+  .story-ring {
+    background: conic-gradient(from 210deg, #F59E0B, #FBBF24, #84CC16, #16A34A, #059669, #F59E0B);
+  }
+  .story-ring-seen { background: var(--c-border); }
+  [data-theme="dark"] .story-ring-seen { background: rgba(255, 255, 255, 0.22); }
+
+  /* App bars: solid enough to read over any photo, blurred like iOS. */
+  .bar-surface {
+    background: var(--c-bar);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* Press feedback for anything tappable — quick and small, never a layout shift. */
+  .press { transition: transform 120ms ease, opacity 120ms ease; }
+  .press:active { transform: scale(0.94); }
+
+  .text-balance { text-wrap: balance; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
   /* Scrollbar suppression */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -140,7 +179,7 @@
     border: 1px solid rgba(0, 0, 0, 0.07);
   }
   [data-theme="dark"] .glass-dark {
-    background: rgba(10, 15, 13, 0.80);
+    background: rgba(0, 0, 0, 0.80);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -166,10 +205,12 @@
   /* Mobile status-bar band (under battery/clock in standalone PWA) — follows theme:
      brand accent in light mode, app black in dark mode. */
   .status-band {
-    background: #ffffff;
+    background: var(--c-bar);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
   [data-theme="dark"] .status-band {
-    background: #0A0F0D;
+    background: #000000;
   }
 
   /* Shimmer skeleton animation */

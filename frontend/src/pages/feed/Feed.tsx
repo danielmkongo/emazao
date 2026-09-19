@@ -1,170 +1,115 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Flame, Clock, MapPin, Play, Sprout, Loader2 } from 'lucide-react'
-import { FeedProductCard } from '@/components/feed/FeedProductCard'
-import { LiveNowRow } from '@/components/feed/LiveNowRow'
-import { FeedPostSkeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
-import { formatNumber } from '@/lib/utils'
+import { motion } from 'framer-motion'
+import { CheckCircle2, Loader2, Sprout } from 'lucide-react'
+import { PostCard } from '@/components/feed/PostCard'
+import { SuggestedFarmers } from '@/components/feed/SuggestedFarmers'
+import { StoriesRail } from '@/components/stories/StoriesRail'
+import { useStoryFeed } from '@/lib/stories'
+import { cn } from '@/lib/utils'
 import api from '@/lib/api'
-import type { FeedItem, Product, Reel } from '@/types'
+import type { FeedItem, Product, Reel, User } from '@/types'
 
-const filters = [
-  { icon: Flame,  label: 'Trending', value: 'trending' },
-  { icon: Clock,  label: 'Latest',   value: 'latest' },
-  { icon: MapPin, label: 'Nearby',   value: 'nearby' },
-]
+const TABS = [
+  { value: 'trending', label: 'feed.forYou' },
+  { value: 'latest',   label: 'feed.latest' },
+  { value: 'nearby',   label: 'feed.nearby' },
+] as const
+
+function PostSkeleton() {
+  return (
+    <div className="md:border md:border-[var(--c-border)] md:rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-3.5 py-3">
+        <div className="w-[34px] h-[34px] rounded-full skeleton-shimmer" />
+        <div className="space-y-1.5"><div className="h-3 w-28 rounded skeleton-shimmer" /><div className="h-2.5 w-20 rounded skeleton-shimmer" /></div>
+      </div>
+      <div className="aspect-[4/5] skeleton-shimmer" />
+      <div className="px-3.5 py-3 space-y-2"><div className="h-3 w-24 rounded skeleton-shimmer" /><div className="h-3 w-3/4 rounded skeleton-shimmer" /></div>
+    </div>
+  )
+}
 
 export default function Feed() {
-  const [activeFilter, setActiveFilter] = useState('trending')
+  const { t } = useTranslation()
+  const [tab, setTab] = useState<(typeof TABS)[number]['value']>('trending')
 
-  // The API has always returned a nextCursor, but the feed only ever requested
-  // the first page — everything past the first 20 items was unreachable.
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['feed', activeFilter],
+    queryKey: ['feed', tab],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) => {
       const cursor = pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''
-      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>(
-        `/feed?limit=20&sort=${activeFilter}${cursor}`,
-      )
+      const res = await api.get<{ success: boolean; data: FeedItem[]; nextCursor: string | null }>(`/feed?limit=12&sort=${tab}${cursor}`)
       return res.data
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
+  const items = data?.pages.flatMap(p => p.data ?? []) ?? []
 
-  const feedItems = data?.pages.flatMap(p => p.data ?? []) ?? []
+  // Authors' stories, so each post's avatar can carry its ring.
+  const { data: storyGroups } = useStoryFeed()
+  const storiesByUser = useMemo(() => new Map((storyGroups ?? []).map(g => [g.user._id, g])), [storyGroups])
 
-  // Auto-load as the sentinel below scrolls into view, with a manual button as
-  // the fallback for browsers without IntersectionObserver.
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  const sentinel = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const el = sentinelRef.current
+    const el = sentinel.current
     if (!el || !hasNextPage || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage() },
-      { rootMargin: '400px' }, // start fetching before the user reaches the end
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting && !isFetchingNextPage) fetchNextPage() }, { rootMargin: '900px' })
+    io.observe(el)
+    return () => io.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Live now row */}
-      <LiveNowRow />
+    <div className="max-w-[500px] mx-auto md:pt-4 lg:pt-6">
+      <StoriesRail />
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-5"
-      >
-        <h1 className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
-          Your Feed
-        </h1>
-      </motion.div>
-
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar pb-1">
-        {filters.map(({ icon: Icon, label, value }) => (
-          <button
-            key={value}
-            onClick={() => setActiveFilter(value)}
-            className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ${
-              activeFilter === value
-                ? 'text-white'
-                : 'bg-[var(--c-card)] text-[var(--c-text-2)] border border-[var(--c-border)] hover:border-brand-green/40'
-            }`}
-          >
-            {activeFilter === value && (
-              <motion.div
-                layoutId="feed-filter-pill"
-                className="absolute inset-0 bg-brand-green rounded-full shadow-md shadow-brand-green/25"
-                transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-              />
-            )}
-            <Icon className="h-4 w-4 relative z-10" />
-            <span className="relative z-10">{label}</span>
+      {/* Feed selector — text tabs, the way TikTok puts Following / For You */}
+      <div className="flex items-center justify-center gap-6 h-11 border-b border-[var(--c-border-sub)] md:border-0 mb-0 md:mb-2" role="tablist">
+        {TABS.map(({ value, label }) => (
+          <button key={value} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}
+            className={cn('relative h-full text-[15px] transition-colors', tab === value ? 'text-[var(--c-text)] font-bold' : 'text-[var(--c-text-3)] font-medium hover:text-[var(--c-text-2)]')}>
+            {t(label)}
+            {tab === value && <motion.span layoutId="feed-tab" className="absolute left-1/2 -translate-x-1/2 bottom-1.5 w-5 h-[3px] rounded-full bg-[var(--c-text)]" />}
           </button>
         ))}
       </div>
 
-      {/* Feed items */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[...Array(6)].map((_, i) => <FeedPostSkeleton key={i} />)}
-        </div>
-      ) : feedItems.length === 0 ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24">
-          <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
-            <Sprout className="h-8 w-8 text-brand-green/60" />
+      <div className="flex flex-col md:gap-5 divide-y divide-[var(--c-border-sub)] md:divide-y-0">
+        {isLoading ? (
+          [...Array(3)].map((_, i) => <PostSkeleton key={i} />)
+        ) : items.length === 0 ? (
+          <div className="text-center py-20 px-6">
+            <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
+              <Sprout className="h-8 w-8 text-brand-green" />
+            </div>
+            <p className="text-[var(--c-text)] font-semibold mb-1">{t('feed.emptyTitle')}</p>
+            <p className="text-[var(--c-text-3)] text-sm">{t('feed.emptyBody')}</p>
           </div>
-          <h3 className="text-lg font-semibold text-[var(--c-text)] mb-2">Your feed is empty</h3>
-          <p className="text-[var(--c-text-3)] text-sm">Follow some farmers to see their products and reels here.</p>
-          <Link to="/explore" className="mt-6 inline-block">
-            <Button>Discover Farmers</Button>
-          </Link>
-        </motion.div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {feedItems.map((item, i) => {
-            // Keyed by id, not index: appended pages would otherwise reuse the
-            // same keys and let one card's local state land on a different item.
-            // Stagger is capped to the first page so later pages don't animate in
-            // with an ever-growing delay.
-            const delay = Math.min(i, 11) * 0.04
-            if (item.type === 'PRODUCT') {
-              const product = item.data as Product
-              return (
-                <motion.div key={`product-${product._id}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
-                  <FeedProductCard product={product} />
-                </motion.div>
-              )
-            }
-            const reel = item.data as Reel
+        ) : (
+          items.map((item, i) => {
+            const d = item.data as Product & Reel
+            const author = (item.type === 'REEL' ? d.userId : d.sellerId) as User | undefined
             return (
-              <motion.div key={`reel-${reel._id}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
-                <Link to={`/reels/${reel._id}`} state={{ reel }} className="block">
-                  <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden aspect-[4/3] relative cursor-pointer group shadow-sm hover:shadow-md transition-shadow">
-                    {reel.thumbnailUrl ? (
-                      <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full bg-[var(--c-input)] flex items-center justify-center">
-                        <Play className="h-12 w-12 text-[var(--c-text-4)]" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                    <div className="absolute top-3 left-3">
-                      <span className="flex items-center gap-1 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
-                        <Play className="h-3 w-3 fill-white" /> Reel
-                      </span>
-                    </div>
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <p className="text-white text-xs font-medium line-clamp-2">{reel.caption}</p>
-                      <p className="text-white/60 text-xs mt-1">{formatNumber(reel.viewCount ?? 0)} views</p>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
+              <Fragment key={`${item.type}-${d._id}`}>
+                <PostCard kind={item.type} item={d} storyGroup={author ? storiesByUser.get(author._id) : null} />
+                {i === 2 && <SuggestedFarmers />}
+              </Fragment>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
-      {!isLoading && feedItems.length > 0 && (
-        <div ref={sentinelRef} className="py-8 flex justify-center">
-          {isFetchingNextPage ? (
-            <span className="flex items-center gap-2 text-sm text-[var(--c-text-3)]">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading more…
+      <div ref={sentinel} />
+      {isFetchingNextPage && <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--c-text-3)]" /></div>}
+      {!hasNextPage && items.length > 0 && (
+        <div className="py-12 flex flex-col items-center text-center px-6">
+          <span className="w-16 h-16 rounded-full story-ring p-[3px] mb-3">
+            <span className="w-full h-full rounded-full bg-[var(--c-bg)] flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-brand-green" strokeWidth={1.8} />
             </span>
-          ) : hasNextPage ? (
-            <Button variant="outline" onClick={() => fetchNextPage()}>Load more</Button>
-          ) : (
-            <span className="text-sm text-[var(--c-text-4)]">You're all caught up</span>
-          )}
+          </span>
+          <p className="text-[var(--c-text)] font-semibold">{t('common.allCaughtUp')}</p>
+          <p className="text-[var(--c-text-3)] text-sm mt-0.5">{t('feed.caughtUpBody')}</p>
         </div>
       )}
     </div>

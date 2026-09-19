@@ -9,6 +9,7 @@ import { useUnreadStore } from '@/store/unreadStore'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
+import { STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
 import type { ApiResponse, User } from '@/types'
 
 interface Message {
@@ -26,6 +27,44 @@ interface Message {
     _id: string; thumbnailUrl?: string; videoUrl?: string; caption?: string; title?: string
     status?: string; viewCount?: number; userId?: User
   } | null
+  /** A reply or reaction to a story, with a copy of what the story showed. */
+  storyReply?: {
+    storyId: string; ownerId: string; mediaUrl?: string; mediaType?: 'IMAGE' | 'VIDEO'
+    text?: string; background?: StoryBackground; reaction?: string
+  }
+}
+
+/**
+ * What a story reply was about. Stories vanish after a day but the chat stays,
+ * so the snapshot is drawn from the copy kept on the message, and labelled so
+ * it is clear whose story it was.
+ */
+function StoryReplyCard({ reply, isMe, otherName }: { reply: NonNullable<Message['storyReply']>; isMe: boolean; otherName?: string }) {
+  const whose = `${otherName ?? 'their'}'s story`
+  const label = reply.reaction
+    ? (isMe ? `You reacted to ${whose}` : 'Reacted to your story')
+    : (isMe ? `You replied to ${whose}` : 'Replied to your story')
+  return (
+    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-1`}>
+      <span className="text-[11.5px] text-[var(--c-text-3)] mb-1 px-1">{label}</span>
+      <div className="relative">
+        <div className={`w-[112px] aspect-[9/16] rounded-2xl overflow-hidden border border-[var(--c-border)] ${isMe ? 'mr-1' : 'ml-1'}`}>
+          {reply.mediaUrl
+            ? (reply.mediaType === 'VIDEO'
+              ? <video src={`${reply.mediaUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover" />
+              : <img src={reply.mediaUrl} alt="" className="w-full h-full object-cover" />)
+            : (
+              <div className="w-full h-full p-2.5 flex items-center justify-center" style={{ background: STORY_BACKGROUNDS[reply.background ?? 'harvest'] }}>
+                <p className="text-white text-[11px] font-bold text-center leading-tight line-clamp-6" style={{ fontFamily: 'var(--font-display)' }}>{reply.text}</p>
+              </div>
+            )}
+        </div>
+        {reply.reaction && (
+          <span className={`absolute -bottom-3 ${isMe ? '-left-3' : '-right-3'} text-[34px] leading-none drop-shadow`}>{reply.reaction}</span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -458,11 +497,14 @@ export default function Thread() {
                   {msg.sharedReel !== undefined && (
                     <SharedReelCard reel={msg.sharedReel as any} isMe={isMe} />
                   )}
+                  {msg.storyReply && (
+                    <StoryReplyCard reply={msg.storyReply} isMe={isMe} otherName={other?.name?.split(' ')[0]} />
+                  )}
                   {/* A shared reel may travel with no note; draw no empty bubble. */}
                   {Boolean(msg.content) && (
                   <div
                     className={`
-                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel ? 'mt-1' : ''}
+                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel || msg.storyReply?.reaction ? 'mt-3' : ''}
                       ${isMe
                         ? `bg-brand-green text-white
                            ${!prevSame ? 'rounded-t-2xl' : 'rounded-t-lg'}

@@ -11,7 +11,7 @@ import { formatNumber } from '@/lib/utils'
 import type { ApiResponse } from '@/types'
 
 interface Broadcaster { _id: string; name: string; username: string; avatar?: string; isVerified?: boolean }
-interface LiveSession { _id: string; broadcasterId: Broadcaster; title: string; viewerCount: number }
+export interface LiveSession { _id: string; broadcasterId: Broadcaster; title: string; viewerCount: number }
 
 // Resolve a socket payload that may have broadcasterId as string (old backend) or object (new)
 async function resolveSession(data: any): Promise<LiveSession | null> {
@@ -39,7 +39,8 @@ async function resolveSession(data: any): Promise<LiveSession | null> {
   }
 }
 
-export const LiveNowRow = () => {
+/** Who is broadcasting right now, kept current over the socket. */
+export function useLiveSessions() {
   const { user } = useAuthStore()
   const [sessions, setSessions] = useState<LiveSession[]>([])
 
@@ -88,6 +89,11 @@ export const LiveNowRow = () => {
     setSessions(prev => prev.map(s => s.broadcasterId._id === broadcasterId ? { ...s, viewerCount: count } : s))
   }, [user?._id])
 
+  return sessions
+}
+
+export const LiveNowRow = () => {
+  const sessions = useLiveSessions()
   if (!sessions.length) return null
 
   return (

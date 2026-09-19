@@ -6,10 +6,12 @@ interface UIState {
   sidebarOpen: boolean
   cartOpen: boolean
   searchOpen: boolean
+  createOpen: boolean
   toggleTheme: () => void
   setSidebarOpen: (v: boolean) => void
   setCartOpen: (v: boolean) => void
   setSearchOpen: (v: boolean) => void
+  setCreateOpen: (v: boolean) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -19,10 +21,12 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: false,
       cartOpen: false,
       searchOpen: false,
+      createOpen: false,
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       setSidebarOpen: (v) => set({ sidebarOpen: v }),
       setCartOpen: (v) => set({ cartOpen: v }),
       setSearchOpen: (v) => set({ searchOpen: v }),
+      setCreateOpen: (v) => set({ createOpen: v }),
     }),
     // key bumped to -v2 so the new light default takes effect once for everyone
     // (old persisted 'dark' is dropped); the user's choice persists from here on.

@@ -1,71 +1,64 @@
-import { Link } from 'react-router-dom'
-import { Bell, Search, Sun, Moon, ShoppingCart } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { Search, ShoppingBag, Bell, MessageCircle } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
-import { Logo } from '@/components/ui/Logo'
-import { useQuery } from '@tanstack/react-query'
-import { Avatar } from '@/components/ui/avatar'
-import { useAuthStore } from '@/store/authStore'
-import { useUIStore } from '@/store/uiStore'
-import api from '@/lib/api'
+import { useNotificationCount } from '@/hooks/useNotificationCount'
+import { useUnreadStore } from '@/store/unreadStore'
+import { Wordmark } from '@/components/ui/Wordmark'
+import { cn } from '@/lib/utils'
 
+/** A small count bubble. Nothing at all when there is nothing to count. */
+export function CountBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null
+  return (
+    <span className={cn(
+      'absolute -top-1 -right-1 min-w-[18px] h-[18px] px-[5px] rounded-full bg-red-500 text-white text-[10.5px] font-bold leading-none flex items-center justify-center ring-2 ring-[var(--c-bg)] tabular',
+      className,
+    )}>
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+/**
+ * The phone's top bar. Instagram's restraint: the brand on the left, a few
+ * quiet icons on the right that only light up when something needs you.
+ * Theme and language live in settings — they are set once, not every visit.
+ */
 export const TopBar = () => {
+  const { t } = useTranslation()
   const { cart } = useCart()
-  const cartCount = cart.itemCount
-  const { user } = useAuthStore()
-  const { theme, toggleTheme, setSearchOpen } = useUIStore()
+  const unread = useNotificationCount()
+  const unreadMessages = useUnreadStore(s => s.unreadMessages)
 
-  const { data: notifData } = useQuery({
-    queryKey: ['notifications-count'],
-    queryFn: async () => {
-      const res = await api.get<{ unreadCount: number }>('/notifications?limit=1')
-      return res.data
-    },
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-  })
-
-  const unread = notifData?.unreadCount ?? 0
-
-  const iconBtn = 'w-9 h-9 rounded-xl flex items-center justify-center text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition-colors'
+  const icon = 'relative w-10 h-10 rounded-full flex items-center justify-center text-[var(--c-text)] press'
+  const active = ({ isActive }: { isActive: boolean }) => cn(icon, isActive && 'text-brand-green')
 
   return (
     <header
-      className="lg:hidden fixed top-0 left-0 right-0 z-30 glass-dark border-b border-[var(--c-border)] px-3 min-h-[80px] flex items-center gap-1 transition-colors duration-200"
+      className="lg:hidden fixed top-0 inset-x-0 z-30 bar-surface border-b border-[var(--c-border-sub)]"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <Link to="/feed" className="flex items-center mr-auto pl-1">
-        <Logo className="h-14 w-auto" />
-      </Link>
-
-      <button onClick={() => setSearchOpen(true)} aria-label="Search" className={iconBtn}>
-        <Search className="h-5 w-5" />
-      </button>
-
-      <button onClick={toggleTheme} aria-label="Toggle theme" className={iconBtn}>
-        {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-      </button>
-
-      <Link to="/cart" aria-label={`Cart${cartCount ? `, ${cartCount} items` : ''}`} className={`${iconBtn} relative`}>
-        <ShoppingCart className="h-5 w-5" />
-        {cartCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-green text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--c-bg)]">
-            {cartCount > 9 ? '9+' : cartCount}
-          </span>
-        )}
-      </Link>
-
-      <Link to="/notifications" aria-label="Notifications" className={`${iconBtn} relative`}>
-        <Bell className="h-5 w-5" />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-green text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--c-bg)]">
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
-      </Link>
-
-      <Link to="/profile" aria-label="Profile" className="ml-1 rounded-full ring-2 ring-transparent hover:ring-brand-green/30 transition-all">
-        <Avatar src={user?.avatar} name={user?.name} size="sm" verified={user?.isVerified} />
-      </Link>
+      <div className="h-14 flex items-center pl-3.5 pr-1.5">
+        <Link to="/feed" aria-label="eMazao" className="mr-auto press">
+          <Wordmark />
+        </Link>
+        <NavLink to="/explore" aria-label={t('nav.explore')} className={active}>
+          <Search className="h-[23px] w-[23px]" strokeWidth={2} />
+        </NavLink>
+        <NavLink to="/cart" aria-label={t('nav.cart')} className={active}>
+          <ShoppingBag className="h-[23px] w-[23px]" strokeWidth={2} />
+          <CountBadge count={cart.itemCount} className="bg-brand-green" />
+        </NavLink>
+        <NavLink to="/notifications" aria-label={t('nav.alerts')} className={active}>
+          <Bell className="h-[23px] w-[23px]" strokeWidth={2} />
+          <CountBadge count={unread} />
+        </NavLink>
+        <NavLink to="/messages" aria-label={t('nav.messages')} className={active}>
+          <MessageCircle className="h-[23px] w-[23px]" strokeWidth={2} />
+          <CountBadge count={unreadMessages} />
+        </NavLink>
+      </div>
     </header>
   )
 }

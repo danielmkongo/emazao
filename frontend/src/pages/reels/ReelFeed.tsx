@@ -11,6 +11,8 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import { ShareSheet } from '@/components/reels/ShareSheet'
 import { CommentsDrawer } from '@/components/reels/CommentsDrawer'
+import { BottomNav } from '@/components/layout/BottomNav'
+import { CreateSheet } from '@/components/layout/CreateSheet'
 import type { ApiResponse, Reel, User, Product } from '@/types'
 
 interface ReelPage { data: Reel[]; nextCursor: string | null }
@@ -25,9 +27,11 @@ interface ReelPage { data: Reel[]; nextCursor: string | null }
 // only the very first reel a slot ever holds would autoplay, every reel after
 // it would sit fully loaded and paused until manually tapped.
 function ReelCard({
-  reel, isActive, muted, onMuteToggle, preloadHint = 'metadata',
+  reel, isActive, muted, onMuteToggle, preloadHint = 'metadata', openCommentsOnMount = false,
 }: {
   reel: Reel; isActive: boolean; muted: boolean; onMuteToggle: () => void; preloadHint?: 'auto' | 'metadata' | 'none'
+  /** Arriving from "View all comments" on a feed post opens them straight away. */
+  openCommentsOnMount?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [liked, setLiked] = useState(reel.userLiked ?? false)
@@ -44,7 +48,7 @@ function ReelCard({
   const [playing, setPlaying] = useState(false)
   const [buffering, setBuffering] = useState(false)
   const [videoError, setVideoError] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(openCommentsOnMount)
   const [shareToast, setShareToast] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareToastText, setShareToastText] = useState('Link copied')
@@ -502,6 +506,7 @@ export default function ReelFeed() {
   // When arriving from the feed we get the reel object via router state (instant,
   // no flash). On a direct/refreshed URL we fetch it by id so it still opens here.
   const stateReel = (location.state as { reel?: Reel } | null)?.reel
+  const openComments = !!(location.state as { openComments?: boolean } | null)?.openComments
   const { user } = useAuthStore()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [muted, setMuted] = useState(true)
@@ -739,25 +744,30 @@ export default function ReelFeed() {
 
   // Waiting on a direct-linked reel to load — show a spinner, not the empty state
   if (reelId && !leadReel && !reels.length) return (
-    <div className="h-[100dvh] bg-black flex items-center justify-center relative">
+    <div className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black flex items-center justify-center relative">
       <div className={exitPosition}>{exitButton}</div>
       <Loader2 className="h-10 w-10 text-white/40 animate-spin" />
+      <BottomNav variant="dark" />
+      <CreateSheet />
     </div>
   )
 
   if (!reels.length) return (
-    <div className="h-[100dvh] bg-black flex items-center justify-center flex-col gap-4 relative">
+    <div className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black flex items-center justify-center flex-col gap-4 relative">
       <div className={exitPosition}>{exitButton}</div>
       <Play className="h-16 w-16 text-white/10" />
       <p className="text-white/40 text-lg">No reels yet</p>
       <p className="text-white/20 text-sm">Farmers will post short videos here</p>
+      <BottomNav variant="dark" />
+      <CreateSheet />
     </div>
   )
 
   return (
+    <>
     <div
       ref={containerRef}
-      className="h-[100dvh] bg-black overflow-hidden relative select-none"
+      className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black overflow-hidden relative select-none"
       style={{ willChange: 'transform' }}
     >
       {/* Previous card */}
@@ -786,6 +796,7 @@ export default function ReelFeed() {
           key={reels[currentIndex]._id}
           reel={reels[currentIndex]}
           isActive={true}
+          openCommentsOnMount={openComments && currentIndex === 0 && reels[0]?._id === reelId}
           muted={muted}
           onMuteToggle={() => setMuted(m => !m)}
           preloadHint="auto"
@@ -859,5 +870,10 @@ export default function ReelFeed() {
         })}
       </div>
     </div>
+    {/* TikTok keeps its tab bar under the player; so do we, which also means
+        there is always a way out of Reels on a phone. */}
+    <BottomNav variant="dark" />
+    <CreateSheet />
+    </>
   )
 }

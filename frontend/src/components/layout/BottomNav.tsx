@@ -1,110 +1,98 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Home, Search, Play, MessageSquare, User, Radio } from 'lucide-react'
+import { Home, Store, Plus, Clapperboard, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { useUnreadStore } from '@/store/unreadStore'
-import { Avatar } from '@/components/ui/avatar'
+import { useUIStore } from '@/store/uiStore'
 
-// i18n keys, resolved at render so switching language re-labels the bar without
-// a reload. These were hardcoded English, so the mobile tabs stayed in English
-// even with Kiswahili selected — and mobile is where most users are.
-const buyerTabs = [
-  { icon: Home,          label: 'nav.feed',     href: '/feed' },
-  { icon: Search,        label: 'nav.explore',  href: '/explore' },
-  { icon: Play,          label: 'nav.reels',    href: '/reels' },
-  { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
+/** Height of the bar itself, not counting the safe area under it. */
+export const BOTTOM_NAV_HEIGHT = 56
+
+const tabs = [
+  { icon: Home,         label: 'nav.home',   href: '/feed' },
+  { icon: Store,        label: 'nav.market', href: '/marketplace' },
+  { icon: Clapperboard, label: 'nav.reels',  href: '/reels' },
 ]
 
-const farmerTabs = [
-  { icon: Home,          label: 'nav.feed',     href: '/feed' },
-  { icon: Play,          label: 'nav.reels',    href: '/reels' },
-  { icon: MessageSquare, label: 'nav.messages', href: '/messages' },
-]
-
-function Tab({ icon: Icon, label, href, badge }: { icon: typeof Home; label: string; href: string; badge?: number }) {
+/**
+ * Five places, the number Instagram and TikTok settled on: home, market,
+ * make something, reels, you. Everything else is one tap from the top bar or
+ * your profile. The labels stay — plenty of people here are new to apps and
+ * an icon alone is a guess.
+ */
+export const BottomNav = ({ variant = 'default' }: { variant?: 'default' | 'dark' }) => {
   const { t } = useTranslation()
-  return (
-    <NavLink to={href} className="relative flex-1">
+  const user = useAuthStore(s => s.user)
+  const setCreateOpen = useUIStore(s => s.setCreateOpen)
+  const dark = variant === 'dark'
+
+  const tab = (href: string, label: string, icon: React.ReactNode, activeIcon?: React.ReactNode) => (
+    <NavLink to={href} className="flex-1 h-full" aria-label={t(label)}>
       {({ isActive }) => (
-        <div className="relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[48px]">
+        <span className={cn(
+          'relative h-full flex flex-col items-center justify-center gap-[3px] press',
+          dark ? (isActive ? 'text-white' : 'text-white/60') : (isActive ? 'text-[var(--c-text)]' : 'text-[var(--c-text-3)]'),
+        )}>
+          {isActive && activeIcon ? activeIcon : icon}
+          <span className={cn('text-[10.5px] leading-none', isActive ? 'font-semibold' : 'font-medium')}>{t(label)}</span>
           {isActive && (
-            <motion.div
-              layoutId="bottom-nav-pill"
-              className="absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-gradient-to-b from-brand-green/20 to-brand-emerald/10 border border-brand-green/20"
-              transition={{ type: 'spring', stiffness: 500, damping: 42 }}
-            />
+            <motion.span layoutId="bottom-nav-dot" className="absolute top-1 w-1 h-1 rounded-full bg-brand-green"
+              transition={{ type: 'spring', stiffness: 600, damping: 40 }} />
           )}
-          <div className="relative">
-            <Icon className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
-            {!!badge && (
-              <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center z-20">
-                {badge > 9 ? '9+' : badge}
-              </span>
-            )}
-          </div>
-          <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
-            {t(label)}
-          </span>
-        </div>
+        </span>
       )}
     </NavLink>
   )
-}
 
-export const BottomNav = () => {
-  const { t } = useTranslation()
-  const { user } = useAuthStore()
-  const navigate = useNavigate()
-  const unreadMessages = useUnreadStore((s) => s.unreadMessages)
-  const isFarmer = user?.role === 'FARMER'
-  const tabs = isFarmer ? farmerTabs : buyerTabs
+  const iconProps = (active = false) => ({ className: 'h-[25px] w-[25px]', strokeWidth: active ? 2.4 : 1.9 })
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1 pointer-events-none">
-      <nav className="pointer-events-auto glass-dark rounded-[22px] border border-[var(--c-border)] shadow-xl shadow-black/10 flex items-center px-1.5">
-        {tabs.map(t => <Tab key={t.href} {...t} badge={t.href === '/messages' ? unreadMessages : undefined} />)}
+    <nav
+      className={cn(
+        'lg:hidden fixed bottom-0 inset-x-0 z-30 border-t',
+        dark ? 'bg-black border-white/10' : 'bar-surface border-[var(--c-border-sub)]',
+      )}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      <div className="flex items-stretch px-1" style={{ height: BOTTOM_NAV_HEIGHT }}>
+        {tab(tabs[0].href, tabs[0].label, <Home {...iconProps()} />, <Home {...iconProps(true)} fill="currentColor" fillOpacity={0.14} />)}
+        {tab(tabs[1].href, tabs[1].label, <Store {...iconProps()} />, <Store {...iconProps(true)} />)}
 
-        {/* Go Live — farmers get a prominent centre action */}
-        {isFarmer && (
+        <div className="flex-1 flex items-center justify-center">
           <button
-            onClick={() => navigate('/live')}
-            aria-label={t('nav.goLive')}
-            className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 active:scale-95 transition-transform flex-shrink-0"
+            onClick={() => setCreateOpen(true)}
+            aria-label={t('nav.create')}
+            className={cn(
+              'w-[46px] h-[34px] rounded-[11px] flex items-center justify-center press',
+              'bg-gradient-to-r from-harvest via-brand-lime to-brand-green shadow-[0_4px_14px_-4px_rgba(22,163,74,0.6)]',
+            )}
           >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/40">
-              <Radio className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-[10px] font-bold text-red-400">{t('nav.goLive')}</span>
+            <span className={cn('w-[38px] h-[28px] rounded-[8px] flex items-center justify-center', dark ? 'bg-white text-black' : 'bg-[var(--c-text)] text-[var(--c-bg)]')}>
+              <Plus className="h-5 w-5" strokeWidth={2.8} />
+            </span>
           </button>
-        )}
+        </div>
 
-        {/* Profile */}
-        <NavLink to="/profile" className="relative flex-1">
+        {tab(tabs[2].href, tabs[2].label, <Clapperboard {...iconProps()} />, <Clapperboard {...iconProps(true)} />)}
+
+        <NavLink to="/profile" className="flex-1 h-full" aria-label={t('nav.profile')}>
           {({ isActive }) => (
-            <div className="relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[48px]">
-              {isActive && (
-                <motion.div
-                  layoutId="bottom-nav-pill"
-                  className="absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-gradient-to-b from-brand-green/20 to-brand-emerald/10 border border-brand-green/20"
-                  transition={{ type: 'spring', stiffness: 500, damping: 42 }}
-                />
-              )}
+            <span className={cn(
+              'relative h-full flex flex-col items-center justify-center gap-[3px] press',
+              dark ? (isActive ? 'text-white' : 'text-white/60') : (isActive ? 'text-[var(--c-text)]' : 'text-[var(--c-text-3)]'),
+            )}>
               {user?.avatar ? (
-                <div className={cn('relative z-10 rounded-full transition-all', isActive && 'ring-2 ring-brand-green ring-offset-1 ring-offset-[var(--c-card)]')}>
-                  <Avatar src={user.avatar} name={user.name} size="xs" />
-                </div>
+                <img src={user.avatar} alt="" className={cn('w-[26px] h-[26px] rounded-full object-cover',
+                  isActive ? (dark ? 'ring-2 ring-white' : 'ring-2 ring-[var(--c-text)]') : '')} />
               ) : (
-                <User className={cn('h-[22px] w-[22px] relative z-10 transition-colors', isActive ? 'text-brand-green' : 'text-[var(--c-text-3)]')} />
+                <User {...iconProps(isActive)} />
               )}
-              <span className={cn('text-[10px] relative z-10 transition-colors', isActive ? 'text-brand-green font-semibold' : 'text-[var(--c-text-4)] font-medium')}>
-                {t('nav.profile')}
-              </span>
-            </div>
+              <span className={cn('text-[10.5px] leading-none', isActive ? 'font-semibold' : 'font-medium')}>{t('nav.profile')}</span>
+            </span>
           )}
         </NavLink>
-      </nav>
-    </div>
+      </div>
+    </nav>
   )
 }

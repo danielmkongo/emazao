@@ -187,10 +187,10 @@ const SHARED_REEL_POPULATE = {
  * Shared by ordinary sends and reel shares so the two cannot drift apart on
  * delivery receipts, inbox ordering, socket push or notifications.
  */
-async function deliverMessage(
+export async function deliverMessage(
   conversation: any,
   senderId: string,
-  fields: { content: string; mediaUrl?: string; sharedReel?: string },
+  fields: { content: string; mediaUrl?: string; sharedReel?: string; storyReply?: Record<string, unknown> },
 ) {
   // If the recipient is connected, the push below reaches their device
   // immediately — so record delivery now rather than waiting for them to open
@@ -202,7 +202,11 @@ async function deliverMessage(
   const message = await Message.create({ conversationId: conversation._id, senderId, ...fields, deliveredAt })
 
   // The inbox preview needs words even when the message is only a reel.
-  const preview = fields.content || (fields.sharedReel ? 'Shared a reel' : fields.mediaUrl ? 'Sent a photo' : '')
+  const reaction = fields.storyReply?.reaction as string | undefined
+  const preview = fields.content
+    ? (fields.storyReply ? `Replied to your story: ${fields.content}` : fields.content)
+    : fields.storyReply ? `Reacted ${reaction ?? ''} to your story`.replace('  ', ' ')
+    : fields.sharedReel ? 'Shared a reel' : fields.mediaUrl ? 'Sent a photo' : ''
   conversation.lastMessage = preview
   conversation.lastMessageAt = new Date()
   await conversation.save()
@@ -217,7 +221,8 @@ async function deliverMessage(
     await sendNotification({
       userId: deliverToId,
       type: 'MESSAGE',
-      title: fields.sharedReel ? `${sender?.name ?? 'Someone'} sent you a reel` : 'New message',
+      title: fields.storyReply ? `${sender?.name ?? 'Someone'} replied to your story`
+        : fields.sharedReel ? `${sender?.name ?? 'Someone'} sent you a reel` : 'New message',
       body: `${sender?.name ?? 'Someone'}: ${preview.slice(0, 80)}${preview.length > 80 ? '…' : ''}`,
       link: `/messages/${conversation._id}`,
     })
@@ -226,7 +231,7 @@ async function deliverMessage(
 }
 
 /** Find the one-to-one conversation between two people, creating it if needed. */
-async function directConversation(a: string, b: string) {
+export async function directConversation(a: string, b: string) {
   return (await Conversation.findOne({ participants: { $all: [a, b] }, type: 'DIRECT' }))
     ?? Conversation.create({ participants: [a, b], type: 'DIRECT' })
 }

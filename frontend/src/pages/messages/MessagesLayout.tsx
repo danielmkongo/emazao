@@ -16,7 +16,7 @@ export default function MessagesLayout() {
   const isThreadOpen = location.pathname !== '/messages'
 
   return (
-    <div className="flex h-[calc(100dvh-84px-92px-env(safe-area-inset-top,0px))] lg:h-screen bg-[var(--c-bg)]">
+    <div className="flex h-[calc(100dvh-112px-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] lg:h-screen bg-[var(--c-bg)]">
       <div className={`w-full min-w-0 overflow-hidden lg:w-[360px] lg:flex-shrink-0 lg:border-r lg:border-[var(--c-border)] ${isThreadOpen ? 'hidden lg:flex' : 'flex'}`}>
         <ConversationList activeId={id} />
       </div>
