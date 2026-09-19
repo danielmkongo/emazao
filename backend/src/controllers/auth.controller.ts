@@ -215,7 +215,11 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     await user.save()
 
     const resetLink = `${env.CLIENT_URL}/reset-password?token=${token}`
-    await sendPasswordResetEmail(user.email, resetLink)
+    // Email is not reliable yet. A mail-server failure must not show the user
+    // an SMTP error; log the link so an admin can help them from the server logs.
+    await sendPasswordResetEmail(user.email, resetLink).catch(err => {
+      console.error(`[EMAIL] could not send reset email to ${user.email}: ${err.message}. Link: ${resetLink}`)
+    })
 
     res.json(genericResponse)
   } catch (err) {
@@ -259,7 +263,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 // POST /api/auth/send-otp
 export const sendOtp = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otp = crypto.randomInt(100000, 1000000).toString()
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 min
 
     await User.findByIdAndUpdate(req.user!.id, { otp, otpExpiry })

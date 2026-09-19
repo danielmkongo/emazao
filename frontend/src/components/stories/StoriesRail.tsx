@@ -83,7 +83,7 @@ export function StoriesRail() {
         >
           {/* The rail button handles the tap so the viewer can continue into
               the next person's stories, which a lone avatar cannot. */}
-          <span className="pointer-events-none"><StoryAvatar user={g.user} size={SIZE} group={g} /></span>
+          <StoryAvatar user={g.user} size={SIZE} group={g} decorative />
           <span className={`text-[11.5px] truncate max-w-full ${g.allSeen ? 'text-[var(--c-text-3)]' : 'text-[var(--c-text)] font-medium'}`}>
             {g.user.name.split(' ')[0]}
           </span>

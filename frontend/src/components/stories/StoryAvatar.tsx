@@ -11,6 +11,8 @@ interface StoryAvatarProps {
   lookup?: boolean
   /** What a tap does when there are no stories to open. */
   onNoStory?: () => void
+  /** Draw only; the surrounding element handles the tap (e.g. the stories rail). */
+  decorative?: boolean
   className?: string
 }
 
@@ -23,7 +25,7 @@ function initials(name?: string) {
  * grey means you have seen it all, no ring means nothing is up. Tapping a
  * ringed avatar plays that person's stories right where you are.
  */
-export function StoryAvatar({ user, size = 56, group, lookup, onNoStory, className }: StoryAvatarProps) {
+export function StoryAvatar({ user, size = 56, group, lookup, onNoStory, decorative, className }: StoryAvatarProps) {
   const { data: fetched } = useUserStories(lookup && !group ? user._id : undefined)
   const openViewer = useStoryUI(s => s.openViewer)
   const g = group ?? fetched ?? null
@@ -51,7 +53,7 @@ export function StoryAvatar({ user, size = 56, group, lookup, onNoStory, classNa
     </span>
   )
 
-  if (!hasStory && !onNoStory) return <span className={cn('inline-flex', className)}>{body}</span>
+  if (decorative || (!hasStory && !onNoStory)) return <span className={cn('inline-flex', className)}>{body}</span>
   return (
     <button
       type="button"
