@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Search, X, Leaf, Sprout, ArrowUpDown, Loader2, Flame, ChevronRight, HeartPulse } from 'lucide-react'
 import { FeedProductCard, unitLabel } from '@/components/feed/FeedProductCard'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { CategoryIcon } from '@/lib/categoryIcons'
+import { NUTRITION_GROUPS, ALL_NUTRITION, NUTRITION_DISCLAIMER, type NutritionKey } from '@/lib/nutrition'
 import { formatCurrency, cn } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ApiResponse, Product } from '@/types'
@@ -32,14 +33,43 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   )
 }
 
+function GroupChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} aria-pressed={active}
+      className={cn('flex-shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium border transition-colors press',
+        active ? 'border-brand-green bg-brand-green/10 text-brand-green' : 'border-[var(--c-border)] text-[var(--c-text-2)] hover:text-[var(--c-text)]')}>
+      {children}
+    </button>
+  )
+}
+
 export default function Marketplace() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const [organic, setOrganic] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [sort, setSort] = useState<Sort>('recommended')
+  // Special nutrition is a filter like any other chip: it narrows this grid in
+  // place ('' = off, 'ALL' = every group, or one group) rather than leaving
+  // the page. Arriving with ?nutrition= (older links) turns it on.
+  const [params, setParams] = useSearchParams()
+  const [nutrition, setNutrition] = useState<'' | 'ALL' | NutritionKey>(() => {
+    const v = params.get('nutrition')?.toUpperCase()
+    return v === 'ALL' || NUTRITION_GROUPS.some(g => g.key === v) ? (v as 'ALL' | NutritionKey) : ''
+  })
+  useEffect(() => {
+    const next = new URLSearchParams(params)
+    if (nutrition) next.set('nutrition', nutrition.toLowerCase()); else next.delete('nutrition')
+    if (next.toString() !== params.toString()) setParams(next, { replace: true })
+  }, [nutrition]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sw = i18n.resolvedLanguage === 'sw'
+  const topRef = useRef<HTMLDivElement>(null)
+  const toggleNutrition = () => {
+    setNutrition(n => (n ? '' : 'ALL'))
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const q = useDebounce(search.trim(), 350)
-  const filtered = !!(q || organic || categoryId || sort !== 'recommended')
+  const filtered = !!(q || organic || categoryId || nutrition || sort !== 'recommended')
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -54,13 +84,14 @@ export default function Marketplace() {
   })
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['products', q, organic, categoryId, sort],
+    queryKey: ['products', q, organic, categoryId, sort, nutrition],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: String(PAGE), page: String(pageParam), sort })
       if (q) params.set('q', q)
       if (organic) params.set('organic', 'true')
       if (categoryId) params.set('category', categoryId)
+      if (nutrition) params.set('nutrition', nutrition === 'ALL' ? ALL_NUTRITION : nutrition)
       return (await api.get<ApiResponse<Product[]>>(`/products?${params}`)).data
     },
     getNextPageParam: (last, pages) => {
@@ -80,10 +111,10 @@ export default function Marketplace() {
     return () => io.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const clearAll = () => { setSearch(''); setOrganic(false); setCategoryId(''); setSort('recommended') }
+  const clearAll = () => { setSearch(''); setOrganic(false); setCategoryId(''); setNutrition(''); setSort('recommended') }
 
   return (
-    <div className="max-w-5xl mx-auto pb-10">
+    <div className="max-w-5xl mx-auto pb-10" ref={topRef}>
       {/* Search + filters stay put while the grid scrolls under them */}
       <div className="sticky top-[calc(56px+env(safe-area-inset-top,0px))] lg:top-0 z-20 bar-surface pt-3 lg:pt-6 pb-2">
         <div className="px-4 flex items-center gap-3 mb-3">
@@ -112,11 +143,9 @@ export default function Marketplace() {
           </label>
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
-          {/* Special nutrition leads the row: it is a way of shopping, so it
-              lives where people shop, visible even after the banner scrolls away. */}
-          <Link to="/nutrition" className="flex-shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13.5px] font-semibold bg-brand-green/12 text-brand-green hover:bg-brand-green/20 transition-colors press">
-            <HeartPulse className="h-4 w-4" />{t('nav.nutrition')}
-          </Link>
+          {/* Special nutrition leads the row: a way of shopping, so it filters
+              right here like the other chips. */}
+          <Chip active={!!nutrition} onClick={toggleNutrition}><HeartPulse className="h-4 w-4" />{t('nav.nutrition')}</Chip>
           <Chip active={organic} onClick={() => setOrganic(o => !o)}><Leaf className="h-4 w-4" />{t('feed.organic')}</Chip>
           <Chip active={!categoryId} onClick={() => setCategoryId('')}>{t('shop.all')}</Chip>
           {categories?.map(c => (
@@ -125,6 +154,16 @@ export default function Marketplace() {
             </Chip>
           ))}
         </div>
+        {nutrition && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 mt-2">
+            <GroupChip active={nutrition === 'ALL'} onClick={() => setNutrition('ALL')}>{t('shop.allGroups')}</GroupChip>
+            {NUTRITION_GROUPS.map(g => (
+              <GroupChip key={g.key} active={nutrition === g.key} onClick={() => setNutrition(g.key)}>
+                <g.icon className="h-4 w-4" />{sw ? g.sw : g.en}
+              </GroupChip>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Selling fast + the nutrition shortcut, only on the unfiltered front page */}
@@ -154,14 +193,14 @@ export default function Marketplace() {
               </div>
             </section>
           )}
-          <Link to="/nutrition" className="mx-4 mt-5 flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-green/12 via-brand-lime/10 to-harvest/12 border border-brand-green/15 press">
+          <button onClick={toggleNutrition} className="mx-4 mt-5 w-[calc(100%-2rem)] text-left flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-green/12 via-brand-lime/10 to-harvest/12 border border-brand-green/15 press">
             <span className="w-11 h-11 rounded-xl bg-brand-green text-white flex items-center justify-center flex-shrink-0"><HeartPulse className="h-6 w-6" /></span>
             <span className="flex-1 min-w-0">
               <span className="block text-[15px] font-semibold text-[var(--c-text)]">{t('nav.nutrition')}</span>
               <span className="block text-[13px] text-[var(--c-text-3)]">{t('shop.nutritionHint')}</span>
             </span>
             <ChevronRight className="h-5 w-5 text-[var(--c-text-3)]" />
-          </Link>
+          </button>
         </>
       )}
 
@@ -172,6 +211,20 @@ export default function Marketplace() {
         {filtered && <button onClick={clearAll} className="text-[13.5px] font-semibold text-brand-green">{t('shop.clearAll')}</button>}
       </div>
 
+      {nutrition && (() => {
+        const g = NUTRITION_GROUPS.find(x => x.key === nutrition)
+        return (
+          <div className="mx-4 mb-4 flex items-start gap-3 p-3.5 rounded-2xl bg-brand-green/[0.07]">
+            <HeartPulse className="h-5 w-5 text-brand-green flex-shrink-0 mt-0.5" />
+            <div className="text-[13px] leading-snug">
+              <p className="font-semibold text-[var(--c-text)]">{g ? (sw ? g.sw : g.en) : t('nav.nutrition')}</p>
+              <p className="text-[var(--c-text-2)]">{g ? (sw ? g.swDesc : g.enDesc) : t('shop.nutritionHint')}</p>
+              <p className="text-[var(--c-text-3)] text-[12px] mt-1">{sw ? NUTRITION_DISCLAIMER.sw : NUTRITION_DISCLAIMER.en}</p>
+            </div>
+          </div>
+        )
+      })()}
+
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 px-4">
           {[...Array(8)].map((_, i) => (
@@ -181,8 +234,8 @@ export default function Marketplace() {
       ) : !products.length ? (
         <div className="text-center py-20 px-6">
           <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4"><Sprout className="h-8 w-8 text-brand-green" /></div>
-          <p className="text-[var(--c-text)] font-semibold mb-1">{t('shop.noneTitle')}</p>
-          <p className="text-[var(--c-text-3)] text-sm">{t('shop.noneBody')}</p>
+          <p className="text-[var(--c-text)] font-semibold mb-1">{nutrition ? t('shop.noNutritionTitle') : t('shop.noneTitle')}</p>
+          <p className="text-[var(--c-text-3)] text-sm">{nutrition ? t('shop.noNutritionBody') : t('shop.noneBody')}</p>
           {filtered && <button onClick={clearAll} className="mt-4 text-brand-green text-sm font-semibold">{t('shop.clearAll')}</button>}
         </div>
       ) : (

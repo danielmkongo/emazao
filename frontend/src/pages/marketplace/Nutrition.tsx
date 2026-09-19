@@ -1,32 +1,14 @@
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Baby, HeartPulse, Milk, UserRound, Stethoscope, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
+import { NUTRITION_GROUPS } from '@/lib/nutrition'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import api from '@/lib/api'
 import type { ApiResponse, Product } from '@/types'
 
-/**
- * Produce suited to people with particular nutritional needs.
- *
- * The groups are chosen because they are where food matters most and mistakes
- * cost most: young children, pregnant women, nursing mothers, the sick and the
- * elderly. Sellers tag their own produce, so every page carries a plain note
- * that this is the farmer's description, not medical advice.
- */
-const GROUPS = [
-  { key: 'CHILDREN', icon: Baby, en: 'Children', sw: 'Watoto',
-    enDesc: 'Iron, protein and energy for growing bodies.', swDesc: 'Madini ya chuma, protini na nishati kwa ukuaji.' },
-  { key: 'PREGNANT', icon: HeartPulse, en: 'Pregnant women', sw: 'Wajawazito',
-    enDesc: 'Folate, iron and calcium during pregnancy.', swDesc: 'Foliki, chuma na kalsiamu wakati wa ujauzito.' },
-  { key: 'NURSING', icon: Milk, en: 'Nursing mothers', sw: 'Wamama wanaonyonyesha',
-    enDesc: 'Fluids, protein and energy while breastfeeding.', swDesc: 'Maji, protini na nishati wakati wa kunyonyesha.' },
-  { key: 'PATIENTS', icon: Stethoscope, en: 'The sick', sw: 'Wagonjwa',
-    enDesc: 'Easy to digest, nourishing food for recovery.', swDesc: 'Chakula chepesi kumeng’enya na chenye lishe kwa kupona.' },
-  { key: 'ELDERLY', icon: UserRound, en: 'The elderly', sw: 'Wazee',
-    enDesc: 'Soft, fibre-rich produce for older adults.', swDesc: 'Mazao laini yenye nyuzinyuzi kwa wazee.' },
-] as const
+const GROUPS = NUTRITION_GROUPS
 
 export default function Nutrition() {
   const { i18n } = useTranslation()

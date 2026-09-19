@@ -223,7 +223,10 @@
     "noneTitle": "Hakuna kinacholingana",
     "noneBody": "Jaribu neno jingine, au futa vichujio.",
     "nutritionHint": "Vyakula kwa ajili ya mama, watoto na mahitaji ya afya",
-    "soldOut": "Zimeisha"
+    "soldOut": "Zimeisha",
+    "allGroups": "Makundi yote",
+    "noNutritionTitle": "Bado hakuna mazao yenye alama hii",
+    "noNutritionBody": "Wakulima huweka alama hizi wanapoweka bidhaa. Jaribu kundi jingine."
   },
   "explore": {
     "placeholder": "Tafuta bidhaa, wakulima, lebo",

@@ -223,7 +223,10 @@
     "noneTitle": "Nothing matches that",
     "noneBody": "Try another word, or clear the filters.",
     "nutritionHint": "Foods chosen for mothers, children and health needs",
-    "soldOut": "Sold out"
+    "soldOut": "Sold out",
+    "allGroups": "All groups",
+    "noNutritionTitle": "No produce tagged for this yet",
+    "noNutritionBody": "Farmers add these tags when they list a product. Try another group."
   },
   "explore": {
     "placeholder": "Search products, farmers, tags",
