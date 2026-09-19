@@ -18,5 +18,7 @@ const LikeSchema = new Schema<ILike>(
 
 LikeSchema.index({ userId: 1, targetId: 1, targetType: 1 }, { unique: true })
 LikeSchema.index({ targetId: 1, targetType: 1 })
+// The profile's private Liked tab: your likes of one kind, newest first.
+LikeSchema.index({ userId: 1, targetType: 1, createdAt: -1 })
 
 export default mongoose.model<ILike>('Like', LikeSchema)

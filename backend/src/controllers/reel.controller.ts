@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware'
 import Reel from '../models/Reel'
 import Comment from '../models/Comment'
 import Like from '../models/Like'
+import Save from '../models/Save'
 import { initContentStats, recordInteraction } from '../services/recommendation/signals'
 
 export const getReels = async (req: AuthRequest, res: Response) => {
@@ -22,18 +23,21 @@ export const getReels = async (req: AuthRequest, res: Response) => {
       .limit(limit)
 
     let likedSet = new Set<string>()
+    let savedSet = new Set<string>()
     if (req.user?.id) {
-      const likes = await Like.find({
-        userId: req.user.id,
-        targetId: { $in: reels.map(r => r._id) },
-        targetType: 'Reel',
-      })
+      const ids = reels.map(r => r._id)
+      const [likes, saves] = await Promise.all([
+        Like.find({ userId: req.user.id, targetId: { $in: ids }, targetType: 'Reel' }).select('targetId').lean(),
+        Save.find({ userId: req.user.id, targetId: { $in: ids }, targetType: 'Reel' }).select('targetId').lean(),
+      ])
       likedSet = new Set(likes.map(l => l.targetId.toString()))
+      savedSet = new Set(saves.map(s => s.targetId.toString()))
     }
 
     const data = reels.map(r => ({
       ...r.toObject(),
       userLiked: likedSet.has(r._id.toString()),
+      userSaved: savedSet.has(r._id.toString()),
     }))
 
     const nextCursor = reels.length === limit ? reels[reels.length - 1]!.createdAt.toISOString() : null
@@ -52,10 +56,16 @@ export const getReel = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Reel not found' })
     }
     let userLiked = false
+    let userSaved = false
     if (req.user?.id) {
-      userLiked = !!(await Like.exists({ userId: req.user.id, targetId: reel._id, targetType: 'Reel' }))
+      const [l, sv] = await Promise.all([
+        Like.exists({ userId: req.user.id, targetId: reel._id, targetType: 'Reel' }),
+        Save.exists({ userId: req.user.id, targetId: reel._id, targetType: 'Reel' }),
+      ])
+      userLiked = !!l
+      userSaved = !!sv
     }
-    res.json({ success: true, data: { ...reel.toObject(), userLiked } })
+    res.json({ success: true, data: { ...reel.toObject(), userLiked, userSaved } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -63,10 +73,20 @@ export const getReel = async (req: AuthRequest, res: Response) => {
 
 export const getUserReels = async (req: AuthRequest, res: Response) => {
   try {
-    const reels = await Reel.find({ userId: req.params.userId, status: 'PUBLISHED' })
+    // Cursor-paged so a prolific creator's grid keeps loading as you scroll,
+    // instead of stopping silently at the 30 most recent.
+    const PAGE = 24
+    const filter: Record<string, unknown> = { userId: req.params.userId, status: 'PUBLISHED' }
+    const cursor = req.query.cursor ? new Date(String(req.query.cursor)) : null
+    if (cursor && !isNaN(cursor.getTime())) filter.createdAt = { $lt: cursor }
+
+    const reels = await Reel.find(filter)
+      .populate('userId', 'name username avatar isVerified')
+      .populate('productId', 'title price priceUnit images slug')
       .sort({ createdAt: -1 })
-      .limit(30)
-    res.json({ success: true, data: reels })
+      .limit(PAGE)
+    const nextCursor = reels.length === PAGE ? reels[reels.length - 1]!.createdAt.toISOString() : null
+    res.json({ success: true, data: reels, nextCursor })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

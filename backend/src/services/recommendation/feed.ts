@@ -180,10 +180,10 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
     const pageIds = page.map(p => p.c.id)
     const [likes, saves] = await Promise.all([
       Like.find({ userId, targetId: { $in: pageIds } }).select('targetId').lean(),
-      Save.find({ userId, productId: { $in: pageIds } }).select('productId').lean(),
+      Save.find({ userId, targetId: { $in: pageIds } }).select('targetId').lean(),
     ])
     likedIds = new Set(likes.map((l: any) => l.targetId.toString()))
-    savedIds = new Set(saves.map((s: any) => s.productId.toString()))
+    savedIds = new Set(saves.map((s: any) => s.targetId.toString()))
   }
 
   return page.map(({ c, score }) => {
@@ -191,7 +191,7 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
     // would be dropped by toJSON(), so serialize first and extend the result.
     const data = typeof c.doc?.toObject === 'function' ? c.doc.toObject() : { ...c.doc }
     data.userLiked = likedIds.has(c.id)
-    if (c.type === 'PRODUCT') data.userSaved = savedIds.has(c.id)
+    data.userSaved = savedIds.has(c.id)
     return { type: c.type, score, data, createdAt: c.createdAt }
   })
 }

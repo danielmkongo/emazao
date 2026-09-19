@@ -67,7 +67,7 @@ async function main() {
     { label: 'Conversations', model: Conversation, filter: { _id: { $in: conversationIds } } },
     { label: 'Comments', model: Comment, filter: { $or: [{ userId: { $in: userIds } }, { reelId: { $in: reelIds } }] } },
     { label: 'Likes', model: Like, filter: { $or: [{ userId: { $in: userIds } }, { targetId: { $in: [...reelIds, ...productIds] } }] } },
-    { label: 'Saves', model: Save, filter: { $or: [{ userId: { $in: userIds } }, { productId: { $in: productIds } }] } },
+    { label: 'Saves', model: Save, filter: { $or: [{ userId: { $in: userIds } }, { targetId: { $in: [...productIds, ...reelIds] } }, { productId: { $in: productIds } }] } },
     { label: 'Follows', model: Follow, filter: { $or: [{ followerId: { $in: userIds } }, { followingId: { $in: userIds } }] } },
     { label: 'Reviews', model: Review, filter: { $or: [{ authorId: { $in: userIds } }, { targetId: { $in: userIds } }] } },
     { label: 'Notifications', model: Notification, filter: { userId: { $in: userIds } } },

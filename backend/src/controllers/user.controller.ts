@@ -2,6 +2,8 @@ import { Request, Response } from 'express'
 import User from '../models/User'
 import SellerProfile from '../models/SellerProfile'
 import Follow from '../models/Follow'
+import Product from '../models/Product'
+import Reel from '../models/Reel'
 import CreatorScore from '../models/CreatorScore'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { sendNotification } from '../services/notification.service'
@@ -117,7 +119,21 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       isFollowing = !!(await Follow.findOne({ followerId: authReq.user.id, followingId: user._id }))
     }
 
-    res.json({ success: true, data: { user, sellerProfile, isFollowing } })
+    // The numbers a profile header shows on Instagram and TikTok: how much they
+    // have posted, and how much appreciation it has earned in total.
+    const [reelsCount, productsCount, reelLikes, productLikes] = await Promise.all([
+      Reel.countDocuments({ userId: user._id, status: 'PUBLISHED' }),
+      Product.countDocuments({ sellerId: user._id, status: 'ACTIVE' }),
+      Reel.aggregate([{ $match: { userId: user._id, status: 'PUBLISHED' } }, { $group: { _id: null, n: { $sum: '$likeCount' } } }]),
+      Product.aggregate([{ $match: { sellerId: user._id } }, { $group: { _id: null, n: { $sum: '$likeCount' } } }]),
+    ])
+    const stats = {
+      reels: reelsCount,
+      products: productsCount,
+      likesReceived: (reelLikes[0]?.n ?? 0) + (productLikes[0]?.n ?? 0),
+    }
+
+    res.json({ success: true, data: { user, sellerProfile, isFollowing, stats } })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })
   }

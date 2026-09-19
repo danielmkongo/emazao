@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } fr
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMotionValue, useTransform, animate, motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
+import { Heart, MessageCircle, Share2, ShoppingBag, Volume2, VolumeX, Play, Loader2, X, Send, Radio, Eye, ChevronUp, ChevronDown, RotateCcw, Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
@@ -122,6 +122,12 @@ function ReelCard({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [liked, setLiked] = useState(reel.userLiked ?? false)
   const [likeCount, setLikeCount] = useState(reel.likeCount)
+  const [saved, setSaved] = useState(reel.userSaved ?? false)
+  const [saveCount, setSaveCount] = useState(reel.saveCount ?? 0)
+  const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([])
+  const lastTapRef = useRef(0)
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savePendingRef = useRef(false)
   const [shareCount, setShareCount] = useState(reel.shareCount)
   const [commentCount, setCommentCount] = useState(reel.commentCount)
   const [viewCount, setViewCount] = useState(reel.viewCount ?? 0)
@@ -231,6 +237,8 @@ function ReelCard({
   useEffect(() => {
     if (reel.userLiked !== undefined) setLiked(reel.userLiked)
   }, [reel.userLiked])
+  useEffect(() => { setSaved(reel.userSaved ?? false) }, [reel.userSaved])
+  useEffect(() => { setSaveCount(reel.saveCount ?? 0) }, [reel.saveCount])
 
   // Resync counters if the underlying query data ever changes underneath this
   // card (e.g. a future refetch/invalidation) — mirrors FeedProductCard's
@@ -259,6 +267,48 @@ function ReelCard({
     } finally {
       likePendingRef.current = false
     }
+  }
+
+  // Bookmark, as Instagram's save and TikTok's favourites. Shows up in the
+  // Saved tab of your own profile.
+  const handleSave = async () => {
+    if (savePendingRef.current) return
+    savePendingRef.current = true
+    const next = !saved
+    setSaved(next)
+    setSaveCount(c => Math.max(0, c + (next ? 1 : -1)))
+    try {
+      await api.post('/social/save', { targetId: reel._id, targetType: 'Reel' })
+    } catch {
+      setSaved(!next)
+      setSaveCount(c => Math.max(0, c + (next ? -1 : 1)))
+    } finally {
+      savePendingRef.current = false
+    }
+  }
+
+  /**
+   * Tap to pause, double-tap to like — the gesture both apps have trained
+   * everyone to expect. A single tap waits one double-tap window before
+   * pausing, so a double-tap never flickers the video off and back on. Like
+   * Instagram, double-tap only ever likes; un-liking is the button's job, so a
+   * second enthusiastic double-tap cannot take the like away.
+   */
+  const handleVideoTap = (e: React.MouseEvent) => {
+    const now = Date.now()
+    if (now - lastTapRef.current < 280) {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+      tapTimerRef.current = null
+      lastTapRef.current = 0
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const id = now
+      setHearts(h => [...h, { id, x: e.clientX - rect.left, y: e.clientY - rect.top }])
+      setTimeout(() => setHearts(h => h.filter(x => x.id !== id)), 900)
+      if (!liked) void handleLike()
+      return
+    }
+    lastTapRef.current = now
+    tapTimerRef.current = setTimeout(() => { tapTimerRef.current = null; togglePlay() }, 280)
   }
 
   const handleShare = async () => {
@@ -348,7 +398,7 @@ function ReelCard({
           preload={isActive ? 'auto' : preloadHint}
           className="absolute inset-0 w-full h-full object-cover"
           style={{ willChange: 'transform' }}
-          onClick={togglePlay}
+          onClick={handleVideoTap}
           onPointerDown={e => { if ((e.target as HTMLElement).tagName === 'VIDEO') e.stopPropagation() }}
           onWaiting={() => isActive && setBuffering(true)}
           onPlaying={() => { setBuffering(false); setVideoError(false) }}
@@ -393,6 +443,25 @@ function ReelCard({
         )}
       </AnimatePresence>
 
+      {/* Double-tap hearts */}
+      <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+        <AnimatePresence>
+          {hearts.map(h => (
+            <motion.div
+              key={h.id}
+              initial={{ opacity: 0, scale: 0.4, rotate: -12 }}
+              animate={{ opacity: 1, scale: 1.2, rotate: 0 }}
+              exit={{ opacity: 0, scale: 1.5, y: -60 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 16 }}
+              className="absolute"
+              style={{ left: h.x - 48, top: h.y - 48 }}
+            >
+              <Heart className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-2xl" />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {/* Right actions */}
       <div
         className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10"
@@ -409,6 +478,12 @@ function ReelCard({
           className="flex flex-col items-center gap-1">
           <MessageCircle className={`h-7 w-7 text-white drop-shadow ${showComments ? 'fill-white/20' : ''}`} />
           <span className="text-white text-xs font-medium">{formatNumber(commentCount)}</span>
+        </motion.button>
+
+        <motion.button whileTap={{ scale: 1.2 }} onClick={handleSave} aria-pressed={saved}
+          aria-label={saved ? 'Remove from saved' : 'Save'} className="flex flex-col items-center gap-1">
+          <Bookmark className={`h-7 w-7 transition-colors drop-shadow ${saved ? 'fill-amber-400 text-amber-400' : 'text-white'}`} />
+          <span className="text-white text-xs font-medium">{formatNumber(saveCount)}</span>
         </motion.button>
 
         <motion.button whileTap={{ scale: 1.1 }} onClick={handleShare} className="flex flex-col items-center gap-1">

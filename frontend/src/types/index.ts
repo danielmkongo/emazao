@@ -173,8 +173,10 @@ export interface Reel {
   likeCount: number
   commentCount: number
   shareCount: number
+  saveCount?: number
   status: string
   userLiked?: boolean
+  userSaved?: boolean
   createdAt: string
 }
 

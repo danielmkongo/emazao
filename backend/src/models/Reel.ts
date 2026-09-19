@@ -15,6 +15,7 @@ export interface IReel extends Document {
   likeCount: number
   commentCount: number
   shareCount: number
+  saveCount: number
   totalWatchTime: number
   status: ContentStatus
   isBoosted: boolean
@@ -37,6 +38,7 @@ const ReelSchema = new Schema<IReel>(
     likeCount: { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
     shareCount: { type: Number, default: 0 },
+    saveCount: { type: Number, default: 0 },
     totalWatchTime: { type: Number, default: 0 },
     status: {
       type: String,

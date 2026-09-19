@@ -1503,16 +1503,16 @@ async function main() {
   ])
 
   await Save.insertMany([
-    { userId: buyer1._id, productId: products[0]._id },
-    { userId: buyer1._id, productId: products[2]._id },
-    { userId: buyer1._id, productId: products[5]._id },
-    { userId: buyer2._id, productId: products[5]._id },
-    { userId: buyer2._id, productId: products[15]._id },
-    { userId: buyer2._id, productId: products[20]._id },
-    { userId: buyer3._id, productId: products[7]._id },
-    { userId: buyer3._id, productId: products[11]._id },
-    { userId: buyer3._id, productId: products[21]._id },
-    { userId: buyer3._id, productId: products[22]._id },
+    { userId: buyer1._id, targetType: 'Product', targetId: products[0]._id, productId: products[0]._id },
+    { userId: buyer1._id, targetType: 'Product', targetId: products[2]._id, productId: products[2]._id },
+    { userId: buyer1._id, targetType: 'Product', targetId: products[5]._id, productId: products[5]._id },
+    { userId: buyer2._id, targetType: 'Product', targetId: products[5]._id, productId: products[5]._id },
+    { userId: buyer2._id, targetType: 'Product', targetId: products[15]._id, productId: products[15]._id },
+    { userId: buyer2._id, targetType: 'Product', targetId: products[20]._id, productId: products[20]._id },
+    { userId: buyer3._id, targetType: 'Product', targetId: products[7]._id, productId: products[7]._id },
+    { userId: buyer3._id, targetType: 'Product', targetId: products[11]._id, productId: products[11]._id },
+    { userId: buyer3._id, targetType: 'Product', targetId: products[21]._id, productId: products[21]._id },
+    { userId: buyer3._id, targetType: 'Product', targetId: products[22]._id, productId: products[22]._id },
   ])
 
   await Review.insertMany([
@@ -1564,7 +1564,10 @@ async function main() {
   ])
 
   // Save counts
-  const savesAgg = await Save.aggregate([{ $group: { _id: '$productId', c: { $sum: 1 } } }])
+  const savesAgg = await Save.aggregate([
+    { $match: { targetType: 'Product' } },
+    { $group: { _id: '$targetId', c: { $sum: 1 } } },
+  ])
   await Promise.all(savesAgg.map(({ _id, c }) => Product.findByIdAndUpdate(_id, { saveCount: c })))
 
   // Comment counts

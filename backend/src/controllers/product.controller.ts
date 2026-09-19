@@ -114,7 +114,7 @@ export const getProduct = async (req: Request, res: Response): Promise<void> => 
 
     let userSaved = false
     if (authReq.user?.id) {
-      const save = await Save.findOne({ userId: authReq.user.id, productId: product._id })
+      const save = await Save.findOne({ userId: authReq.user.id, targetType: 'Product', targetId: product._id })
       userSaved = !!save
     }
 

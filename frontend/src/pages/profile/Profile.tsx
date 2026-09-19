@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatNumber, verifiedLabel } from '@/lib/utils'
+import { ProfileContent } from '@/components/profile/ProfileContent'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User, SellerProfile } from '@/types'
@@ -91,7 +92,10 @@ export default function Profile() {
   const { data, isLoading } = useQuery({
     queryKey: ['profile', targetUsername],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<{ user: User; sellerProfile: SellerProfile | null; isFollowing: boolean }>>(`/users/${targetUsername}`)
+      const res = await api.get<ApiResponse<{
+        user: User; sellerProfile: SellerProfile | null; isFollowing: boolean
+        stats?: { reels: number; products: number; likesReceived: number }
+      }>>(`/users/${targetUsername}`)
       return res.data.data
     },
     enabled: !!targetUsername,
@@ -106,6 +110,11 @@ export default function Profile() {
       const res = await api.post<ApiResponse<{ following: boolean }>>(`/users/${user?._id}/follow`)
       return res.data.data
     },
+    // Optimistic, then settle on the server's count. The old display added one
+    // to the follower count whenever `followed` was true — including when you
+    // already followed them before the page loaded, so it counted you twice.
+    onMutate: () => setFollowed(f => !f),
+    onError: () => setFollowed(f => !f),
     onSuccess: (result) => {
       setFollowed(result.following)
       queryClient.invalidateQueries({ queryKey: ['profile', targetUsername] })
@@ -140,6 +149,7 @@ export default function Profile() {
   )
 
   const followerCount = (user as any).followersCount ?? 0
+  const stats = data?.stats
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -217,37 +227,38 @@ export default function Profile() {
             </span>
           </div>
 
-          {/* Clickable stats */}
-          <div className="flex gap-6 text-sm">
-            <button
-              onClick={() => setFollowModal('followers')}
-              className="text-center cursor-pointer hover:opacity-70 transition-opacity"
-            >
-              <p className="font-bold text-[var(--c-text)]">{formatNumber(followerCount + (followed && !isOwnProfile ? 1 : 0))}</p>
+          {/* The header counts Instagram and TikTok lead with: how much they
+              have posted, who follows whom, and total likes received. */}
+          <div className="grid grid-cols-4 gap-2 text-sm">
+            <div className="text-center">
+              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(stats ? stats.reels + stats.products : 0)}</p>
+              <p className="text-[var(--c-text-3)] text-xs">Posts</p>
+            </div>
+            <button onClick={() => setFollowModal('followers')}
+              className="text-center cursor-pointer hover:opacity-70 transition-opacity">
+              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(followerCount)}</p>
               <p className="text-[var(--c-text-3)] text-xs">Followers</p>
             </button>
-            <button
-              onClick={() => setFollowModal('following')}
-              className="text-center cursor-pointer hover:opacity-70 transition-opacity"
-            >
-              <p className="font-bold text-[var(--c-text)]">{formatNumber((user as any).followingCount ?? 0)}</p>
+            <button onClick={() => setFollowModal('following')}
+              className="text-center cursor-pointer hover:opacity-70 transition-opacity">
+              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber((user as any).followingCount ?? 0)}</p>
               <p className="text-[var(--c-text-3)] text-xs">Following</p>
             </button>
-            {user.role === 'FARMER' && seller && (
-              <>
-                <div className="text-center">
-                  <p className="font-bold text-[var(--c-text)]">{formatNumber(seller.totalSales ?? 0)}</p>
-                  <p className="text-[var(--c-text-3)] text-xs">Sales</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-[var(--c-text)] flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 text-gold fill-gold" />{seller.rating?.toFixed(1) ?? '—'}
-                  </p>
-                  <p className="text-[var(--c-text-3)] text-xs">Rating</p>
-                </div>
-              </>
-            )}
+            <div className="text-center">
+              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(stats?.likesReceived ?? 0)}</p>
+              <p className="text-[var(--c-text-3)] text-xs">Likes</p>
+            </div>
           </div>
+
+          {user.role === 'FARMER' && seller && (
+            <div className="flex gap-5 text-xs text-[var(--c-text-3)] mt-3 pt-3 border-t border-[var(--c-border)]">
+              <span><span className="font-semibold text-[var(--c-text)] tabular-nums">{formatNumber(seller.totalSales ?? 0)}</span> sales</span>
+              <span className="flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 text-gold fill-gold" />
+                <span className="font-semibold text-[var(--c-text)]">{seller.rating?.toFixed(1) ?? '—'}</span> rating
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -277,6 +288,8 @@ export default function Profile() {
           </Link>
         </motion.div>
       )}
+
+      <ProfileContent userId={user._id} isOwnProfile={isOwnProfile} isSeller={user.role === 'FARMER'} />
 
       {/* Followers / Following modal */}
       <AnimatePresence>

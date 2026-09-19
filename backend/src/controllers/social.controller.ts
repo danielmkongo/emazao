@@ -1,4 +1,5 @@
 import { Response } from 'express'
+import mongoose from 'mongoose'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Like from '../models/Like'
 import Save from '../models/Save'
@@ -7,6 +8,10 @@ import Reel from '../models/Reel'
 import { recordInteraction } from '../services/recommendation/signals'
 import type { ContentType } from '../models/InteractionEvent'
 
+type Target = 'Product' | 'Reel'
+const TARGETS: Target[] = ['Product', 'Reel']
+const PAGE = 24
+
 // Resolve the creator of a liked/saved item so signals carry creator affinity
 async function creatorOf(targetType: string, targetId: string): Promise<string | undefined> {
   if (targetType === 'Reel') return (await Reel.findById(targetId).select('userId'))?.userId?.toString()
@@ -14,16 +19,20 @@ async function creatorOf(targetType: string, targetId: string): Promise<string |
   return undefined
 }
 
+const counterModel = (t: Target) => (t === 'Reel' ? Reel : Product) as unknown as mongoose.Model<any>
+
 export const toggleLike = async (req: AuthRequest, res: Response) => {
   try {
     const { targetId, targetType } = req.body
+    if (!TARGETS.includes(targetType) || !mongoose.isValidObjectId(targetId)) {
+      return res.status(400).json({ success: false, message: 'Invalid target' })
+    }
     const userId = req.user!.id
     const existing = await Like.findOne({ userId, targetId, targetType })
 
     if (existing) {
       await existing.deleteOne()
-      if (targetType === 'Product') await Product.findByIdAndUpdate(targetId, { $inc: { likeCount: -1 } })
-      if (targetType === 'Reel') await Reel.findByIdAndUpdate(targetId, { $inc: { likeCount: -1 } })
+      await counterModel(targetType).updateOne({ _id: targetId, likeCount: { $gt: 0 } }, { $inc: { likeCount: -1 } })
       return res.json({ success: true, liked: false })
     }
 
@@ -36,47 +45,126 @@ export const toggleLike = async (req: AuthRequest, res: Response) => {
       if (createErr.code === 11000) return res.json({ success: true, liked: true })
       throw createErr
     }
-    if (targetType === 'Product') await Product.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
-    if (targetType === 'Reel') await Reel.findByIdAndUpdate(targetId, { $inc: { likeCount: 1 } })
+    await counterModel(targetType).updateOne({ _id: targetId }, { $inc: { likeCount: 1 } })
     res.json({ success: true, liked: true })
 
+    // The signal store's content type is 'REEL' | 'PRODUCT'. This used to pass
+    // 'Reel' / 'Product' straight through, which failed the enum on every call
+    // inside a swallowed try — so likes never reached the ranking engine at all.
     const creatorId = await creatorOf(targetType, targetId)
-    void recordInteraction({ userId, contentId: targetId, contentType: targetType as ContentType, creatorId, event: 'like' })
+    void recordInteraction({ userId, contentId: targetId, contentType: targetType.toUpperCase() as ContentType, creatorId, event: 'like' })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
 }
 
+/**
+ * POST /api/social/save — bookmark a product or a reel.
+ *
+ * Accepts { targetId, targetType }. The older { productId } body is still
+ * understood, so a client that has not updated yet keeps working.
+ */
 export const toggleSave = async (req: AuthRequest, res: Response) => {
   try {
-    const { productId } = req.body
+    const body = req.body as { targetId?: string; targetType?: Target; productId?: string }
+    const targetType: Target = body.targetType ?? 'Product'
+    const targetId = body.targetId ?? body.productId
+    if (!TARGETS.includes(targetType) || !targetId || !mongoose.isValidObjectId(targetId)) {
+      return res.status(400).json({ success: false, message: 'Invalid target' })
+    }
     const userId = req.user!.id
-    const existing = await Save.findOne({ userId, productId })
 
+    const exists = await counterModel(targetType).exists({ _id: targetId })
+    if (!exists) return res.status(404).json({ success: false, message: `${targetType} not found` })
+
+    const existing = await Save.findOne({ userId, targetType, targetId })
     if (existing) {
       await existing.deleteOne()
-      await Product.findByIdAndUpdate(productId, { $inc: { saveCount: -1 } })
+      // Guarded decrement: a counter that drifted below zero would show "-1 saves".
+      await counterModel(targetType).updateOne({ _id: targetId, saveCount: { $gt: 0 } }, { $inc: { saveCount: -1 } })
       return res.json({ success: true, saved: false })
     }
 
-    await Save.create({ userId, productId })
-    await Product.findByIdAndUpdate(productId, { $inc: { saveCount: 1 } })
+    try {
+      await Save.create({
+        userId, targetType, targetId,
+        ...(targetType === 'Product' ? { productId: targetId } : {}),
+      })
+    } catch (e: any) {
+      if (e.code === 11000) return res.json({ success: true, saved: true })
+      throw e
+    }
+    await counterModel(targetType).updateOne({ _id: targetId }, { $inc: { saveCount: 1 } })
     res.json({ success: true, saved: true })
 
-    const creatorId = (await Product.findById(productId).select('sellerId'))?.sellerId?.toString()
-    void recordInteraction({ userId, contentId: productId, contentType: 'PRODUCT', creatorId, event: 'save', source: 'marketplace' })
+    const creatorId = await creatorOf(targetType, targetId)
+    void recordInteraction({
+      userId, contentId: targetId, contentType: targetType.toUpperCase() as ContentType,
+      creatorId, event: 'save', source: targetType === 'Reel' ? 'reels' : 'marketplace',
+    })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
 }
 
+/**
+ * Hydrate a page of saves or likes into the items themselves, newest first,
+ * dropping anything since deleted or taken down — a grid tile for a removed reel
+ * would open to a 404.
+ */
+async function hydrate(type: Target, rows: { targetId: any; createdAt: Date }[]) {
+  const ids = rows.map(r => r.targetId)
+  const docs = type === 'Reel'
+    ? await Reel.find({ _id: { $in: ids }, status: 'PUBLISHED' })
+        .populate('userId', 'name username avatar isVerified')
+        .populate('productId', 'title price priceUnit images slug')
+        .lean()
+    : await Product.find({ _id: { $in: ids }, status: { $ne: 'INACTIVE' } })
+        .populate('sellerId', 'name username avatar isVerified')
+        .lean()
+  const byId = new Map(docs.map((d: any) => [String(d._id), d]))
+  return rows.map(r => byId.get(String(r.targetId))).filter(Boolean)
+}
+
+function pageArgs(req: AuthRequest) {
+  const type = (String(req.query['type'] ?? 'Reel') === 'Product' ? 'Product' : 'Reel') as Target
+  const cursor = req.query['cursor'] ? new Date(String(req.query['cursor'])) : null
+  return { type, cursor: cursor && !isNaN(cursor.getTime()) ? cursor : null }
+}
+
+/**
+ * GET /api/social/saved?type=Reel|Product&cursor= — your own saves only.
+ * Private, as on Instagram: nobody else can see what you have bookmarked.
+ */
 export const getSaved = async (req: AuthRequest, res: Response) => {
   try {
-    const saves = await Save.find({ userId: req.user!.id })
-      .populate({ path: 'productId', populate: { path: 'sellerId', select: 'name username avatar' } })
-      .sort({ createdAt: -1 })
-      .limit(50)
-    res.json({ success: true, data: saves.map((s: any) => s.productId) })
+    const { type, cursor } = pageArgs(req)
+    const filter: Record<string, unknown> = { userId: req.user!.id, targetType: type }
+    if (cursor) filter['createdAt'] = { $lt: cursor }
+
+    const rows = await Save.find(filter).sort({ createdAt: -1 }).limit(PAGE).select('targetId createdAt').lean()
+    const items = await hydrate(type, rows)
+    const nextCursor = rows.length === PAGE ? rows[rows.length - 1]!.createdAt.toISOString() : null
+    res.json({ success: true, data: items, nextCursor })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/**
+ * GET /api/social/liked?type=Reel|Product&cursor= — your own likes only.
+ * Private by default, as TikTok's Liked tab is.
+ */
+export const getLiked = async (req: AuthRequest, res: Response) => {
+  try {
+    const { type, cursor } = pageArgs(req)
+    const filter: Record<string, unknown> = { userId: req.user!.id, targetType: type }
+    if (cursor) filter['createdAt'] = { $lt: cursor }
+
+    const rows = await Like.find(filter).sort({ createdAt: -1 }).limit(PAGE).select('targetId createdAt').lean()
+    const items = await hydrate(type, rows)
+    const nextCursor = rows.length === PAGE ? rows[rows.length - 1]!.createdAt.toISOString() : null
+    res.json({ success: true, data: items, nextCursor })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

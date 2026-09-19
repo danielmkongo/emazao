@@ -44,6 +44,7 @@ import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
 import { startRequirementExpiryJob } from './services/requirementExpiry.job'
 import LiveSession from './models/LiveSession'
+import { migrateSaves } from './models/Save'
 
 const app = express()
 const httpServer = createServer(app)
@@ -216,6 +217,10 @@ const start = async () => {
   await LiveSession.deleteMany({})
 
   await seedCategories()
+  // Idempotent: upgrades product-only saves and drops the index that would make
+  // a second reel save collide. Failure is logged, not fatal — the app still
+  // works for everything except saving reels.
+  await migrateSaves().catch(err => console.error('saves migration failed:', (err as Error).message))
   startRecommendationJobs()
   startRequirementExpiryJob()
   httpServer.listen(parseInt(env.PORT), () => {
