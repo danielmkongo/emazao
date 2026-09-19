@@ -9,6 +9,7 @@ import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
+import { ShareSheet } from '@/components/reels/ShareSheet'
 import type { ApiResponse, Reel, User, Product } from '@/types'
 
 interface ReelPage { data: Reel[]; nextCursor: string | null }
@@ -136,6 +137,9 @@ function ReelCard({
   const [videoError, setVideoError] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [shareToast, setShareToast] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareToastText, setShareToastText] = useState('Link copied')
+  const { isAuthenticated: signedIn } = useAuthStore()
   const startTimeRef = useRef<number>(0)
   const viewedRef = useRef(false) // ensure one view per reel mount
   const watchTimeSentRef = useRef(false) // ensure watch-time posts exactly once per reel mount
@@ -311,6 +315,21 @@ function ReelCard({
     tapTimerRef.current = setTimeout(() => { tapTimerRef.current = null; togglePlay() }, 280)
   }
 
+  // Signed in: the send-to sheet, so the reel goes to someone's inbox on
+  // eMazao. Signed out there is nobody to send to, so fall back to the phone's
+  // share sheet or copying the link.
+  const openShare = () => {
+    if (signedIn) { setShareOpen(true); return }
+    void handleShare()
+  }
+
+  const onSharedToPeople = (count: number) => {
+    setShareCount(prev => prev + count)
+    setShareToastText(count === 1 ? 'Sent' : `Sent to ${count} people`)
+    setShareToast(true)
+    setTimeout(() => setShareToast(false), 2000)
+  }
+
   const handleShare = async () => {
     const url = `${window.location.origin}/reels/${reel._id}`
     let shared = false
@@ -329,6 +348,7 @@ function ReelCard({
 
     if (shared) {
       setShareCount(prev => prev + 1)
+      setShareToastText('Link copied')
       setShareToast(true)
       setTimeout(() => setShareToast(false), 2000)
       api.post(`/reels/${reel._id}/share`).catch(() => {})
@@ -486,7 +506,7 @@ function ReelCard({
           <span className="text-white text-xs font-medium">{formatNumber(saveCount)}</span>
         </motion.button>
 
-        <motion.button whileTap={{ scale: 1.1 }} onClick={handleShare} className="flex flex-col items-center gap-1">
+        <motion.button whileTap={{ scale: 1.1 }} onClick={openShare} aria-label="Share" className="flex flex-col items-center gap-1">
           <Share2 className="h-7 w-7 text-white drop-shadow" />
           <span className="text-white text-xs font-medium">{formatNumber(shareCount)}</span>
         </motion.button>
@@ -545,12 +565,18 @@ function ReelCard({
       </AnimatePresence>
 
       <AnimatePresence>
+        {shareOpen && (
+          <ShareSheet reelId={reel._id} onClose={() => setShareOpen(false)} onShared={onSharedToPeople} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {shareToast && (
           <motion.div
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
             className="absolute bottom-36 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white text-sm px-5 py-2 rounded-full z-30 pointer-events-none whitespace-nowrap"
           >
-            Link copied!
+            {shareToastText}
           </motion.div>
         )}
       </AnimatePresence>

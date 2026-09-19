@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/authStore'
@@ -21,6 +21,50 @@ interface Message {
   createdAt: string
   /** Set only on the optimistic copy shown before the server confirms. */
   pending?: boolean
+  /** A reel sent from its share sheet. Null if it has since been removed. */
+  sharedReel?: {
+    _id: string; thumbnailUrl?: string; videoUrl?: string; caption?: string; title?: string
+    status?: string; viewCount?: number; userId?: User
+  } | null
+}
+
+/**
+ * A shared reel as it appears in a chat: a tappable card, as Instagram and
+ * TikTok show it, rather than a bare link. A reel deleted after sending leaves
+ * a placeholder instead of a card that opens to "not found".
+ */
+function SharedReelCard({ reel, isMe }: { reel: NonNullable<Message['sharedReel']>; isMe: boolean }) {
+  const gone = !reel || reel.status !== 'PUBLISHED'
+  if (gone) {
+    return (
+      <div className={`w-56 rounded-2xl border border-[var(--c-border)] px-4 py-6 text-center text-xs text-[var(--c-text-3)] ${isMe ? 'ml-auto' : ''}`}>
+        This reel is no longer available
+      </div>
+    )
+  }
+  return (
+    <a href={`/reels/${reel._id}`}
+      className="block w-56 rounded-2xl overflow-hidden border border-[var(--c-border)] bg-black group">
+      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--c-card)]">
+        <Avatar src={reel.userId?.avatar} name={reel.userId?.name ?? 'Creator'} size="xs" verified={reel.userId?.isVerified} />
+        <span className="text-xs font-semibold text-[var(--c-text)] truncate">@{reel.userId?.username}</span>
+      </div>
+      <div className="relative aspect-[9/16]">
+        {reel.thumbnailUrl
+          ? <img src={reel.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          : <video src={`${reel.videoUrl}#t=0.1`} preload="metadata" muted playsInline className="absolute inset-0 w-full h-full object-cover" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
+            <Play className="h-6 w-6 fill-white text-white ml-0.5" />
+          </span>
+        </span>
+        {(reel.caption || reel.title) && (
+          <p className="absolute bottom-2 left-2.5 right-2.5 text-white text-xs line-clamp-2 drop-shadow">{reel.caption || reel.title}</p>
+        )}
+      </div>
+    </a>
+  )
 }
 
 interface Conversation {
@@ -398,9 +442,14 @@ export default function Thread() {
                 )}
 
                 <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
+                  {msg.sharedReel !== undefined && (
+                    <SharedReelCard reel={msg.sharedReel as any} isMe={isMe} />
+                  )}
+                  {/* A shared reel may travel with no note; draw no empty bubble. */}
+                  {Boolean(msg.content) && (
                   <div
                     className={`
-                      px-4 py-2.5 text-sm leading-relaxed break-words
+                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel ? 'mt-1' : ''}
                       ${isMe
                         ? `bg-brand-green text-white
                            ${!prevSame ? 'rounded-t-2xl' : 'rounded-t-lg'}
@@ -413,6 +462,7 @@ export default function Thread() {
                   >
                     {msg.content}
                   </div>
+                  )}
 
                   {isLast && (
                     <div className={`flex items-center gap-1 mt-1 ${isMe ? 'flex-row-reverse' : ''}`}>

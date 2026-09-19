@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import User from '../models/User'
+import Reel from '../models/Reel'
 import { sendNotification, emitToRoom } from '../services/notification.service'
 import { isUserOnline } from '../socket'
 
@@ -75,6 +76,7 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
 
     const messages = await Message.find({ conversationId })
       .populate('senderId', 'name username avatar')
+      .populate(SHARED_REEL_POPULATE)
       .sort({ createdAt: 1 })
       .limit(100)
     res.json({ success: true, data: messages })
@@ -87,6 +89,12 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { recipientId, content, mediaUrl, conversationId: existingConvId } = req.body
     const senderId = req.user!.id
+
+    // The schema no longer requires text, because a shared reel can travel with
+    // no note. An ordinary message still needs something in it.
+    if (!String(content ?? '').trim() && !mediaUrl) {
+      return res.status(400).json({ success: false, message: 'Message cannot be empty' })
+    }
 
     let conversation
     if (existingConvId) {
@@ -125,34 +133,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     if (!conversation) return res.status(400).json({ success: false, message: 'Cannot create conversation' })
 
-    // If the recipient is connected, the push below reaches their device
-    // immediately — so record delivery now rather than waiting for them to open
-    // the thread, which would mark it read in the same moment and make
-    // "delivered" a state the sender could never actually observe.
-    const deliverToId = conversation.participants.map(String).find(pid => pid !== senderId)
-    const deliveredAt = deliverToId && isUserOnline(deliverToId) ? new Date() : undefined
-
-    const message = await Message.create({ conversationId: conversation._id, senderId, content, mediaUrl, deliveredAt })
-    conversation.lastMessage = content
-    conversation.lastMessageAt = new Date()
-    await conversation.save()
-
-    await message.populate('senderId', 'name username avatar')
-
-    emitToRoom(`conv:${conversation._id}`, 'message:new', message)
-
-    const notifyRecipientId = deliverToId
-    if (notifyRecipientId) {
-      const sender = await User.findById(senderId).select('name')
-      await sendNotification({
-        userId: notifyRecipientId,
-        type: 'MESSAGE',
-        title: 'New message',
-        body: `${sender?.name ?? 'Someone'}: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''}`,
-        link: `/messages/${conversation._id}`,
-      })
-    }
-
+    const message = await deliverMessage(conversation, senderId, { content: String(content ?? '').trim(), mediaUrl })
     res.status(201).json({ success: true, data: { message, conversationId: conversation._id } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -181,6 +162,114 @@ export const markRead = async (req: AuthRequest, res: Response) => {
       readAt: new Date(),
     })
     res.json({ success: true })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/** How a shared reel is embedded wherever a message is sent back to a client. */
+const SHARED_REEL_POPULATE = {
+  path: 'sharedReel',
+  select: 'thumbnailUrl videoUrl caption title status viewCount userId',
+  populate: { path: 'userId', select: 'name username avatar isVerified' },
+}
+
+/**
+ * Store a message in a conversation and tell everyone who needs to know.
+ * Shared by ordinary sends and reel shares so the two cannot drift apart on
+ * delivery receipts, inbox ordering, socket push or notifications.
+ */
+async function deliverMessage(
+  conversation: any,
+  senderId: string,
+  fields: { content: string; mediaUrl?: string; sharedReel?: string },
+) {
+  // If the recipient is connected, the push below reaches their device
+  // immediately — so record delivery now rather than waiting for them to open
+  // the thread, which would mark it read in the same moment and make
+  // "delivered" a state the sender could never actually observe.
+  const deliverToId = conversation.participants.map(String).find((pid: string) => pid !== senderId)
+  const deliveredAt = deliverToId && isUserOnline(deliverToId) ? new Date() : undefined
+
+  const message = await Message.create({ conversationId: conversation._id, senderId, ...fields, deliveredAt })
+
+  // The inbox preview needs words even when the message is only a reel.
+  const preview = fields.content || (fields.sharedReel ? 'Shared a reel' : fields.mediaUrl ? 'Sent a photo' : '')
+  conversation.lastMessage = preview
+  conversation.lastMessageAt = new Date()
+  await conversation.save()
+
+  await message.populate('senderId', 'name username avatar')
+  if (fields.sharedReel) await message.populate(SHARED_REEL_POPULATE)
+
+  emitToRoom(`conv:${conversation._id}`, 'message:new', message)
+
+  if (deliverToId) {
+    const sender = await User.findById(senderId).select('name')
+    await sendNotification({
+      userId: deliverToId,
+      type: 'MESSAGE',
+      title: fields.sharedReel ? `${sender?.name ?? 'Someone'} sent you a reel` : 'New message',
+      body: `${sender?.name ?? 'Someone'}: ${preview.slice(0, 80)}${preview.length > 80 ? '…' : ''}`,
+      link: `/messages/${conversation._id}`,
+    })
+  }
+  return message
+}
+
+/** Find the one-to-one conversation between two people, creating it if needed. */
+async function directConversation(a: string, b: string) {
+  return (await Conversation.findOne({ participants: { $all: [a, b] }, type: 'DIRECT' }))
+    ?? Conversation.create({ participants: [a, b], type: 'DIRECT' })
+}
+
+const MAX_SHARE_RECIPIENTS = 20
+
+/**
+ * POST /api/messages/share-reel — send a reel to one or more people.
+ *
+ * Instagram's "send to": each recipient gets it in their own direct chat with
+ * you, never a group thread they did not ask to be in. Capped per request so the
+ * share sheet cannot be turned into a way to spam a reel across the platform.
+ */
+export const shareReel = async (req: AuthRequest, res: Response) => {
+  try {
+    const { reelId, recipientIds, note } = req.body as { reelId?: string; recipientIds?: string[]; note?: string }
+    const senderId = req.user!.id
+
+    if (!reelId || !mongoose.isValidObjectId(reelId)) {
+      return res.status(400).json({ success: false, message: 'A valid reel is required' })
+    }
+    const reel = await Reel.findById(reelId).select('status')
+    if (!reel || reel.status !== 'PUBLISHED') {
+      return res.status(404).json({ success: false, message: 'This reel is no longer available' })
+    }
+
+    const ids = [...new Set((recipientIds ?? []).map(String))].filter(id => id !== senderId)
+    if (!ids.length) return res.status(400).json({ success: false, message: 'Choose at least one person' })
+    if (ids.length > MAX_SHARE_RECIPIENTS) {
+      return res.status(400).json({ success: false, message: `You can send to up to ${MAX_SHARE_RECIPIENTS} people at once` })
+    }
+    if (ids.some(id => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid recipient' })
+    }
+    const found = await User.find({ _id: { $in: ids }, isSuspended: { $ne: true } }).select('_id').lean()
+    if (found.length !== ids.length) {
+      return res.status(404).json({ success: false, message: 'One of those people could not be found' })
+    }
+
+    const text = String(note ?? '').trim().slice(0, 2000)
+    const sent: { recipientId: string; conversationId: string }[] = []
+    for (const rid of ids) {
+      const conversation = await directConversation(senderId, rid)
+      await deliverMessage(conversation, senderId, { content: text, sharedReel: reelId })
+      sent.push({ recipientId: rid, conversationId: String(conversation._id) })
+    }
+
+    // Every send is a share, as the count on a reel means on Instagram.
+    await Reel.updateOne({ _id: reelId }, { $inc: { shareCount: sent.length } })
+
+    res.status(201).json({ success: true, data: { sent: sent.length, conversations: sent } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
