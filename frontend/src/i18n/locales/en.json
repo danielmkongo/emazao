@@ -24,7 +24,8 @@
     "postRequirement": "Post a Requirement",
     "shareReel": "Share a Reel",
     "nutrition": "Special nutrition",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "cart": "Cart"
   },
   "auth": {
     "welcomeBack": "Welcome back",

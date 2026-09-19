@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Bell, Search, Sun, Moon } from 'lucide-react'
+import { Bell, Search, Sun, Moon, ShoppingCart } from 'lucide-react'
+import { useCart } from '@/hooks/useCart'
 import { Logo } from '@/components/ui/Logo'
 import { useQuery } from '@tanstack/react-query'
 import { Avatar } from '@/components/ui/avatar'
@@ -8,6 +9,8 @@ import { useUIStore } from '@/store/uiStore'
 import api from '@/lib/api'
 
 export const TopBar = () => {
+  const { cart } = useCart()
+  const cartCount = cart.itemCount
   const { user } = useAuthStore()
   const { theme, toggleTheme, setSearchOpen } = useUIStore()
 
@@ -41,6 +44,15 @@ export const TopBar = () => {
       <button onClick={toggleTheme} aria-label="Toggle theme" className={iconBtn}>
         {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
+
+      <Link to="/cart" aria-label={`Cart${cartCount ? `, ${cartCount} items` : ''}`} className={`${iconBtn} relative`}>
+        <ShoppingCart className="h-5 w-5" />
+        {cartCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-green text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--c-bg)]">
+            {cartCount > 9 ? '9+' : cartCount}
+          </span>
+        )}
+      </Link>
 
       <Link to="/notifications" aria-label="Notifications" className={`${iconBtn} relative`}>
         <Bell className="h-5 w-5" />

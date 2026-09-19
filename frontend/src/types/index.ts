@@ -136,6 +136,7 @@ export interface Order {
   estimatedDelivery?: string
   deliveredAt?: string
   trackingNumber?: string
+  checkoutId?: string
   carrier?: string
   dispatchedAt?: string
   trackingEvents?: { status: string; note?: string; location?: string; at: string }[]

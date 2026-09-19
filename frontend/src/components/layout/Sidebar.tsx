@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   Home, Search, ShoppingBag, FileText, Play, MessageSquare,
   Package, Wallet, Bell, Settings, LogOut, LogIn, Sun, Moon, Radio, LayoutDashboard, Plus,
-  ShieldCheck, Receipt, HeartPulse, MessageSquareHeart,
+  ShieldCheck, Receipt, HeartPulse, MessageSquareHeart, ShoppingCart,
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { useUnreadStore } from '@/store/unreadStore'
+import { useCart } from '@/hooks/useCart'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,7 @@ const navGroups = [
     label: 'nav.trade',
     items: [
       { icon: FileText, label: 'nav.requirements', href: '/requirements' },
+      { icon: ShoppingCart, label: 'nav.cart',     href: '/cart' },
       { icon: Package,  label: 'nav.orders',       href: '/orders' },
       { icon: Wallet,   label: 'nav.wallet',       href: '/wallet' },
     ],
@@ -81,6 +83,7 @@ export const Sidebar = () => {
   const { user, clearAuth } = useAuthStore()
   const { theme, toggleTheme } = useUIStore()
   const unreadMessages = useUnreadStore((s) => s.unreadMessages)
+  const { cart } = useCart()
   const navigate = useNavigate()
   const isFarmer = user?.role === 'FARMER'
   // The admin panel had no entry point anywhere in the app — it could only be
@@ -123,7 +126,7 @@ export const Sidebar = () => {
             </p>
             <div className="space-y-0.5">
               {items.map(item => (
-                <MenuItem key={item.href} {...item} badge={item.href === '/messages' ? unreadMessages : undefined} />
+                <MenuItem key={item.href} {...item} badge={item.href === '/messages' ? unreadMessages : item.href === '/cart' ? cart.itemCount : undefined} />
               ))}
             </div>
           </div>

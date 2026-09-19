@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Order from '../models/Order'
+import Checkout from '../models/Checkout'
 import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
 import User from '../models/User'
@@ -14,6 +15,10 @@ import { TIER_POLICIES } from '../services/verification/tiers'
 // their own distinct reference, hence the prefix.
 const collectionRef = (orderId: string) => orderId
 const payoutRef = (id: string) => `PO${id}`
+// A combined cart payment. The prefix is how the webhook tells a checkout
+// reference from a single order's id, since both are otherwise bare ObjectIds.
+const CHECKOUT_PREFIX = 'CO'
+const checkoutRef = (checkoutId: string) => `${CHECKOUT_PREFIX}${checkoutId}`
 
 /**
  * POST /api/payments/collect
@@ -23,9 +28,46 @@ const payoutRef = (id: string) => `PO${id}`
  */
 export const initiateCollection = async (req: AuthRequest, res: Response) => {
   try {
-    const { orderId, phoneNumber } = req.body
+    const { orderId, checkoutId, phoneNumber } = req.body
     if (!phoneNumber) {
       return res.status(400).json({ success: false, message: 'Mobile money phone number is required' })
+    }
+
+    const provider = getPaymentProvider()
+
+    // Several sellers, one payment.
+    if (checkoutId) {
+      const group = await Checkout.findById(checkoutId)
+      if (!group) return res.status(404).json({ success: false, message: 'Checkout not found' })
+      if (group.buyerId.toString() !== req.user!.id) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      if (group.status !== 'PENDING') {
+        return res.status(400).json({ success: false, message: `This checkout is already ${group.status.toLowerCase()}` })
+      }
+      // Every order must still be unpaid. If one had been paid on its own, the
+      // grand total below would charge for it a second time.
+      const orders = await Order.find({ _id: { $in: group.orderIds } }).select('status total').lean()
+      if (orders.length !== group.orderIds.length || orders.some(o => o.status !== 'PENDING')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Some orders in this checkout are no longer awaiting payment. Pay the remaining orders individually.',
+        })
+      }
+      // Charge what the orders actually add up to now, not a figure cached on
+      // the checkout when it was created.
+      const amount = parseFloat(orders.reduce((s, o) => s + o.total, 0).toFixed(2))
+
+      const result = await provider.initiateCollection({
+        orderReference: checkoutRef(group._id!.toString()),
+        amount,
+        currency: group.currency,
+        phoneNumber,
+      })
+      return res.json({
+        success: true,
+        data: { status: result.status, channel: result.channel, providerRef: result.providerRef, amount },
+      })
     }
 
     const order = await Order.findById(orderId)
@@ -36,8 +78,19 @@ export const initiateCollection = async (req: AuthRequest, res: Response) => {
     if (order.status !== 'PENDING') {
       return res.status(400).json({ success: false, message: `Order is ${order.status}, not payable` })
     }
+    // Part of a combined checkout that is still open: paying it here and then
+    // the checkout as well would take the same money twice.
+    if (order.checkoutId) {
+      const group = await Checkout.findById(order.checkoutId).select('status').lean()
+      if (group?.status === 'PENDING') {
+        return res.status(409).json({
+          success: false,
+          message: 'This order was placed with others from your cart — pay for them together from the checkout.',
+          data: { checkoutId: order.checkoutId },
+        })
+      }
+    }
 
-    const provider = getPaymentProvider()
     const result = await provider.initiateCollection({
       orderReference: collectionRef(order._id!.toString()),
       amount: order.total,
@@ -90,10 +143,33 @@ export const paymentWebhook = async (req: Request, res: Response) => {
 }
 
 async function onCollectionSucceeded(orderReference: string, providerRef: string, providerName: string) {
+  // A combined cart payment: confirm every order it covers. Each still gets
+  // its own escrow — the sellers are paid out, disputed and refunded
+  // independently; only the buyer's approval was shared.
+  if (orderReference.startsWith(CHECKOUT_PREFIX)) {
+    const checkoutId = orderReference.slice(CHECKOUT_PREFIX.length)
+    // PENDING → PAID is the guard: a replayed webhook finds nothing to update.
+    const group = await Checkout.findOneAndUpdate(
+      { _id: checkoutId, status: 'PENDING' },
+      { status: 'PAID', providerRef, paidAt: new Date() },
+      { new: true }
+    )
+    if (!group) return
+    for (const id of group.orderIds) {
+      const order = await Order.findById(id)
+      if (order) await confirmOrderPaid(order, providerRef, providerName)
+    }
+    return
+  }
+
   const order = await Order.findById(orderReference)
+  if (order) await confirmOrderPaid(order, providerRef, providerName)
+}
+
+async function confirmOrderPaid(order: InstanceType<typeof Order>, providerRef: string, providerName: string) {
   // Only PENDING → PAYMENT_CONFIRMED, so a replayed webhook is a no-op rather
   // than a second escrow row and a second credit to the seller.
-  if (!order || order.status !== 'PENDING') return
+  if (order.status !== 'PENDING') return
 
   order.status = 'PAYMENT_CONFIRMED'
   await order.save()

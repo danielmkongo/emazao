@@ -18,10 +18,14 @@ interface CollectResponse {
  */
 export function PaymentForm({
   orderId,
+  checkoutId,
   onSuccess,
   onCancel,
 }: {
-  orderId: string
+  /** Pay a single order… */
+  orderId?: string
+  /** …or several sellers' orders from one cart checkout, in one approval. */
+  checkoutId?: string
   onSuccess: () => void
   onCancel?: () => void
 }) {
@@ -37,7 +41,7 @@ export function PaymentForm({
 
     try {
       const res = await api.post<ApiResponse<CollectResponse>>('/payments/collect', {
-        orderId,
+        ...(checkoutId ? { checkoutId } : { orderId }),
         phoneNumber: phone.trim(),
       })
       const data = res.data.data

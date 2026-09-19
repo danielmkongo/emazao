@@ -16,6 +16,7 @@ import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import { useCart } from '@/hooks/useCart'
 import type { ApiResponse, Order, Product, User } from '@/types'
 
 // ─── Order modal ────────────────────────────────────────────────────────────
@@ -401,6 +402,19 @@ export default function ProductDetail() {
     setShowBuyModal(true)
   }
 
+  // Add to cart collects items across sellers for one combined payment; Buy
+  // Now stays for the single-product purchase that does not need a cart.
+  const { add: addToCart } = useCart()
+  const [added, setAdded] = useState(false)
+  const handleAddToCart = () => {
+    if (!isAuthenticated) { navigate('/login'); return }
+    if (!data) return
+    addToCart.mutate(
+      { productId: data._id, quantity: data.minimumOrder ?? 1 },
+      { onSuccess: () => { setAdded(true); setTimeout(() => setAdded(false), 2500) } },
+    )
+  }
+
   if (isLoading) return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <Skeleton className="h-6 w-32 mb-6 rounded-lg" />
@@ -569,11 +583,20 @@ export default function ProductDetail() {
             <div className="fixed bottom-[calc(84px_+_env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-[var(--c-bg)]/95 backdrop-blur border-t border-[var(--c-border)] flex gap-3 md:relative md:bottom-auto md:left-auto md:right-auto md:p-0 md:bg-transparent md:backdrop-blur-none md:border-none z-40">
               <Button
                 size="lg"
+                variant="secondary"
+                className="flex-1"
+                onClick={added ? () => navigate('/cart') : handleAddToCart}
+                disabled={data.status === 'OUT_OF_STOCK' || addToCart.isPending}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {addToCart.isPending ? 'Adding…' : added ? 'In cart — view' : 'Add to cart'}
+              </Button>
+              <Button
+                size="lg"
                 className="flex-1"
                 onClick={handleBuyNow}
                 disabled={data.status === 'OUT_OF_STOCK'}
               >
-                <ShoppingCart className="h-5 w-5" />
                 {data.status === 'OUT_OF_STOCK' ? 'Out of Stock' : 'Buy Now'}
               </Button>
               <Button size="lg" variant="secondary" onClick={handleSave} className={saved ? 'text-red-500' : ''}>

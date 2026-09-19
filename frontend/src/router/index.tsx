@@ -44,6 +44,7 @@ const MessagesLayout = lazy(() => import('@/pages/messages/MessagesLayout'))
 const Thread = lazy(() => import('@/pages/messages/Thread'))
 const Orders = lazy(() => import('@/pages/orders/Orders'))
 const TrackOrder = lazy(() => import('@/pages/orders/TrackOrder'))
+const CartPage = lazy(() => import('@/pages/cart/Cart'))
 const OrderDetail = lazy(() => import('@/pages/orders/OrderDetail'))
 const WalletPage = lazy(() => import('@/pages/wallet/Wallet'))
 const VerificationPage = lazy(() => import('@/pages/wallet/Verification'))
@@ -208,6 +209,7 @@ export const router = createBrowserRouter([
         ],
       },
       { path: '/orders', element: wrap(Orders) },
+      { path: '/cart', element: wrap(CartPage) },
       // Before '/orders/:id' so 'track' is not read as an order id.
       { path: '/orders/track', element: wrap(TrackOrder) },
       { path: '/orders/:id', element: wrap(OrderDetail) },

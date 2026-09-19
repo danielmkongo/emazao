@@ -45,6 +45,7 @@ export interface IOrder extends Document {
   estimatedDelivery?: Date
   deliveredAt?: Date
   trackingNumber?: string
+  checkoutId?: mongoose.Types.ObjectId
   carrier?: string
   dispatchedAt?: Date
   trackingEvents?: { status: string; note?: string; location?: string; at: Date }[]
@@ -108,6 +109,10 @@ const OrderSchema = new Schema<IOrder>(
       at: { type: Date, default: Date.now },
     }],
     escrowId: { type: Schema.Types.ObjectId, ref: 'Escrow' },
+    // Set when this order was bought together with other sellers' orders in one
+    // cart checkout. Such an order must be paid through its checkout: paying it
+    // on its own and then the checkout as well would charge the buyer twice.
+    checkoutId: { type: Schema.Types.ObjectId, ref: 'Checkout', index: true },
   },
   { timestamps: true }
 )

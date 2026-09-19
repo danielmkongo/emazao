@@ -6,72 +6,43 @@ import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
 import User from '../models/User'
 import Product from '../models/Product'
-import { nanoid } from 'nanoid'
+import { newOrderNumber } from '../utils/orderNumber'
 import { sendNotification } from '../services/notification.service'
 import { recordFingerprint } from '../services/risk/rules'
+import { priceItems, orderTotals } from '../services/orderPricing'
 
 export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
     const { items: rawItems, deliveryAddress, notes, deliveryFee } = req.body
 
-    if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      return res.status(400).json({ success: false, message: 'Order must include at least one item' })
-    }
     if (!deliveryAddress?.street || !deliveryAddress?.city || !deliveryAddress?.country) {
       return res.status(400).json({ success: false, message: 'A complete delivery address is required' })
     }
 
-    // Re-derive price, seller and product details from the actual Product
-    // records — the request only needs to supply productId + quantity.
-    // Previously items.unitPrice/totalPrice and the order's sellerId came
-    // straight from the client with no server-side check, so a buyer could
-    // submit any price they wanted for a real product, or misdirect the
-    // order/payout to a seller who never listed it.
-    const productIds = [...new Set(rawItems.map((i: any) => String(i?.productId)))]
-    const products = await Product.find({ _id: { $in: productIds }, status: 'ACTIVE' })
-    const productMap = new Map(products.map(p => [p._id.toString(), p]))
+    // Price, seller and product details come from the real Product records; the
+    // request only supplies productId + quantity. See services/orderPricing.
+    const priced = await priceItems(rawItems)
+    if (!priced.ok) return res.status(400).json({ success: false, message: priced.message })
 
-    const items: Array<{ productId: mongoose.Types.ObjectId; title: string; image: string; quantity: number; unit: string; unitPrice: number; totalPrice: number }> = []
-    let sellerId: string | null = null
-    for (const raw of rawItems) {
-      const product = productMap.get(String(raw?.productId))
-      if (!product) {
-        return res.status(400).json({ success: false, message: 'One of the items in this order is no longer available' })
-      }
-      const quantity = Number(raw.quantity)
-      if (!Number.isFinite(quantity) || quantity <= 0) {
-        return res.status(400).json({ success: false, message: `Invalid quantity for ${product.title}` })
-      }
-      if (product.minimumOrder && quantity < product.minimumOrder) {
-        return res.status(400).json({ success: false, message: `${product.title} requires a minimum order of ${product.minimumOrder} ${product.stockUnit ?? ''}` })
-      }
-      if (sellerId === null) sellerId = product.sellerId.toString()
-      else if (sellerId !== product.sellerId.toString()) {
-        return res.status(400).json({ success: false, message: 'All items in one order must be from the same seller' })
-      }
-      items.push({
-        productId: product._id,
-        title: product.title,
-        image: product.images[0] ?? '',
-        quantity,
-        unit: product.stockUnit ?? product.priceUnit,
-        unitPrice: product.price,
-        totalPrice: parseFloat((product.price * quantity).toFixed(2)),
-      })
+    // A single order has a single seller: escrow, dispatch, tracking and payout
+    // are all per-seller. Buying from several sellers at once goes through the
+    // cart, which splits it into one order each.
+    const sellerIds = new Set(priced.items.map(i => i.sellerId))
+    if (sellerIds.size > 1) {
+      return res.status(400).json({ success: false, message: 'All items in one order must be from the same seller' })
     }
+    const sellerId = priced.items[0]!.sellerId
+    const items = priced.items.map(({ sellerId: _s, ...item }) => item)
 
     // Coarse device/network fingerprint, hashed. Lets the self-dealing rule spot
     // one person working both sides of a "sale" without storing anyone's IP.
     void recordFingerprint(req.user!.id, req.ip, req.get('user-agent')).catch(() => {})
-    const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
-    const safeDeliveryFee = Math.max(0, Number(deliveryFee) || 0)
-    const platformFee = parseFloat((subtotal * 0.025).toFixed(2))
-    const total = subtotal + safeDeliveryFee + platformFee
+    const { subtotal, deliveryFee: safeDeliveryFee, platformFee, total } = orderTotals(priced.items, deliveryFee)
 
     const order = await Order.create({
-      orderNumber: `EM-${nanoid(8).toUpperCase()}`,
+      orderNumber: newOrderNumber(),
       buyerId: req.user!.id,
-      sellerId: sellerId!, // guaranteed set — the items loop above ran at least once
+      sellerId,
       items,
       subtotal,
       deliveryFee: safeDeliveryFee,
@@ -86,7 +57,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Notify the seller
     const buyer = await User.findById(req.user!.id).select('name')
     await sendNotification({
-      userId: sellerId!, // guaranteed set — the items loop above ran at least once
+      userId: sellerId,
       type: 'NEW_ORDER',
       title: 'New order received',
       body: `${buyer?.name ?? 'A buyer'} placed order ${order.orderNumber}`,

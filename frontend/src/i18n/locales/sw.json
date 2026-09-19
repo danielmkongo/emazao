@@ -24,7 +24,8 @@
     "postRequirement": "Weka Hitaji",
     "shareReel": "Shiriki Vidio Fupi",
     "nutrition": "Lishe Maalum",
-    "feedback": "Maoni"
+    "feedback": "Maoni",
+    "cart": "Kikapu"
   },
   "auth": {
     "welcomeBack": "Karibu tena",

@@ -259,8 +259,13 @@ export default function OrderDetail() {
           {paying ? (
             <>
               <h3 className="font-semibold text-[var(--c-text)] mb-3">Complete Payment</h3>
+              {order.checkoutId && (
+                <p className="text-[var(--c-text-3)] text-sm mb-3">
+                  This order was placed together with others from your cart, so this pays for all of them in one go.
+                </p>
+              )}
               <PaymentForm
-                orderId={String(id)}
+                {...(order.checkoutId ? { checkoutId: String(order.checkoutId) } : { orderId: String(id) })}
                 onSuccess={() => {
                   setPaying(false)
                   queryClient.invalidateQueries({ queryKey: ['order', id] })
