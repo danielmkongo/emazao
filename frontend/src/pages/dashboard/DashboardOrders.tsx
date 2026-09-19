@@ -58,7 +58,7 @@ export default function DashboardOrders() {
                 </p>
               </div>
               <Badge variant={STATUS_VARIANT[order.status] ?? 'outline'}>{order.status.replace('_', ' ')}</Badge>
-              <p className="text-[var(--c-text)] font-semibold font-mono text-sm">{formatCurrency(order.total)}</p>
+              <p className="text-[var(--c-text)] font-semibold tabular text-sm">{formatCurrency(order.total)}</p>
             </div>
             </Link>
             </motion.div>

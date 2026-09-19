@@ -157,7 +157,7 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[var(--c-text)] text-sm truncate">{product.title}</p>
                   <p className="text-xs text-[var(--c-text-3)] mt-0.5">by {seller.name}</p>
-                  <p className="text-brand-green font-bold text-sm mt-1" style={{ fontFamily: 'var(--font-mono)' }}>
+                  <p className="tabular text-brand-green font-bold text-sm mt-1">
                     {formatCurrency(product.price)} {product.priceUnit}
                   </p>
                 </div>
@@ -264,19 +264,19 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
                 <h3 className="font-semibold text-[var(--c-text)] text-sm mb-3">Order Summary</h3>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--c-text-3)]">{formatNumber(qty)} {product.stockUnit ?? 'units'} × {formatCurrency(product.price)}</span>
-                  <span className="text-[var(--c-text)] font-mono">{formatCurrency(subtotal)}</span>
+                  <span className="text-[var(--c-text)] tabular">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--c-text-3)]">Platform fee (2.5%)</span>
-                  <span className="text-[var(--c-text)] font-mono">{formatCurrency(platformFee)}</span>
+                  <span className="text-[var(--c-text)] tabular">{formatCurrency(platformFee)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--c-text-3)] flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> Delivery</span>
-                  <span className="text-brand-green font-mono text-sm">TBD by seller</span>
+                  <span className="text-brand-green tabular text-sm">TBD by seller</span>
                 </div>
                 <div className="border-t border-[var(--c-border)] pt-2.5 flex justify-between">
                   <span className="font-bold text-[var(--c-text)]">Total</span>
-                  <span className="font-bold text-[var(--c-text)] font-mono text-lg">{formatCurrency(total)}</span>
+                  <span className="font-bold text-[var(--c-text)] tabular text-lg">{formatCurrency(total)}</span>
                 </div>
               </div>
 

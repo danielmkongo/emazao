@@ -80,7 +80,7 @@ export default function DashboardWallet() {
                       <p className="text-[var(--c-text)] text-sm font-medium">{txn.description}</p>
                       <p className="text-[var(--c-text-3)] text-xs">{timeAgo(txn.createdAt)}</p>
                     </div>
-                    <span className="font-semibold text-brand-green font-mono text-sm">+{formatCurrency(txn.amount)}</span>
+                    <span className="font-semibold text-brand-green tabular text-sm">+{formatCurrency(txn.amount)}</span>
                   </div>
                 ))}
               </div>

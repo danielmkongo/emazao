@@ -214,7 +214,7 @@ export default function OrderDetail() {
                 <p className="text-[var(--c-text)] font-medium text-sm">{item.title}</p>
                 <p className="text-[var(--c-text-3)] text-xs">{item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}</p>
               </div>
-              <p className="text-[var(--c-text)] font-semibold font-mono text-sm">{formatCurrency(item.totalPrice)}</p>
+              <p className="text-[var(--c-text)] font-semibold tabular text-sm">{formatCurrency(item.totalPrice)}</p>
             </div>
           ))}
         </div>
@@ -222,19 +222,19 @@ export default function OrderDetail() {
         <div className="mt-4 pt-4 border-t border-[var(--c-border)] space-y-1.5">
           <div className="flex justify-between text-sm">
             <span className="text-[var(--c-text-3)]">Subtotal</span>
-            <span className="text-[var(--c-text)] font-mono">{formatCurrency(order.subtotal)}</span>
+            <span className="text-[var(--c-text)] tabular">{formatCurrency(order.subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[var(--c-text-3)]">Delivery</span>
-            <span className="text-[var(--c-text)] font-mono">{formatCurrency(order.deliveryFee)}</span>
+            <span className="text-[var(--c-text)] tabular">{formatCurrency(order.deliveryFee)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[var(--c-text-3)]">Platform fee (2.5%)</span>
-            <span className="text-[var(--c-text)] font-mono">{formatCurrency(order.platformFee)}</span>
+            <span className="text-[var(--c-text)] tabular">{formatCurrency(order.platformFee)}</span>
           </div>
           <div className="flex justify-between font-bold pt-1 border-t border-[var(--c-border)]">
             <span className="text-[var(--c-text)]">Total</span>
-            <span className="text-[var(--c-text)] font-mono">{formatCurrency(order.total)}</span>
+            <span className="text-[var(--c-text)] tabular">{formatCurrency(order.total)}</span>
           </div>
         </div>
       </motion.div>

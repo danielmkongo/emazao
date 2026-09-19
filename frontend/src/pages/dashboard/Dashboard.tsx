@@ -36,7 +36,7 @@ const MetricCard = ({ icon: Icon, label, value, growth, color }: {
         </span>
       )}
     </div>
-    <p className="text-2xl font-bold text-[var(--c-text)] mb-1" style={{ fontFamily: 'var(--font-mono)' }}>
+    <p className="tabular text-2xl font-bold text-[var(--c-text)] mb-1 break-words">
       {value}
     </p>
     <p className="text-sm text-[var(--c-text-3)]">{label}</p>
@@ -134,7 +134,9 @@ export default function Dashboard() {
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 [&>*:first-child]:col-span-2 lg:[&>*:first-child]:col-span-1">
+          {/* Revenue runs to seven digits; on phones it gets the full row
+              rather than being clipped mid-number. */}
           {metrics.map((m) => (
             <MetricCard key={m.label} {...m} />
           ))}

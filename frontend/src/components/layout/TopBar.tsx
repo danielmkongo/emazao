@@ -6,6 +6,7 @@ import { useNotificationCount } from '@/hooks/useNotificationCount'
 import { useUnreadStore } from '@/store/unreadStore'
 import { Wordmark } from '@/components/ui/Wordmark'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 
 /** A small count bubble. Nothing at all when there is nothing to count. */
 export function CountBadge({ count, className }: { count: number; className?: string }) {
@@ -30,6 +31,7 @@ export const TopBar = () => {
   const { cart } = useCart()
   const unread = useNotificationCount()
   const unreadMessages = useUnreadStore(s => s.unreadMessages)
+  const signedIn = !!useAuthStore(s => s.user)
 
   const icon = 'relative w-10 h-10 rounded-full flex items-center justify-center text-[var(--c-text)] press'
   const active = ({ isActive }: { isActive: boolean }) => cn(icon, isActive && 'text-brand-green')
@@ -46,18 +48,28 @@ export const TopBar = () => {
         <NavLink to="/explore" aria-label={t('nav.explore')} className={active}>
           <Search className="h-[23px] w-[23px]" strokeWidth={2} />
         </NavLink>
-        <NavLink to="/cart" aria-label={t('nav.cart')} className={active}>
-          <ShoppingBag className="h-[23px] w-[23px]" strokeWidth={2} />
-          <CountBadge count={cart.itemCount} className="bg-brand-green" />
-        </NavLink>
-        <NavLink to="/notifications" aria-label={t('nav.alerts')} className={active}>
-          <Bell className="h-[23px] w-[23px]" strokeWidth={2} />
-          <CountBadge count={unread} />
-        </NavLink>
-        <NavLink to="/messages" aria-label={t('nav.messages')} className={active}>
-          <MessageCircle className="h-[23px] w-[23px]" strokeWidth={2} />
-          <CountBadge count={unreadMessages} />
-        </NavLink>
+        {signedIn ? (
+          <>
+            <NavLink to="/cart" aria-label={t('nav.cart')} className={active}>
+              <ShoppingBag className="h-[23px] w-[23px]" strokeWidth={2} />
+              <CountBadge count={cart.itemCount} className="bg-brand-green" />
+            </NavLink>
+            <NavLink to="/notifications" aria-label={t('nav.alerts')} className={active}>
+              <Bell className="h-[23px] w-[23px]" strokeWidth={2} />
+              <CountBadge count={unread} />
+            </NavLink>
+            <NavLink to="/messages" aria-label={t('nav.messages')} className={active}>
+              <MessageCircle className="h-[23px] w-[23px]" strokeWidth={2} />
+              <CountBadge count={unreadMessages} />
+            </NavLink>
+          </>
+        ) : (
+          // Visitors browsing the public market see one clear way in rather
+          // than icons that would each bounce them to the sign-in page.
+          <Link to="/login" className="ml-1.5 mr-1 h-9 px-4 rounded-full bg-brand-green text-white text-[14px] font-semibold flex items-center press">
+            {t('nav.signIn')}
+          </Link>
+        )}
       </div>
     </header>
   )

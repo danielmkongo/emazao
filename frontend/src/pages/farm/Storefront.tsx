@@ -191,7 +191,7 @@ export default function Storefront() {
       {sellerProfile && (
         <div className="grid grid-cols-3 gap-3 mb-6 px-2">
           <div className="bg-[var(--c-card)] rounded-xl border border-[var(--c-border)] p-3 text-center">
-            <p className="text-brand-green font-bold text-lg font-mono">{sellerProfile.onTimeDelivery ?? 0}%</p>
+            <p className="text-brand-green font-bold text-lg tabular">{sellerProfile.onTimeDelivery ?? 0}%</p>
             <p className="text-[var(--c-text-4)] text-xs">On-time</p>
           </div>
           <div className="bg-[var(--c-card)] rounded-xl border border-[var(--c-border)] p-3 text-center">

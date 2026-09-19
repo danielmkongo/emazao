@@ -77,7 +77,7 @@ export default function WalletPage() {
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/5 rounded-full translate-y-1/3 -translate-x-1/3" />
             <Wallet className="h-8 w-8 text-white/80 mb-4 relative" />
             <p className="text-white/70 text-sm mb-1 relative">Available Balance</p>
-            <p className="text-4xl font-bold text-white mb-2 relative" style={{ fontFamily: 'var(--font-mono)' }}>
+            <p className="tabular text-4xl font-bold text-white mb-2 relative">
               {formatCurrency(wallet?.balance ?? 0)}
             </p>
             {(wallet?.pendingBalance ?? 0) > 0 && (
@@ -166,7 +166,7 @@ export default function WalletPage() {
                     <p className="text-[var(--c-text)] text-sm font-medium truncate">{txn.description}</p>
                     <p className="text-[var(--c-text-4)] text-xs">{timeAgo(txn.createdAt)}</p>
                   </div>
-                  <span className={`font-semibold font-mono text-sm flex-shrink-0 ${txnPositive(txn.type) ? 'text-brand-green' : 'text-red-500'}`}>
+                  <span className={`font-semibold tabular text-sm flex-shrink-0 ${txnPositive(txn.type) ? 'text-brand-green' : 'text-red-500'}`}>
                     {txnPositive(txn.type) ? '+' : '-'}{formatCurrency(txn.amount)}
                   </span>
                 </div>

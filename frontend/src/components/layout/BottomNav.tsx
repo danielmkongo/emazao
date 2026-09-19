@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Home, Store, Plus, Clapperboard, User } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -25,6 +25,7 @@ export const BottomNav = ({ variant = 'default' }: { variant?: 'default' | 'dark
   const { t } = useTranslation()
   const user = useAuthStore(s => s.user)
   const setCreateOpen = useUIStore(s => s.setCreateOpen)
+  const navigate = useNavigate()
   const dark = variant === 'dark'
 
   const tab = (href: string, label: string, icon: React.ReactNode, activeIcon?: React.ReactNode) => (
@@ -61,7 +62,7 @@ export const BottomNav = ({ variant = 'default' }: { variant?: 'default' | 'dark
 
         <div className="flex-1 flex items-center justify-center">
           <button
-            onClick={() => setCreateOpen(true)}
+            onClick={() => (user ? setCreateOpen(true) : navigate('/login'))}
             aria-label={t('nav.create')}
             className={cn(
               'w-[46px] h-[34px] rounded-[11px] flex items-center justify-center press',

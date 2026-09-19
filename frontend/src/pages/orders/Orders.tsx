@@ -4,9 +4,10 @@ import { motion } from 'framer-motion'
 import { ShoppingBag, ChevronRight, Clock, Package, Sprout, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCurrency, timeAgo } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
+import { shortAgo } from '@/components/stories/StoryViewer'
 import type { ApiResponse, Order } from '@/types'
 
 const statusVariant: Record<string, 'default' | 'gold' | 'organic' | 'urgent' | 'outline'> = {
@@ -95,7 +96,7 @@ export default function Orders() {
           {data.map((order, i) => (
             <motion.div key={order._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
               <Link to={`/orders/${order._id}`}>
-                <div className="flex items-center gap-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5 hover:border-brand-green/30 hover:shadow-sm transition-all group">
+                <div className="flex items-center gap-4 bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-4 hover:border-brand-green/30 hover:shadow-sm transition-all group">
                   {/* Product image */}
                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-[var(--c-input)] flex-shrink-0">
                     {order.items[0]?.image ? (
@@ -116,10 +117,10 @@ export default function Orders() {
                       {order.items[0]?.title}
                       {order.items.length > 1 && <span className="text-[var(--c-text-3)]"> +{order.items.length - 1} more</span>}
                     </p>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="font-semibold text-[var(--c-text)] font-mono">{formatCurrency(order.total)}</span>
+                    <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-sm whitespace-nowrap">
+                      <span className="font-semibold text-[var(--c-text)] tabular">{formatCurrency(order.total)}</span>
                       <span className="flex items-center gap-1 text-[var(--c-text-3)]">
-                        <Clock className="h-3 w-3" />{timeAgo(order.createdAt)}
+                        <Clock className="h-3 w-3" />{shortAgo(order.createdAt)}
                       </span>
                       {order.items[0]?.quantity && (
                         <span className="text-[var(--c-text-3)]">

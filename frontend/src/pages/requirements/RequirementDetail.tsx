@@ -143,7 +143,7 @@ export default function RequirementDetail() {
             {req.budgetMax && (
               <div className="bg-[var(--c-raised)] rounded-xl px-4 py-3 text-right border border-[var(--c-border)] flex-shrink-0">
                 <p className="text-xs text-[var(--c-text-3)] mb-0.5">Budget</p>
-                <p className="font-bold text-[var(--c-text)] text-lg" style={{ fontFamily: 'var(--font-mono)' }}>
+                <p className="tabular font-bold text-[var(--c-text)] text-lg">
                   {formatCurrency(req.budgetMin ?? 0)}–{formatCurrency(req.budgetMax)}
                 </p>
                 <p className="text-xs text-[var(--c-text-4)]">{req.budgetCurrency}</p>
@@ -385,7 +385,7 @@ export default function RequirementDetail() {
                       </div>
 
                       <div className="text-right flex-shrink-0">
-                        <p className="text-2xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-mono)' }}>
+                        <p className="tabular text-2xl font-bold text-[var(--c-text)]">
                           {formatCurrency(bid.totalPrice)}
                         </p>
                         <p className="text-xs text-[var(--c-text-3)]">
