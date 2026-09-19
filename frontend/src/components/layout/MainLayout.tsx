@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ShoppingBag } from 'lucide-react'
 import { Sidebar, SIDEBAR_CLASSES } from './Sidebar'
@@ -26,18 +26,22 @@ function CornerCart() {
   )
 }
 
-export const MainLayout = () => (
+export const MainLayout = () => {
+  // Messages takes the whole width on desktop, as Instagram's inbox does —
+  // a conversation needs the room more than suggestions do.
+  const wide = useLocation().pathname.startsWith('/messages')
+  return (
   <div className="min-h-screen bg-[var(--c-bg)] overflow-x-clip">
     {/* Fills the notch / status-bar area in a standalone PWA so the clock and
         battery sit on the app's own bar colour. */}
     <div className="lg:hidden fixed top-0 inset-x-0 z-40 status-band" style={{ height: 'env(safe-area-inset-top, 0px)' }} />
 
     <Sidebar />
-    <RightPanel />
+    {!wide && <RightPanel />}
     <TopBar />
-    <CornerCart />
+    {!wide && <CornerCart />}
 
-    <main className={cn(SIDEBAR_CLASSES, 'xl:mr-80 min-h-screen pt-[calc(56px+env(safe-area-inset-top,0px))] lg:pt-0 pb-[calc(56px+env(safe-area-inset-bottom,0px))] lg:pb-0')}>
+    <main className={cn(SIDEBAR_CLASSES, !wide && 'xl:mr-80', 'min-h-screen pt-[calc(56px+env(safe-area-inset-top,0px))] lg:pt-0 pb-[calc(56px+env(safe-area-inset-bottom,0px))] lg:pb-0')}>
       <Outlet />
     </main>
 
@@ -45,4 +49,5 @@ export const MainLayout = () => (
     <CreateSheet />
     <InstallPrompt />
   </div>
-)
+  )
+}

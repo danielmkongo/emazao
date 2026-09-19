@@ -5,7 +5,7 @@ import { requireRole } from '../middleware/role.middleware'
 
 const router = Router()
 
-router.get('/', getProducts)
+router.get('/', optionalProtect, getProducts)
 router.post('/', protect, requireRole('FARMER'), createProduct)
 router.get('/:id', optionalProtect, getProduct)
 router.put('/:id', protect, requireRole('FARMER', 'ADMIN'), updateProduct)

@@ -45,7 +45,7 @@ function StoryReplyCard({ reply, isMe, otherName }: { reply: NonNullable<Message
     ? (isMe ? `You reacted to ${whose}` : 'Reacted to your story')
     : (isMe ? `You replied to ${whose}` : 'Replied to your story')
   return (
-    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-1`}>
+    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${reply.reaction ? 'mb-4' : 'mb-1'}`}>
       <span className="text-[11.5px] text-[var(--c-text-3)] mb-1 px-1">{label}</span>
       <div className="relative">
         <div className={`w-[112px] aspect-[9/16] rounded-2xl overflow-hidden border border-[var(--c-border)] ${isMe ? 'mr-1' : 'ml-1'}`}>

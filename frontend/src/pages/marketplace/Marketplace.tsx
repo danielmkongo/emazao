@@ -1,179 +1,192 @@
-import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { ShoppingBag, Search, Sprout, Leaf, X } from 'lucide-react'
-import { FeedProductCard } from '@/components/feed/FeedProductCard'
-import { ProductCardSkeleton } from '@/components/ui/skeleton'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { Search, X, Leaf, Sprout, ArrowUpDown, Loader2, Flame, ChevronRight, HeartPulse } from 'lucide-react'
+import { FeedProductCard, unitLabel } from '@/components/feed/FeedProductCard'
+import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { CategoryIcon } from '@/lib/categoryIcons'
+import { formatCurrency, cn } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ApiResponse, Product } from '@/types'
 
-interface Category { _id: string; name: string; slug: string; icon?: string }
+interface Category { _id: string; name: string; slug: string }
+
+const SORTS = ['recommended', 'popular', 'newest', 'price_asc', 'price_desc'] as const
+type Sort = typeof SORTS[number]
+const PAGE = 24
 
 function useDebounce<T>(value: T, ms: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), ms)
-    return () => clearTimeout(timer)
-  }, [value, ms])
-  return debouncedValue
+  const [v, setV] = useState(value)
+  useEffect(() => { const id = setTimeout(() => setV(value), ms); return () => clearTimeout(id) }, [value, ms])
+  return v
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} aria-pressed={active}
+      className={cn('flex-shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13.5px] font-medium transition-colors press',
+        active ? 'bg-[var(--c-text)] text-[var(--c-bg)]' : 'bg-[var(--c-input)] text-[var(--c-text)] hover:bg-[var(--c-raised)]')}>
+      {children}
+    </button>
+  )
 }
 
 export default function Marketplace() {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [organic, setOrganic] = useState(false)
   const [categoryId, setCategoryId] = useState('')
-  const debouncedSearch = useDebounce(search, 350)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [sort, setSort] = useState<Sort>('recommended')
+  const q = useDebounce(search.trim(), 350)
+  const filtered = !!(q || organic || categoryId || sort !== 'recommended')
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Category[]>>('/categories')
-      return res.data.data ?? []
-    },
+    queryFn: async () => (await api.get<ApiResponse<Category[]>>('/categories')).data.data ?? [],
     staleTime: 300_000,
   })
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['products', debouncedSearch, organic, categoryId],
-    queryFn: async () => {
-      const params = new URLSearchParams({ limit: '48' })
-      if (debouncedSearch) params.set('q', debouncedSearch)
-      if (organic) params.set('organic', 'true')
-      if (categoryId) params.set('category', categoryId)
-      const res = await api.get<ApiResponse<Product[]>>(`/products?${params}`)
-      return res.data.data ?? []
-    },
+  const { data: trending } = useQuery({
+    queryKey: ['rp-trending-products'],
+    queryFn: async () => (await api.get<ApiResponse<Product[]>>('/search/trending')).data.data ?? [],
+    staleTime: 60_000,
   })
 
-  const products = data ?? []
-  const hasFilter = debouncedSearch || organic || categoryId
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['products', q, organic, categoryId, sort],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: String(PAGE), page: String(pageParam), sort })
+      if (q) params.set('q', q)
+      if (organic) params.set('organic', 'true')
+      if (categoryId) params.set('category', categoryId)
+      return (await api.get<ApiResponse<Product[]>>(`/products?${params}`)).data
+    },
+    getNextPageParam: (last, pages) => {
+      const total = last.pagination?.total ?? 0
+      return pages.length * PAGE < total ? pages.length + 1 : undefined
+    },
+  })
+  const products = data?.pages.flatMap(p => p.data ?? []) ?? []
+  const total = data?.pages[0]?.pagination?.total ?? products.length
 
-  const clearAll = () => {
-    setSearch('')
-    setOrganic(false)
-    setCategoryId('')
-    inputRef.current?.focus()
-  }
+  const sentinel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el || !hasNextPage) return
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting && !isFetchingNextPage) fetchNextPage() }, { rootMargin: '800px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  const clearAll = () => { setSearch(''); setOrganic(false); setCategoryId(''); setSort('recommended') }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--c-text)] flex items-center gap-3" style={{ fontFamily: 'var(--font-display)' }}>
-          <ShoppingBag className="h-6 w-6 text-brand-green" /> Marketplace
-        </h1>
-        <p className="text-[var(--c-text-3)] text-sm mt-1">Fresh products from verified farmers across Africa</p>
-      </motion.div>
-
-      {/* Search */}
-      <div className="flex gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--c-text-3)] pointer-events-none" />
-          <input
-            ref={inputRef}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search products, tags, origins..."
-            className="w-full h-11 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl pl-10 pr-4 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none focus:border-brand-green transition-all"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-text-4)] hover:text-[var(--c-text-2)] transition-colors cursor-pointer">
-              <X className="h-4 w-4" />
-            </button>
-          )}
+    <div className="max-w-5xl mx-auto pb-10">
+      {/* Search + filters stay put while the grid scrolls under them */}
+      <div className="sticky top-[calc(56px+env(safe-area-inset-top,0px))] lg:top-0 z-20 bar-surface pt-3 lg:pt-6 pb-2">
+        <div className="px-4 flex items-center gap-3 mb-3">
+          <h1 className="hidden lg:block text-[26px] font-extrabold text-[var(--c-text)] tracking-tight mr-2" style={{ fontFamily: 'var(--font-display)' }}>
+            {t('nav.market')}
+          </h1>
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[var(--c-text-3)] pointer-events-none" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('shop.searchPlaceholder')} aria-label={t('shop.searchPlaceholder')}
+              className="w-full h-11 rounded-full bg-[var(--c-input)] pl-10 pr-10 text-[15px] text-[var(--c-text)] placeholder:text-[var(--c-text-3)] focus:outline-none focus:ring-2 focus:ring-brand-green/40" />
+            {search && (
+              <button onClick={() => setSearch('')} aria-label={t('shop.clearSearch')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)]">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <label className="relative flex-shrink-0 w-11 h-11 sm:w-auto rounded-full bg-[var(--c-input)] flex items-center justify-center" title={t('shop.sortBy')}>
+            <span className="sr-only">{t('shop.sortBy')}</span>
+            <ArrowUpDown className={cn('h-[18px] w-[18px] sm:h-4 sm:w-4 sm:absolute sm:left-3 pointer-events-none', sort !== 'recommended' ? 'text-brand-green' : 'text-[var(--c-text-2)]')} />
+            {/* The native picker: invisible over the icon on phones, a labelled pill on wider screens. */}
+            <select value={sort} onChange={e => setSort(e.target.value as Sort)}
+              className="absolute inset-0 opacity-0 sm:static sm:opacity-100 h-11 rounded-full bg-transparent sm:pl-9 sm:pr-3 text-[13.5px] font-medium text-[var(--c-text)] appearance-none focus:outline-none cursor-pointer">
+              {SORTS.map(s => <option key={s} value={s}>{t(`shop.sort.${s}`)}</option>)}
+            </select>
+          </label>
         </div>
-        <button
-          onClick={() => setOrganic(!organic)}
-          aria-pressed={organic}
-          className={`flex items-center gap-2 px-4 h-11 rounded-xl border text-sm font-medium transition-colors flex-shrink-0 cursor-pointer ${
-            organic
-              ? 'bg-brand-green/10 border-brand-green text-brand-green'
-              : 'bg-[var(--c-card)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-brand-green/40'
-          }`}
-        >
-          <Leaf className={`h-4 w-4 ${organic ? 'fill-brand-green/20' : ''}`} />
-          <span className="hidden sm:inline">Organic</span>
-        </button>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+          <Chip active={organic} onClick={() => setOrganic(o => !o)}><Leaf className="h-4 w-4" />{t('feed.organic')}</Chip>
+          <Chip active={!categoryId} onClick={() => setCategoryId('')}>{t('shop.all')}</Chip>
+          {categories?.map(c => (
+            <Chip key={c._id} active={categoryId === c._id} onClick={() => setCategoryId(p => (p === c._id ? '' : c._id))}>
+              <CategoryIcon slug={c.slug} className="h-4 w-4" />{c.name}
+            </Chip>
+          ))}
+        </div>
       </div>
 
-      {/* Category filter pills */}
-      {categories && categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
-          <button
-            onClick={() => setCategoryId('')}
-            className={`flex-shrink-0 px-3.5 py-2 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
-              categoryId === ''
-                ? 'bg-brand-green/12 border-brand-green text-brand-green'
-                : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40 hover:text-[var(--c-text-2)]'
-            }`}
-          >
-            All
-          </button>
-          {categories.map(cat => (
-            <button
-              key={cat._id}
-              onClick={() => setCategoryId(prev => prev === cat._id ? '' : cat._id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
-                categoryId === cat._id
-                  ? 'bg-brand-green/12 border-brand-green text-brand-green'
-                  : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:border-brand-green/40 hover:text-[var(--c-text-2)]'
-              }`}
-            >
-              <CategoryIcon slug={cat.slug} className="h-3.5 w-3.5" />
-              {cat.name}
-            </button>
-          ))}
-        </div>
+      {/* Selling fast + the nutrition shortcut, only on the unfiltered front page */}
+      {!filtered && (
+        <>
+          {!!trending?.length && (
+            <section className="mt-4">
+              <div className="flex items-center justify-between px-4 mb-3">
+                <h2 className="flex items-center gap-2 text-[17px] font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
+                  <Flame className="h-5 w-5 text-harvest" /> {t('panel.sellingFast')}
+                </h2>
+              </div>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 snap-x scroll-px-4">
+                {trending.slice(0, 10).map((p, i) => (
+                  <Link key={p._id} to={`/marketplace/product/${p.slug || p._id}`} className="relative w-[150px] flex-shrink-0 snap-start group">
+                    <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[var(--c-input)]">
+                      <ImageWithFallback src={p.images?.[0]} alt={p.title} className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500" fallbackClassName="w-full h-full" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent" />
+                      <span className="absolute top-2 left-2 w-7 h-7 rounded-full bg-white text-black text-[13px] font-extrabold flex items-center justify-center shadow" style={{ fontFamily: 'var(--font-display)' }}>{i + 1}</span>
+                      <div className="absolute inset-x-2.5 bottom-2.5 text-white">
+                        <p className="text-[12.5px] font-medium leading-tight line-clamp-2">{p.title}</p>
+                        <p className="text-[14px] font-bold tabular mt-0.5">{formatCurrency(p.price)}<span className="text-white/70 text-[11px] font-medium"> / {unitLabel(p.priceUnit)}</span></p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+          <Link to="/nutrition" className="mx-4 mt-5 flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-green/12 via-brand-lime/10 to-harvest/12 border border-brand-green/15 press">
+            <span className="w-11 h-11 rounded-xl bg-brand-green text-white flex items-center justify-center flex-shrink-0"><HeartPulse className="h-6 w-6" /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[15px] font-semibold text-[var(--c-text)]">{t('nav.nutrition')}</span>
+              <span className="block text-[13px] text-[var(--c-text-3)]">{t('shop.nutritionHint')}</span>
+            </span>
+            <ChevronRight className="h-5 w-5 text-[var(--c-text-3)]" />
+          </Link>
+        </>
       )}
 
-      {/* Results header */}
-      {!isLoading && (
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-[var(--c-text-3)]">
-            <span className="font-semibold text-[var(--c-text)]">{products.length}</span> products
-            {hasFilter && ' found'}
-          </p>
-          {hasFilter && (
-            <button onClick={clearAll} className="text-xs text-[var(--c-text-3)] hover:text-brand-green transition-colors flex items-center gap-1 cursor-pointer">
-              <X className="h-3 w-3" /> Clear filters
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex items-center justify-between px-4 mt-6 mb-3">
+        <h2 className="text-[17px] font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>
+          {filtered ? t('shop.results', { count: total }) : t('shop.freshToday')}
+        </h2>
+        {filtered && <button onClick={clearAll} className="text-[13.5px] font-semibold text-brand-green">{t('shop.clearAll')}</button>}
+      </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => <ProductCardSkeleton key={i} />)}
-        </div>
-      ) : !products.length ? (
-        <div className="text-center py-24">
-          <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
-            <Sprout className="h-8 w-8 text-brand-green/60" />
-          </div>
-          <p className="text-[var(--c-text)] font-semibold mb-1">No products found</p>
-          <p className="text-[var(--c-text-3)] text-sm">Try adjusting your search or removing filters.</p>
-          {hasFilter && (
-            <button onClick={clearAll} className="mt-4 text-brand-green text-sm font-medium hover:underline cursor-pointer">
-              Clear all filters
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.map((product, i) => (
-            <motion.div
-              key={product._id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.03, 0.3) }}
-            >
-              <FeedProductCard product={product} />
-            </motion.div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 px-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i}><div className="aspect-square rounded-2xl skeleton-shimmer" /><div className="h-4 w-20 mt-3 rounded skeleton-shimmer" /><div className="h-3 w-full mt-2 rounded skeleton-shimmer" /></div>
           ))}
         </div>
+      ) : !products.length ? (
+        <div className="text-center py-20 px-6">
+          <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4"><Sprout className="h-8 w-8 text-brand-green" /></div>
+          <p className="text-[var(--c-text)] font-semibold mb-1">{t('shop.noneTitle')}</p>
+          <p className="text-[var(--c-text-3)] text-sm">{t('shop.noneBody')}</p>
+          {filtered && <button onClick={clearAll} className="mt-4 text-brand-green text-sm font-semibold">{t('shop.clearAll')}</button>}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 px-4">
+          {products.map(p => <FeedProductCard key={p._id} product={p} />)}
+        </div>
       )}
+      <div ref={sentinel} />
+      {isFetchingNextPage && <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--c-text-3)]" /></div>}
     </div>
   )
 }

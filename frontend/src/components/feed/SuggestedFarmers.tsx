@@ -53,7 +53,7 @@ export function SuggestedFarmers() {
         <h2 className="text-[15px] font-semibold text-[var(--c-text)]">{t('panel.suggested')}</h2>
         <Link to="/explore?tab=farmers" className="text-[13.5px] font-semibold text-brand-green">{t('common.seeAll')}</Link>
       </div>
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar px-4 snap-x">
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar px-4 snap-x scroll-px-4">
         {list.map(({ user: u, credibility }) => {
           const following = state[u._id] === 'following'
           return (

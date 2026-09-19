@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Heart, MessageCircle, Send, Bookmark, ShoppingBag, Check, Loader2, Leaf, Star, Volume2, VolumeX, Play, MapPin } from 'lucide-react'
 import { ShareSheet } from '@/components/reels/ShareSheet'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
+import { ReelThumb } from '@/components/reels/ReelThumb'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
 import { shortAgo } from '@/components/stories/StoryViewer'
 import { useCart } from '@/hooks/useCart'
@@ -189,15 +190,14 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
             <video
               ref={videoRef}
               src={reel!.videoUrl}
-              poster={reel!.thumbnailUrl}
               muted={muted}
               loop
               playsInline
               preload="none"
               className="w-full h-full object-cover"
             />
-            {!playing && reel!.thumbnailUrl && (
-              <img src={reel!.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+            {!playing && (
+              <ReelThumb thumbnailUrl={reel!.thumbnailUrl} videoUrl={reel!.videoUrl} className="absolute inset-0 w-full h-full" />
             )}
             {!playing && (
               <span className="absolute inset-0 flex items-center justify-center pointer-events-none">

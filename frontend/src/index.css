@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @source "./**/*.{tsx,ts,jsx,js}";
 
+/* `dark:` follows the app's own theme switch, not the phone's OS setting.
+   Out of the box Tailwind keys it to prefers-color-scheme, so someone who
+   picked light mode on a dark-mode phone got a mix of both. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ─── Tailwind theme tokens (same for both light & dark) ─── */
 @theme {
   --color-brand-green:   #16A34A;

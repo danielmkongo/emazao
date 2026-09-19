@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { ReelThumb } from '@/components/reels/ReelThumb'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Clapperboard, Grid3x3, Bookmark, Heart, Play, Lock, Package } from 'lucide-react'
@@ -12,19 +13,12 @@ type Tab = 'reels' | 'posts' | 'saved' | 'liked'
 type Kind = 'Reel' | 'Product'
 interface Page<T> { items: T[]; next: string | number | null }
 
-/** A reel tile, 9:16 like TikTok's grid, with the view count in the corner. */
+/** A reel tile, 3:4 like Instagram's grid, with the view count in the corner. */
 function ReelTile({ reel }: { reel: Reel }) {
   return (
-    <Link to={`/reels/${reel._id}`} state={{ reel }} className="relative block aspect-[9/16] bg-black overflow-hidden group">
-      {reel.thumbnailUrl ? (
-        <ImageWithFallback src={reel.thumbnailUrl} alt={reel.caption ?? reel.title ?? 'Reel'}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-      ) : (
-        // No uploaded thumbnail: let the browser pull the first frame rather than
-        // showing an empty black tile.
-        <video src={`${reel.videoUrl}#t=0.1`} preload="metadata" muted playsInline
-          className="absolute inset-0 w-full h-full object-cover" />
-      )}
+    <Link to={`/reels/${reel._id}`} state={{ reel }} className="relative block aspect-[3/4] bg-black overflow-hidden group">
+      <ReelThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.videoUrl}
+        className="absolute inset-0 w-full h-full transition-transform duration-300 group-hover:scale-105" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
       <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-white text-xs font-semibold drop-shadow">
         <Play className="h-3.5 w-3.5 fill-white" />{formatNumber(reel.viewCount ?? 0)}
@@ -100,7 +94,7 @@ function Empty({ icon: Icon, title, body }: { icon: typeof Heart; title: string;
 function GridSkeleton({ tall }: { tall?: boolean }) {
   return (
     <div className="grid grid-cols-3 gap-0.5">
-      {[...Array(9)].map((_, i) => <Skeleton key={i} className={`${tall ? 'aspect-[9/16]' : 'aspect-square'} rounded-none`} />)}
+      {[...Array(9)].map((_, i) => <Skeleton key={i} className={`${tall ? 'aspect-[3/4]' : 'aspect-square'} rounded-none`} />)}
     </div>
   )
 }
@@ -188,16 +182,16 @@ export function ProfileContent({ userId, isOwnProfile, isSeller }: { userId: str
   }
 
   return (
-    <div className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden">
-      <div role="tablist" className="flex border-b border-[var(--c-border)]">
+    <div className="md:border-t md:border-[var(--c-border)]">
+      <div role="tablist" className="flex border-b md:border-b-0 border-[var(--c-border)] sticky top-[calc(56px+env(safe-area-inset-top,0px))] lg:top-0 z-10 bg-[var(--c-bg)]">
         {tabs.map(t => {
           const on = tab === t.key
           return (
             <button key={t.key} role="tab" aria-selected={on} onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 -mb-px transition-colors ${
-                on ? 'border-[var(--c-text)] text-[var(--c-text)]' : 'border-transparent text-[var(--c-text-4)] hover:text-[var(--c-text-2)]'
+              className={`flex-1 flex items-center justify-center gap-1.5 h-12 text-[12px] font-semibold uppercase tracking-wider border-b-2 md:border-b-0 md:border-t-2 -mb-px md:mb-0 md:-mt-px transition-colors ${
+                on ? 'border-[var(--c-text)] text-[var(--c-text)]' : 'border-transparent text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
               }`}>
-              <t.icon className="h-4 w-4" />
+              <t.icon className="h-[22px] w-[22px] md:h-4 md:w-4" strokeWidth={on ? 2.3 : 1.9} />
               <span className="hidden sm:inline">{t.label}</span>
               {t.private && <Lock className="h-3 w-3 opacity-60" />}
             </button>

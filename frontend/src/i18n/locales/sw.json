@@ -202,5 +202,40 @@
     "emptyTitle": "Mtiririko wako unaandaliwa",
     "emptyBody": "Wafuate wakulima wachache na mavuno mapya yataonekana hapa.",
     "caughtUpBody": "Umeona kila kitu kipya cha siku chache zilizopita."
+  },
+  "shop": {
+    "searchPlaceholder": "Tafuta sokoni",
+    "clearSearch": "Futa utafutaji",
+    "sortBy": "Panga kwa",
+    "sort": {
+      "recommended": "Zinazopendekezwa",
+      "popular": "Maarufu zaidi",
+      "newest": "Mpya zaidi",
+      "price_asc": "Bei ya chini",
+      "price_desc": "Bei ya juu"
+    },
+    "all": "Zote",
+    "freshToday": "Mpya leo",
+    "results_one": "Tokeo {{count}}",
+    "results_other": "Matokeo {{count}}",
+    "clearAll": "Futa vichujio",
+    "noneTitle": "Hakuna kinacholingana",
+    "noneBody": "Jaribu neno jingine, au futa vichujio.",
+    "nutritionHint": "Vyakula kwa ajili ya mama, watoto na mahitaji ya afya",
+    "soldOut": "Zimeisha"
+  },
+  "explore": {
+    "placeholder": "Tafuta bidhaa, wakulima, lebo",
+    "tabs": {
+      "products": "Bidhaa",
+      "farmers": "Wakulima",
+      "live": "Mubashara"
+    },
+    "trySearching": "Jaribu kutafuta",
+    "popular": "Maarufu sasa",
+    "noProducts": "Hakuna bidhaa zinazolingana na “{{q}}”",
+    "noFarmers": "Hakuna wakulima wanaolingana na “{{q}}”",
+    "noLive": "Hakuna aliye mubashara sasa",
+    "noLiveBody": "Mkulima akianza mubashara, ataonekana hapa na juu ya mtiririko wako."
   }
 }

@@ -1,159 +1,120 @@
-import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Heart, Bookmark, ShoppingCart, Star, Leaf } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
+import { Heart, Plus, Check, Star, Leaf, Loader2 } from 'lucide-react'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
-import { Badge } from '@/components/ui/badge'
-import { Avatar } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { useCart } from '@/hooks/useCart'
 import { useAuthStore } from '@/store/authStore'
+import { formatCurrency, cn } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Product, User } from '@/types'
 
-interface FeedProductCardProps { product: Product }
+/** "per kg" → "kg", so the unit reads as "TZS 3,120 / kg". */
+export function unitLabel(priceUnit?: string) {
+  return (priceUnit ?? '').replace(/^per\s+/i, '').trim() || 'unit'
+}
 
-export const FeedProductCard = ({ product }: FeedProductCardProps) => {
-  const seller = product.sellerId as User
+/**
+ * A product in a shop grid. The photo does the selling, so it gets the space;
+ * the price is set large and never truncated (the old tile clipped it to
+ * "T.."); saving and adding to the cart are one tap each, on the photo.
+ */
+export const FeedProductCard = ({ product }: { product: Product }) => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
-  // Seeded from the server's view of what this user already liked/saved. These
-  // used to be hardcoded false, so an already-liked product rendered un-liked and
-  // the first tap sent a toggle that removed the existing like while the icon lit
-  // up — the button did the opposite of what it showed.
-  const [liked, setLiked] = useState(product.userLiked ?? false)
-  const [likeCount, setLikeCount] = useState(product.likeCount ?? 0)
-  const [saved, setSaved] = useState(product.userSaved ?? false)
+  const { isAuthenticated, user: me } = useAuthStore()
+  const seller = product.sellerId as User | undefined
+  const href = `/marketplace/product/${product.slug || product._id}`
 
-  // The feed refetches (filter change, cache update) reuse this component, so the
-  // server's state has to win when it arrives rather than staying on first render.
-  useEffect(() => { setLiked(product.userLiked ?? false) }, [product.userLiked])
-  useEffect(() => { setSaved(product.userSaved ?? false) }, [product.userSaved])
-  useEffect(() => { setLikeCount(product.likeCount ?? 0) }, [product.likeCount])
+  const [saved, setSaved] = useState(!!product.userSaved)
+  useEffect(() => { setSaved(!!product.userSaved) }, [product.userSaved])
+  const savePending = useRef(false)
 
-  const likePendingRef = useRef(false)
-  const savePendingRef = useRef(false)
-
-  const handleLike = async (e: React.MouseEvent) => {
-    e.preventDefault()
+  const toggleSave = async (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
     if (!isAuthenticated) { navigate('/login'); return }
-    // A rapid double-tap would otherwise fire two toggles that race the unique
-    // like index and leave the icon out of step with the server.
-    if (likePendingRef.current) return
-    likePendingRef.current = true
-    const next = !liked
-    setLiked(next)
-    setLikeCount(c => next ? c + 1 : c - 1)
-    try {
-      await api.post('/social/like', { targetId: product._id, targetType: 'Product' })
-    } catch {
-      setLiked(!next)
-      setLikeCount(c => next ? c - 1 : c + 1)
-    } finally {
-      likePendingRef.current = false
-    }
-  }
-
-  const handleSave = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (!isAuthenticated) { navigate('/login'); return }
-    if (savePendingRef.current) return
-    savePendingRef.current = true
+    if (savePending.current) return
+    savePending.current = true
     const next = !saved
     setSaved(next)
-    try {
-      await api.post('/social/save', { productId: product._id })
-    } catch { setSaved(!next) }
-    finally { savePendingRef.current = false }
+    try { await api.post('/social/save', { targetId: product._id, targetType: 'Product' }) }
+    catch { setSaved(!next) }
+    finally { savePending.current = false }
   }
 
+  const { add } = useCart()
+  const [added, setAdded] = useState(false)
+  const isOwn = !!me && seller?._id === me._id
+  const quickAdd = async (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    if (!isAuthenticated) { navigate('/login'); return }
+    try {
+      await add.mutateAsync({ productId: product._id })
+      setAdded(true)
+      window.setTimeout(() => setAdded(false), 1800)
+    } catch { navigate(href) }
+  }
+
+  const outOfStock = product.status === 'OUT_OF_STOCK'
+
   return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className="group bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden shadow-sm hover:shadow-xl hover:shadow-black/10 hover:border-brand-green/25 transition-[border-color,box-shadow] duration-300"
-    >
-      {/* Image */}
-      <Link to={`/marketplace/product/${product.slug || product._id}`} className="block cursor-pointer">
-        <div className="relative aspect-[4/3] overflow-hidden bg-[var(--c-input)]">
-          <ImageWithFallback
-            src={product.images[0]}
-            alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            fallbackClassName="w-full h-full"
-          />
+    <Link to={href} className="group block">
+      <div className="relative aspect-square rounded-2xl overflow-hidden bg-[var(--c-input)]">
+        <ImageWithFallback src={product.images?.[0]} alt={product.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" fallbackClassName="w-full h-full" />
 
-          {/* Bottom scrim */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-
-          {/* Badges */}
-          <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
-            {product.isBoosted && <Badge variant="gold">Sponsored</Badge>}
-            {product.isOrganic && (
-              <span className="flex items-center gap-1 text-[10px] font-bold bg-brand-green text-white px-2 py-0.5 rounded-full shadow-md shadow-brand-green/30">
-                <Leaf className="h-2.5 w-2.5" /> Organic
-              </span>
-            )}
-          </div>
-        </div>
-      </Link>
-
-      <div className="p-3.5">
-        {/* Seller + rating */}
-        <Link to={`/farm/${seller?.username}`} className="flex items-center gap-2 mb-2 group/seller cursor-pointer">
-          <Avatar src={seller?.avatar} name={seller?.name} size="xs" verified={seller?.isVerified} />
-          <span className="text-xs text-[var(--c-text-3)] group-hover/seller:text-brand-green transition-colors truncate flex-1">
-            {seller?.name}
-          </span>
-          {(product.rating ?? 0) > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-[var(--c-text-3)] flex-shrink-0">
-              <Star className="h-3 w-3 fill-gold text-gold" />
-              {product.rating.toFixed(1)}
+        <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+          {product.isBoosted && (
+            <span className="text-[10.5px] font-bold uppercase tracking-wide bg-black/55 text-white px-2 py-0.5 rounded-full backdrop-blur">{t('feed.sponsored')}</span>
+          )}
+          {product.isOrganic && (
+            <span className="flex items-center gap-1 text-[10.5px] font-bold bg-white/90 text-brand-green px-2 py-0.5 rounded-full">
+              <Leaf className="h-3 w-3" />{t('feed.organic')}
             </span>
           )}
-        </Link>
-
-        {/* Title */}
-        <Link to={`/marketplace/product/${product.slug || product._id}`} className="cursor-pointer">
-          <h3 className="font-semibold text-[var(--c-text)] text-sm leading-snug mb-3 hover:text-brand-green transition-colors line-clamp-2">
-            {product.title}
-          </h3>
-        </Link>
-
-        {/* Price chip + CTA */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-baseline gap-1 bg-brand-green/8 border border-brand-green/12 rounded-lg px-2.5 py-1.5 min-w-0">
-            <span className="text-sm font-bold text-brand-green truncate" style={{ fontFamily: 'var(--font-mono)' }}>
-              {formatCurrency(product.price)}
-            </span>
-            <span className="text-[10px] text-[var(--c-text-4)] truncate flex-shrink-0">{product.priceUnit}</span>
-          </div>
-          <Link to={`/marketplace/product/${product.slug || product._id}`} className="cursor-pointer flex-shrink-0">
-            <Button size="sm" className="h-8 px-3 text-xs gap-1">
-              <ShoppingCart className="h-3.5 w-3.5" /> Buy
-            </Button>
-          </Link>
         </div>
 
-        {/* Social strip */}
-        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--c-border)]">
-          <button
-            onClick={handleLike}
-            className="flex items-center gap-1.5 text-xs text-[var(--c-text-3)] hover:text-red-500 transition-colors cursor-pointer"
-          >
-            <Heart className={`h-3.5 w-3.5 transition-colors ${liked ? 'fill-red-500 text-red-500' : ''}`} />
-            <span>{formatNumber(likeCount)}</span>
+        <button onClick={toggleSave} aria-label={saved ? t('common.saved') : t('common.save')} aria-pressed={saved}
+          className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/25 backdrop-blur-sm flex items-center justify-center press">
+          <motion.span key={String(saved)} initial={{ scale: saved ? 0.5 : 1 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 600, damping: 15 }}>
+            <Heart className={cn('h-[19px] w-[19px]', saved ? 'fill-red-500 text-red-500' : 'text-white')} strokeWidth={2.2} />
+          </motion.span>
+        </button>
+
+        {outOfStock ? (
+          <span className="absolute inset-x-2 bottom-2 text-center text-[12px] font-semibold bg-black/60 text-white rounded-full py-1">{t('shop.soldOut')}</span>
+        ) : !isOwn && (
+          <button onClick={quickAdd} aria-label={t('feed.addToCart')} disabled={add.isPending}
+            className={cn('absolute bottom-2 right-2 w-10 h-10 rounded-full flex items-center justify-center shadow-lg press transition-colors',
+              added ? 'bg-brand-green text-white' : 'bg-white text-black hover:bg-brand-green hover:text-white')}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span key={add.isPending ? 'l' : added ? 'c' : 'p'} initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ duration: 0.12 }}>
+                {add.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : added ? <Check className="h-5 w-5" strokeWidth={3} /> : <Plus className="h-5 w-5" strokeWidth={2.6} />}
+              </motion.span>
+            </AnimatePresence>
           </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 text-xs text-[var(--c-text-3)] hover:text-brand-green transition-colors cursor-pointer"
-          >
-            <Bookmark className={`h-3.5 w-3.5 transition-colors ${saved ? 'fill-brand-green text-brand-green' : ''}`} />
-            <span>{saved ? 'Saved' : 'Save'}</span>
-          </button>
-          <span className="ml-auto text-xs text-[var(--c-text-4)]">{formatNumber(product.viewCount ?? 0)} views</span>
+        )}
+      </div>
+
+      <div className="pt-2.5 px-0.5">
+        <p className="text-[16px] font-bold text-[var(--c-text)] tabular leading-tight">
+          {formatCurrency(product.price)}
+          <span className="text-[12.5px] font-medium text-[var(--c-text-3)]"> / {unitLabel(product.priceUnit)}</span>
+        </p>
+        <h3 className="text-[13.5px] text-[var(--c-text-2)] leading-snug line-clamp-2 mt-0.5 min-h-[2.5em]">{product.title}</h3>
+        <div className="flex items-center gap-1.5 mt-1.5 text-[12px] text-[var(--c-text-3)] min-w-0">
+          {seller?.avatar
+            ? <img src={seller.avatar} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+            : <span className="w-4 h-4 rounded-full bg-brand-green/30 flex-shrink-0" />}
+          <span className="truncate">{seller?.name}</span>
+          {(product.ratingCount ?? 0) > 0 && (
+            <span className="ml-auto flex items-center gap-0.5 flex-shrink-0 text-[var(--c-text-2)] font-medium">
+              <Star className="h-3 w-3 fill-gold text-gold" />{product.rating.toFixed(1)}
+            </span>
+          )}
         </div>
       </div>
-    </motion.div>
+    </Link>
   )
 }

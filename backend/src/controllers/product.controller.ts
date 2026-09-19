@@ -9,7 +9,7 @@ import { nanoid } from 'nanoid'
 // GET /api/products
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId, nutrition } = req.query
+    const { category, tags, organic, minPrice, maxPrice, status = 'ACTIVE', page = '1', limit = '20', q, sellerId, nutrition, sort: sortBy } = req.query
 
     const filter: Record<string, unknown> = {}
     if (status !== 'all') filter['status'] = status
@@ -35,7 +35,16 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const sort = { isBoosted: -1, createdAt: -1 } as any
+    // "recommended" keeps paid boosts on top; the explicit sorts are what a
+    // shopper asked for, so boosts do not get to override them.
+    const SORTS: Record<string, Record<string, 1 | -1>> = {
+      recommended: { isBoosted: -1, createdAt: -1 },
+      newest: { createdAt: -1 },
+      price_asc: { price: 1, createdAt: -1 },
+      price_desc: { price: -1, createdAt: -1 },
+      popular: { orderCount: -1, viewCount: -1 },
+    }
+    const sort = SORTS[String(sortBy ?? 'recommended')] ?? SORTS.recommended
 
     const [products, total] = await Promise.all([
       Product.find(filter)
@@ -47,9 +56,19 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       Product.countDocuments(filter),
     ])
 
+    // The viewer's own saves, so a heart on a product tile shows the truth
+    // rather than always starting empty.
+    const viewerId = (req as AuthRequest).user?.id
+    let data: unknown[] = products
+    if (viewerId && products.length) {
+      const saves = await Save.find({ userId: viewerId, targetType: 'Product', targetId: { $in: products.map(p => p._id) } }).select('targetId').lean()
+      const saved = new Set(saves.map(s => String(s.targetId)))
+      data = products.map(p => ({ ...p.toObject(), userSaved: saved.has(String(p._id)) }))
+    }
+
     res.json({
       success: true,
-      data: products,
+      data,
       pagination: { page: parseInt(page as string), limit: parseInt(limit as string), total },
     })
   } catch (err) {

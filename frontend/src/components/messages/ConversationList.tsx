@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, Edit, X, Search, Loader2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
+import { StoryAvatar } from '@/components/stories/StoryAvatar'
+import { shortAgo } from '@/components/stories/StoryViewer'
+import { useStoryFeed } from '@/lib/stories'
 import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -41,6 +44,9 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const navigate = useNavigate()
   const [composing, setComposing] = useState(false)
   const [searchQ, setSearchQ] = useState('')
+  const [filter, setFilter] = useState('')
+  const { data: storyGroups } = useStoryFeed()
+  const storiesByUser = useMemo(() => new Map((storyGroups ?? []).map(g => [g.user._id, g])), [storyGroups])
   const debouncedQ = useDebounce(searchQ, 300)
 
   const { data: conversations, isLoading } = useQuery({
@@ -81,21 +87,32 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   }
 
   const displayedUsers = searchResults ?? []
+  const shown = (conversations ?? []).filter(c => {
+    if (!filter.trim()) return true
+    const other = c.participants.find(p => String(p._id) !== String(user?._id))
+    const f = filter.trim().toLowerCase()
+    return !!other && (other.name?.toLowerCase().includes(f) || other.username?.toLowerCase().includes(f))
+  })
 
   return (
     <div className="flex flex-col h-full w-full min-w-0">
-      <div className="flex items-center justify-between px-4 py-4 lg:px-4 lg:py-3.5 border-b border-[var(--c-border)] shrink-0">
-        <h1 className="text-2xl lg:text-lg font-bold text-[var(--c-text)]">Messages</h1>
-        <button
-          onClick={openCompose}
-          className="w-9 h-9 rounded-xl bg-[var(--c-raised)] flex items-center justify-center hover:bg-brand-green/10 hover:text-brand-green transition-colors text-[var(--c-text-3)]"
-          title="New message"
-        >
-          <Edit className="h-4 w-4" />
-        </button>
+      <div className="px-4 pt-3 lg:pt-7 pb-2 shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-[22px] font-bold text-[var(--c-text)] truncate">{user?.username ?? 'Messages'}</h1>
+          <button onClick={openCompose} title="New message" aria-label="New message"
+            className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-[var(--c-text)] hover:bg-[var(--c-raised)] press">
+            <Edit className="h-[22px] w-[22px]" strokeWidth={1.9} />
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--c-text-3)] pointer-events-none" />
+          <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search" aria-label="Search conversations"
+            className="w-full h-10 rounded-xl bg-[var(--c-input)] pl-10 pr-3 text-[15px] text-[var(--c-text)] placeholder:text-[var(--c-text-3)] focus:outline-none focus:ring-2 focus:ring-brand-green/40" />
+        </div>
+        <p className="text-[15px] font-bold text-[var(--c-text)] mt-4">Messages</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-2 lg:px-2">
+      <div className="flex-1 overflow-y-auto pb-2">
         {isLoading ? (
           <div className="space-y-2 p-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
         ) : !conversations?.length ? (
@@ -113,8 +130,8 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             </button>
           </div>
         ) : (
-          <div className="space-y-1">
-            {conversations.map((conv, i) => {
+          <div>
+            {shown.map((conv) => {
               // Never fall back to participants[0]: that is whoever opened the
               // conversation, so when the signed-in id is momentarily unknown the
               // list would show your own name and avatar for every thread.
@@ -124,49 +141,27 @@ export function ConversationList({ activeId }: { activeId?: string }) {
               const isActive = conv._id === activeId
               const hasUnread = (conv.unreadCount ?? 0) > 0
               return (
-                <motion.div
-                  key={conv._id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                >
-                  <Link to={`/messages/${conv._id}`} className="block min-w-0">
-                    <div className={`flex items-center gap-4 p-4 lg:p-3 rounded-2xl transition-colors group ${
-                      isActive ? 'bg-brand-green/10' : 'hover:bg-[var(--c-raised)]'
-                    }`}>
-                      <Avatar src={other?.avatar} name={other?.name ?? 'User'} size="md" verified={other?.isVerified} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <p className={`text-sm truncate transition-colors ${
-                            isActive ? 'text-brand-green' : 'text-[var(--c-text)] group-hover:text-brand-green'
-                          } ${hasUnread ? 'font-bold' : 'font-semibold'}`}>
-                            {other?.name ?? 'User'}
-                          </p>
-                          {conv.lastMessageAt && (
-                            <p className="text-[var(--c-text-4)] text-xs flex-shrink-0 ml-2">{timeAgo(conv.lastMessageAt)}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={`text-sm truncate ${hasUnread ? 'text-[var(--c-text)] font-medium' : 'text-[var(--c-text-3)]'}`}>
-                            {conv.lastMessage || 'Start a conversation'}
-                          </p>
-                          {hasUnread && (
-                            <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-green text-white text-[10px] font-bold flex items-center justify-center">
-                              {conv.unreadCount! > 9 ? '9+' : conv.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        {conv.type === 'BID_NEGOTIATION' && (
-                          <span className="text-[10px] font-semibold text-gold bg-gold/10 rounded-full px-2 py-0.5 mt-1 inline-block">
-                            Bid Negotiation
-                          </span>
-                        )}
-                      </div>
+                <Link key={conv._id} to={`/messages/${conv._id}`} className="block min-w-0">
+                  <div className={`flex items-center gap-3 px-4 py-2 transition-colors ${isActive ? 'bg-[var(--c-raised)]' : 'hover:bg-[var(--c-raised)]/60'}`}>
+                    {other
+                      ? <StoryAvatar user={other} size={52} group={storiesByUser.get(other._id)} />
+                      : <span className="w-[52px] h-[52px] rounded-full bg-[var(--c-input)] flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[14.5px] truncate text-[var(--c-text)] ${hasUnread ? 'font-bold' : 'font-medium'}`}>
+                        {other?.name ?? 'User'}
+                        {conv.type === 'BID_NEGOTIATION' && <span className="ml-1.5 text-[11px] font-semibold text-gold">· Bid</span>}
+                      </p>
+                      <p className={`text-[13.5px] flex min-w-0 ${hasUnread ? 'text-[var(--c-text)] font-semibold' : 'text-[var(--c-text-3)]'}`}>
+                        <span className="truncate">{hasUnread && (conv.unreadCount ?? 0) > 1 ? `${conv.unreadCount} new messages` : (conv.lastMessage || 'Start a conversation')}</span>
+                        {conv.lastMessageAt && <span className="flex-shrink-0 text-[var(--c-text-3)] font-normal">&nbsp;· {shortAgo(conv.lastMessageAt)}</span>}
+                      </p>
                     </div>
-                  </Link>
-                </motion.div>
+                    {hasUnread && <span className="w-2.5 h-2.5 rounded-full bg-brand-green flex-shrink-0" aria-label="Unread" />}
+                  </div>
+                </Link>
               )
             })}
+            {!shown.length && <p className="text-center text-[var(--c-text-3)] text-sm py-10">No chats match “{filter}”</p>}
           </div>
         )}
       </div>

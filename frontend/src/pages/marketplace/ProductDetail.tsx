@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Heart, Share2, Star, MapPin, Package, ChevronLeft,
   CheckCircle2, X, Plus, Minus, Truck, ShieldCheck, ChevronRight,
-  AlertTriangle,
+  AlertTriangle, Check, Leaf, BadgeCheck, MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaymentForm } from '@/components/payment/PaymentForm'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
+import { FeedProductCard, unitLabel } from '@/components/feed/FeedProductCard'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -355,46 +356,43 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user: me } = useAuthStore()
   const [showBuyModal, setShowBuyModal] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(0)
+  const [slide, setSlide] = useState(0)
   const [saved, setSaved] = useState(false)
-  const [savedInitialized, setSavedInitialized] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [shared, setShared] = useState(false)
+  const galleryRef = useRef<HTMLDivElement>(null)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['product', slug],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Product & { userSaved?: boolean }>>(`/products/${slug}`)
-      return res.data.data
-    },
+    queryFn: async () => (await api.get<ApiResponse<Product & { userSaved?: boolean }>>(`/products/${slug}`)).data.data,
     retry: 1,
   })
+  useEffect(() => { if (data) setSaved(!!data.userSaved) }, [data?._id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize saved state from server once data loads
-  useEffect(() => {
-    if (data && !savedInitialized) {
-      setSaved(!!(data as any).userSaved)
-      setSavedInitialized(true)
-    }
-  }, [data, savedInitialized])
+  const sellerId = data ? (typeof data.sellerId === 'string' ? data.sellerId : (data.sellerId as User)._id) : undefined
+  const { data: moreFromFarm } = useQuery({
+    queryKey: ['more-from-farm', sellerId],
+    queryFn: async () => (await api.get<ApiResponse<Product[]>>(`/products?sellerId=${sellerId}&limit=12`)).data.data ?? [],
+    enabled: !!sellerId,
+    staleTime: 60_000,
+  })
 
   const handleSave = async () => {
     if (!isAuthenticated) { navigate('/login'); return }
-    setSaved(s => !s)
-    try {
-      const res = await api.post<{ success: boolean; saved: boolean }>('/social/save', { productId: data?._id })
-      setSaved(res.data.saved)
-    } catch {
-      setSaved(s => !s)
-    }
+    const next = !saved
+    setSaved(next)
+    try { await api.post('/social/save', { targetId: data?._id, targetType: 'Product' }) }
+    catch { setSaved(!next) }
   }
 
   const handleShare = async () => {
+    const url = window.location.href
     try {
-      await navigator.share({ title: data?.title, url: window.location.href })
-    } catch {
-      navigator.clipboard.writeText(window.location.href)
-    }
+      if (navigator.share) await navigator.share({ title: data?.title, url })
+      else { await navigator.clipboard.writeText(url); setShared(true); window.setTimeout(() => setShared(false), 1600) }
+    } catch { /* dismissed */ }
   }
 
   const handleBuyNow = () => {
@@ -415,16 +413,19 @@ export default function ProductDetail() {
     )
   }
 
+  const goTo = (i: number) => {
+    const el = galleryRef.current
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+  }
+
   if (isLoading) return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <Skeleton className="h-6 w-32 mb-6 rounded-lg" />
-      <div className="grid md:grid-cols-2 gap-8">
-        <Skeleton className="aspect-square rounded-2xl" />
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-3/4 rounded-xl" />
-          <Skeleton className="h-6 w-1/2 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-12 rounded-xl" />
+    <div className="max-w-5xl mx-auto md:px-6 md:py-8">
+      <div className="grid md:grid-cols-2 md:gap-10">
+        <div className="aspect-square md:rounded-3xl skeleton-shimmer" />
+        <div className="p-4 md:p-0 space-y-4">
+          <div className="h-9 w-40 rounded-lg skeleton-shimmer" />
+          <div className="h-6 w-3/4 rounded-lg skeleton-shimmer" />
+          <div className="h-24 rounded-xl skeleton-shimmer" />
         </div>
       </div>
     </div>
@@ -436,190 +437,243 @@ export default function ProductDetail() {
         <AlertTriangle className="h-8 w-8 text-red-400" />
       </div>
       <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Failed to load product</h2>
-      <p className="text-[var(--c-text-3)] mb-2 text-sm max-w-sm">
+      <p className="text-[var(--c-text-3)] mb-6 text-sm max-w-sm">
         {(error as any)?.response?.data?.message || (error as Error)?.message || 'An unexpected error occurred.'}
       </p>
-      <p className="text-[var(--c-text-4)] text-xs mb-6">ID: {slug}</p>
       <div className="flex gap-3">
         <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
-        <Link to="/marketplace"><Button>Browse Marketplace</Button></Link>
+        <Link to="/marketplace"><Button>Browse the market</Button></Link>
       </div>
     </div>
   )
 
   if (!data) return (
     <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
-      <span className="text-6xl mb-4">🔍</span>
+      <Package className="h-12 w-12 text-[var(--c-text-4)] mb-4" />
       <h2 className="text-xl font-semibold text-[var(--c-text)] mb-2">Product not found</h2>
       <p className="text-[var(--c-text-3)] mb-6">This product may have been removed or the link is invalid.</p>
-      <Link to="/marketplace"><Button>Browse Marketplace</Button></Link>
+      <Link to="/marketplace"><Button>Browse the market</Button></Link>
     </div>
   )
 
   const seller = data.sellerId as User
-  const images = data.images.length > 0 ? data.images : []
+  const images = data.images?.length ? data.images : ['']
+  const outOfStock = data.status === 'OUT_OF_STOCK'
+  const isOwn = me?._id === seller?._id
+  const unit = unitLabel(data.priceUnit)
+  const others = (moreFromFarm ?? []).filter(p => p._id !== data._id)
+  const certifications: string[] = (data as any).certifications ?? []
+  const longDescription = (data.description?.length ?? 0) > 220
+
+  const messageSeller = () => {
+    if (!isAuthenticated) { navigate('/login'); return }
+    navigate(`/messages/new?recipientId=${seller._id}`, { state: { recipient: seller } })
+  }
+
+  const roundBtn = 'w-10 h-10 rounded-full bg-white/90 dark:bg-black/60 text-black flex items-center justify-center shadow-md backdrop-blur press'
 
   return (
     <>
-      <div className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
-        {/* Back */}
-        <Link to="/marketplace" className="inline-flex items-center gap-1.5 text-sm text-[var(--c-text-3)] hover:text-brand-green transition-colors mb-6">
-          <ChevronLeft className="h-4 w-4" /> Back to Marketplace
-        </Link>
+      <div className="max-w-5xl mx-auto md:px-6 md:py-8 pb-[calc(88px+env(safe-area-inset-bottom,0px))] md:pb-10">
+        <div className="grid md:grid-cols-2 md:gap-10 md:items-start">
+          {/* ── Gallery ─────────────────────────────────────────── */}
+          <div className="md:sticky md:top-8">
+            <div className="relative aspect-square md:rounded-3xl overflow-hidden bg-[var(--c-input)]">
+              <div ref={galleryRef} className="w-full h-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+                onScroll={e => setSlide(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
+                {images.map((src, i) => (
+                  <div key={i} className="w-full h-full flex-shrink-0 snap-center">
+                    <ImageWithFallback src={src} alt={i === 0 ? data.title : ''} loading={i === 0 ? 'eager' : 'lazy'}
+                      className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
+                  </div>
+                ))}
+              </div>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="grid md:grid-cols-2 gap-8">
-          {/* Image gallery */}
-          <div className="space-y-3">
-            <div className="aspect-square rounded-2xl overflow-hidden bg-[var(--c-input)] relative">
-              <ImageWithFallback
-                src={images[selectedImage]}
-                alt={data.title}
-                className="w-full h-full object-cover"
-                fallbackClassName="w-full h-full"
-                loading="eager"
-              />
+              <button onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/marketplace'))} aria-label="Back"
+                className={`absolute top-3 left-3 ${roundBtn}`}>
+                <ChevronLeft className="h-5 w-5 dark:text-white" />
+              </button>
+              <div className="absolute top-3 right-3 flex gap-2">
+                <button onClick={handleShare} aria-label="Share" className={roundBtn}>
+                  {shared ? <Check className="h-[18px] w-[18px] text-brand-green" /> : <Share2 className="h-[18px] w-[18px] dark:text-white" />}
+                </button>
+                <button onClick={handleSave} aria-label={saved ? 'Saved' : 'Save'} aria-pressed={saved} className={roundBtn}>
+                  <Heart className={`h-[18px] w-[18px] ${saved ? 'fill-red-500 text-red-500' : 'dark:text-white'}`} />
+                </button>
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-3 inset-x-0 flex justify-center gap-1.5">
+                  {images.map((_, i) => (
+                    <button key={i} onClick={() => goTo(i)} aria-label={`Photo ${i + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${i === slide ? 'w-5 bg-white' : 'w-1.5 bg-white/60'}`} />
+                  ))}
+                </div>
+              )}
               {data.isBoosted && (
-                <span className="absolute top-3 left-3 text-xs font-semibold bg-gold text-black px-2 py-0.5 rounded-full">
-                  Featured
-                </span>
+                <span className="absolute bottom-3 left-3 text-[10.5px] font-bold uppercase tracking-wide bg-black/55 text-white px-2 py-0.5 rounded-full backdrop-blur">Sponsored</span>
               )}
             </div>
+
             {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
-                {images.slice(0, 4).map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedImage(i)}
-                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all ${i === selectedImage ? 'border-brand-green' : 'border-transparent'}`}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+              <div className="hidden md:flex gap-2 mt-3">
+                {images.slice(0, 6).map((img, i) => (
+                  <button key={i} onClick={() => goTo(i)}
+                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${i === slide ? 'border-[var(--c-text)]' : 'border-transparent opacity-70 hover:opacity-100'}`}>
+                    <ImageWithFallback src={img} alt="" className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Details */}
-          <div>
-            {/* Badges */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {data.isOrganic && <Badge variant="organic">Organic</Badge>}
-              {data.condition && <Badge variant="outline">{data.condition}</Badge>}
-              {data.status === 'OUT_OF_STOCK' && <Badge variant="urgent">Out of Stock</Badge>}
-            </div>
-
-            <h1 className="text-2xl font-bold text-[var(--c-text)] mb-2">{data.title}</h1>
-
-            {/* Price */}
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-3xl font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-mono)' }}>
+          {/* ── Details ─────────────────────────────────────────── */}
+          <div className="px-4 pt-4 md:p-0">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-[30px] font-extrabold text-[var(--c-text)] tabular leading-none" style={{ fontFamily: 'var(--font-display)' }}>
                 {formatCurrency(data.price)}
               </span>
-              <span className="text-[var(--c-text-3)] text-sm">{data.priceUnit}</span>
+              <span className="text-[15px] text-[var(--c-text-3)]">/ {unit}</span>
             </div>
+            <h1 className="text-[19px] md:text-[22px] font-semibold text-[var(--c-text)] leading-snug mt-2">{data.title}</h1>
 
-            {/* Stats row */}
-            <div className="flex flex-wrap items-center gap-4 mb-5 text-sm text-[var(--c-text-3)]">
+            <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-2 text-[13.5px] text-[var(--c-text-3)]">
               {(data.ratingCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-gold text-gold" />
-                  <span className="font-semibold text-[var(--c-text)]">{(data.rating ?? 0).toFixed(1)}</span>
-                  <span className="text-[var(--c-text-4)]">({data.ratingCount} reviews)</span>
+                <span className="flex items-center gap-1 text-[var(--c-text)]">
+                  <Star className="h-4 w-4 fill-gold text-gold" /><b className="font-semibold">{data.rating.toFixed(1)}</b>
+                  <span className="text-[var(--c-text-3)]">({data.ratingCount})</span>
                 </span>
               )}
-              <span className="flex items-center gap-1.5">
-                <Package className="h-4 w-4" />
-                {formatNumber(data.availableStock ?? 0)} {data.stockUnit} available
-              </span>
-              <span>{formatNumber(data.viewCount)} views</span>
+              {(data.orderCount ?? 0) > 0 && <span>{formatNumber(data.orderCount)} sold</span>}
+              <span>{formatNumber(data.viewCount ?? 0)} views</span>
             </div>
 
-            <p className="text-[var(--c-text-2)] text-sm leading-relaxed mb-6">{data.description}</p>
+            <div className="flex flex-wrap gap-2 mt-4">
+              {data.isOrganic && <Pill tone="green"><Leaf className="h-3.5 w-3.5" />Organic</Pill>}
+              {data.condition && <Pill>{data.condition.charAt(0) + data.condition.slice(1).toLowerCase()}</Pill>}
+              {data.origin && <Pill><MapPin className="h-3.5 w-3.5" />{data.origin}</Pill>}
+              {data.availableStock != null && !outOfStock && <Pill><Package className="h-3.5 w-3.5" />{formatNumber(data.availableStock)} {data.stockUnit ?? unit} in stock</Pill>}
+              {outOfStock && <Pill tone="red">Sold out</Pill>}
+              {(data.minimumOrder ?? 0) > 1 && <Pill>Min. order {data.minimumOrder} {data.stockUnit ?? unit}</Pill>}
+            </div>
 
-            {/* Tags */}
-            {data.tags?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-5">
-                {data.tags.map(tag => (
-                  <span key={tag} className="text-xs px-2.5 py-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-full text-[var(--c-text-3)]">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Certifications */}
-            {(data as any).certifications?.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-6">
-                {(data as any).certifications.map((cert: string) => (
-                  <span key={cert} className="flex items-center gap-1.5 text-xs bg-brand-green/8 text-brand-green border border-brand-green/20 rounded-full px-3 py-1">
-                    <CheckCircle2 className="h-3 w-3" /> {cert}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Seller card */}
-            <div className="flex items-center gap-3 p-3.5 bg-[var(--c-input)] rounded-xl mb-5 border border-[var(--c-border)]">
-              <Avatar src={seller?.avatar} name={seller?.name} size="md" verified={seller?.isVerified} />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[var(--c-text)] text-sm">{seller?.name}</p>
-                <p className="text-xs text-[var(--c-text-3)] flex items-center gap-1 mt-0.5">
-                  <MapPin className="h-3 w-3" />{seller?.country}
-                </p>
-              </div>
-              <Link to={`/farm/${seller?.username}`}>
-                <Button variant="outline" size="sm">View Farm</Button>
+            {/* Seller */}
+            <div className="flex items-center gap-3 mt-5 py-3 border-y border-[var(--c-border)]">
+              <Link to={`/profile/${seller?.username}`} className="flex-shrink-0">
+                <Avatar src={seller?.avatar} name={seller?.name} size="lg" />
               </Link>
+              <Link to={`/farm/${seller?.username}`} className="flex-1 min-w-0">
+                <span className="flex items-center gap-1 text-[15px] font-semibold text-[var(--c-text)]">
+                  <span className="truncate">{seller?.name}</span>
+                  {seller?.isVerified && <BadgeCheck className="h-4 w-4 text-white fill-brand-green flex-shrink-0" />}
+                </span>
+                <span className="text-[13px] text-[var(--c-text-3)] flex items-center gap-1">
+                  {seller?.country && <><MapPin className="h-3 w-3" />{[seller.region, seller.country].filter(Boolean).join(', ')} · </>}Visit shop
+                </span>
+              </Link>
+              {!isOwn && (
+                <button onClick={messageSeller} className="h-9 px-3.5 rounded-lg bg-[var(--c-input)] hover:bg-[var(--c-raised)] text-[13.5px] font-semibold text-[var(--c-text)] flex items-center gap-1.5 press">
+                  <MessageCircle className="h-4 w-4" /> Ask
+                </button>
+              )}
             </div>
 
-            {/* Min order */}
-            {data.minimumOrder && (
-              <p className="text-xs text-[var(--c-text-3)] mb-4 bg-[var(--c-input)] rounded-lg px-3 py-2 border border-[var(--c-border)]">
-                Minimum order: <span className="font-semibold text-[var(--c-text)]">{data.minimumOrder} {data.stockUnit}</span>
-              </p>
+            {/* Why it is safe to pay */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-brand-green/[0.07]">
+                <ShieldCheck className="h-5 w-5 text-brand-green flex-shrink-0 mt-0.5" />
+                <p className="text-[12.5px] text-[var(--c-text-2)] leading-snug"><b className="text-[var(--c-text)] font-semibold">Protected payment.</b> Your money is held until you confirm delivery.</p>
+              </div>
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[var(--c-input)]">
+                <Truck className="h-5 w-5 text-[var(--c-text-2)] flex-shrink-0 mt-0.5" />
+                <p className="text-[12.5px] text-[var(--c-text-2)] leading-snug"><b className="text-[var(--c-text)] font-semibold">Track every step</b> from dispatch to your door.</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            {data.description && (
+              <div className="mt-5">
+                <h2 className="text-[15px] font-bold text-[var(--c-text)] mb-1.5">About this product</h2>
+                <p className={`text-[14.5px] text-[var(--c-text-2)] leading-relaxed whitespace-pre-line ${!expanded && longDescription ? 'line-clamp-4' : ''}`}>{data.description}</p>
+                {longDescription && (
+                  <button onClick={() => setExpanded(e => !e)} className="text-[14px] font-semibold text-[var(--c-text)] mt-1">{expanded ? 'Less' : 'More'}</button>
+                )}
+              </div>
             )}
 
-            {/* Actions — sticky on mobile */}
-            <div className="fixed bottom-[calc(84px_+_env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-[var(--c-bg)]/95 backdrop-blur border-t border-[var(--c-border)] flex gap-3 md:relative md:bottom-auto md:left-auto md:right-auto md:p-0 md:bg-transparent md:backdrop-blur-none md:border-none z-40">
-              <Button
-                size="lg"
-                variant="secondary"
-                className="flex-1"
-                onClick={added ? () => navigate('/cart') : handleAddToCart}
-                disabled={data.status === 'OUT_OF_STOCK' || addToCart.isPending}
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {addToCart.isPending ? 'Adding…' : added ? 'In cart — view' : 'Add to cart'}
-              </Button>
-              <Button
-                size="lg"
-                className="flex-1"
-                onClick={handleBuyNow}
-                disabled={data.status === 'OUT_OF_STOCK'}
-              >
-                {data.status === 'OUT_OF_STOCK' ? 'Out of Stock' : 'Buy Now'}
-              </Button>
-              <Button size="lg" variant="secondary" onClick={handleSave} className={saved ? 'text-red-500' : ''}>
-                <Heart className={`h-5 w-5 ${saved ? 'fill-red-500 text-red-500' : ''}`} />
-              </Button>
-              <Button size="lg" variant="secondary" onClick={handleShare}>
-                <Share2 className="h-5 w-5" />
-              </Button>
-            </div>
+            {certifications.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {certifications.map(c => <Pill key={c} tone="green"><CheckCircle2 className="h-3.5 w-3.5" />{c}</Pill>)}
+              </div>
+            )}
+            {data.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-x-2.5 gap-y-1 mt-3">
+                {data.tags.map(tag => (
+                  <Link key={tag} to={`/explore?q=${encodeURIComponent(tag)}`} className="text-[13.5px] text-brand-green hover:underline">#{tag}</Link>
+                ))}
+              </div>
+            )}
+
+            {/* Desktop actions */}
+            {!isOwn && (
+              <div className="hidden md:flex gap-3 mt-7">
+                <ActionButtons outOfStock={outOfStock} added={added} adding={addToCart.isPending}
+                  onAdd={added ? () => navigate('/cart') : handleAddToCart} onBuy={handleBuyNow} />
+              </div>
+            )}
           </div>
-        </motion.div>
+        </div>
+
+        {/* More from this farm */}
+        {others.length > 0 && (
+          <section className="mt-9">
+            <div className="flex items-center justify-between px-4 md:px-0 mb-3">
+              <h2 className="text-[17px] font-bold text-[var(--c-text)]" style={{ fontFamily: 'var(--font-display)' }}>More from {seller?.name?.split(' ')[0]}</h2>
+              <Link to={`/farm/${seller?.username}`} className="text-[13.5px] font-semibold text-brand-green flex items-center">Visit shop<ChevronRight className="h-4 w-4" /></Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 md:px-0 snap-x scroll-px-4">
+              {others.map(p => <div key={p._id} className="w-[160px] flex-shrink-0 snap-start"><FeedProductCard product={p} /></div>)}
+            </div>
+          </section>
+        )}
       </div>
 
-      {/* Buy Now Modal */}
+      {/* Phone: a buy bar that sits on the tab bar, never over the content */}
+      {!isOwn && (
+        <div className="md:hidden fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom,0px))] z-20 bar-surface border-t border-[var(--c-border)] px-3 py-2.5 flex items-center gap-2">
+          <ActionButtons outOfStock={outOfStock} added={added} adding={addToCart.isPending}
+            onAdd={added ? () => navigate('/cart') : handleAddToCart} onBuy={handleBuyNow} />
+        </div>
+      )}
+
       <AnimatePresence>
         {showBuyModal && data && (
-          <OrderModal
-            product={data}
-            seller={seller}
-            onClose={() => setShowBuyModal(false)}
-          />
+          <OrderModal product={data} seller={seller} onClose={() => setShowBuyModal(false)} />
         )}
       </AnimatePresence>
+    </>
+  )
+}
+
+function Pill({ children, tone }: { children: React.ReactNode; tone?: 'green' | 'red' }) {
+  const c = tone === 'green' ? 'bg-brand-green/10 text-brand-green' : tone === 'red' ? 'bg-red-500/10 text-red-500' : 'bg-[var(--c-input)] text-[var(--c-text-2)]'
+  return <span className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[12.5px] font-medium ${c}`}>{children}</span>
+}
+
+function ActionButtons({ outOfStock, added, adding, onAdd, onBuy }: {
+  outOfStock: boolean; added: boolean; adding: boolean; onAdd: () => void; onBuy: () => void
+}) {
+  return (
+    <>
+      <button onClick={onAdd} disabled={outOfStock || adding}
+        className="flex-1 min-w-0 h-12 rounded-xl border-2 border-[var(--c-text)] text-[var(--c-text)] text-[15px] font-bold flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-40 press">
+        {added ? <Check className="h-5 w-5 text-brand-green" /> : <ShoppingCart className="h-5 w-5" />}
+        {adding ? 'Adding…' : added ? 'View cart' : 'Add to cart'}
+      </button>
+      <button onClick={onBuy} disabled={outOfStock}
+        className="flex-1 min-w-0 h-12 rounded-xl bg-brand-green hover:bg-brand-emerald text-white text-[15px] font-bold whitespace-nowrap disabled:opacity-40 press">
+        {outOfStock ? 'Sold out' : 'Buy now'}
+      </button>
     </>
   )
 }

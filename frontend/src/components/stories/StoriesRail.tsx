@@ -28,7 +28,7 @@ export function StoriesRail() {
   const others = all.filter(g => g.user._id !== me._id)
 
   return (
-    <div className="flex gap-3.5 overflow-x-auto no-scrollbar px-4 py-3 snap-x" role="list" aria-label={t('stories.rail')}>
+    <div className="flex gap-3.5 overflow-x-auto no-scrollbar px-4 py-3 snap-x scroll-px-4" role="list" aria-label={t('stories.rail')}>
       {/* You */}
       <div className="flex flex-col items-center gap-1.5 w-[74px] flex-shrink-0 snap-start" role="listitem">
         <div className="relative">

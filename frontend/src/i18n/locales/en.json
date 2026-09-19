@@ -202,5 +202,40 @@
     "emptyTitle": "Your feed is warming up",
     "emptyBody": "Follow a few farmers and new harvests will show up here.",
     "caughtUpBody": "You've seen everything new from the last few days."
+  },
+  "shop": {
+    "searchPlaceholder": "Search the market",
+    "clearSearch": "Clear search",
+    "sortBy": "Sort by",
+    "sort": {
+      "recommended": "Recommended",
+      "popular": "Most popular",
+      "newest": "Newest",
+      "price_asc": "Lowest price",
+      "price_desc": "Highest price"
+    },
+    "all": "All",
+    "freshToday": "Fresh today",
+    "results_one": "{{count}} result",
+    "results_other": "{{count}} results",
+    "clearAll": "Clear all",
+    "noneTitle": "Nothing matches that",
+    "noneBody": "Try another word, or clear the filters.",
+    "nutritionHint": "Foods chosen for mothers, children and health needs",
+    "soldOut": "Sold out"
+  },
+  "explore": {
+    "placeholder": "Search products, farmers, tags",
+    "tabs": {
+      "products": "Products",
+      "farmers": "Farmers",
+      "live": "Live"
+    },
+    "trySearching": "Try searching",
+    "popular": "Popular right now",
+    "noProducts": "No products match “{{q}}”",
+    "noFarmers": "No farmers match “{{q}}”",
+    "noLive": "Nobody is live right now",
+    "noLiveBody": "When a farmer goes live, they will show up here and at the top of your feed."
   }
 }

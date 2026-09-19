@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, Calendar, Package, Star, MessageSquare, Phone, Video, UserCheck, UserPlus, X } from 'lucide-react'
+import { MapPin, Calendar, Star, Phone, Video, UserCheck, X, Settings, BadgeCheck, Store, Check } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatNumber, verifiedLabel } from '@/lib/utils'
 import { ProfileContent } from '@/components/profile/ProfileContent'
+import { StoryAvatar } from '@/components/stories/StoryAvatar'
+import { useStoryUI } from '@/lib/stories'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User, SellerProfile } from '@/types'
@@ -79,6 +79,10 @@ function FollowModal({
   )
 }
 
+const ROLE: Record<string, string> = {
+  FARMER: 'Farmer', BUYER: 'Buyer', BUSINESS_BUYER: 'Business buyer', LOGISTICS: 'Logistics', ADMIN: 'eMazao team', SUPER_ADMIN: 'eMazao team',
+}
+
 export default function Profile() {
   const { username } = useParams<{ username?: string }>()
   const { user: me } = useAuthStore()
@@ -86,6 +90,8 @@ export default function Profile() {
   const queryClient = useQueryClient()
   const [followed, setFollowed] = useState(false)
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
+  const [copied, setCopied] = useState(false)
+  const openComposer = useStoryUI(s => s.openComposer)
 
   const targetUsername = username ?? me?.username
 
@@ -134,9 +140,12 @@ export default function Profile() {
   }
 
   if (isLoading) return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
-      <Skeleton className="h-48 rounded-2xl" />
-      <Skeleton className="h-32 rounded-2xl" />
+    <div className="max-w-[935px] mx-auto px-4 pt-6 md:pt-10">
+      <div className="flex items-center gap-6 md:gap-20 md:px-10">
+        <div className="w-[86px] h-[86px] md:w-[150px] md:h-[150px] rounded-full skeleton-shimmer flex-shrink-0" />
+        <div className="flex-1 space-y-3"><div className="h-4 w-40 rounded skeleton-shimmer" /><div className="h-4 w-56 rounded skeleton-shimmer" /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-0.5 mt-10">{[...Array(6)].map((_, i) => <div key={i} className="aspect-square skeleton-shimmer" />)}</div>
     </div>
   )
 
@@ -150,144 +159,130 @@ export default function Profile() {
 
   const followerCount = (user as any).followersCount ?? 0
   const stats = data?.stats
+  const place = [user.location, user.country !== user.location ? user.country : null].filter(Boolean).join(', ')
+
+  function actions() {
+    if (isOwnProfile) return (
+      <>
+        <Link to="/settings" className={`${grey} flex-1 md:flex-none`}>Edit profile</Link>
+        <button onClick={shareProfile} className={`${grey} flex-1 md:flex-none`}>{copied ? <><Check className="h-4 w-4" />Link copied</> : 'Share profile'}</button>
+      </>
+    )
+    return (
+      <>
+        <button onClick={() => followMutation.mutate()} disabled={followMutation.isPending}
+          className={`${btn} flex-1 md:flex-none ${followed ? 'bg-[var(--c-input)] text-[var(--c-text)] hover:bg-[var(--c-raised)]' : 'bg-brand-green text-white hover:bg-brand-emerald'}`}>
+          {followed ? <><UserCheck className="h-4 w-4" />Following</> : 'Follow'}
+        </button>
+        <button onClick={handleMessage} className={`${grey} flex-1 md:flex-none`}>Message</button>
+        <button onClick={() => startCall(false)} aria-label={`Call ${user!.name}`} className={`${grey} !px-2.5`}><Phone className="h-4 w-4" /></button>
+        <button onClick={() => startCall(true)} aria-label={`Video call ${user!.name}`} className={`${grey} !px-2.5`}><Video className="h-4 w-4" /></button>
+      </>
+    )
+  }
+
+  const shareProfile = async () => {
+    const url = `${window.location.origin}/profile/${user.username}`
+    try {
+      if (navigator.share) await navigator.share({ title: user.name, url })
+      else { await navigator.clipboard.writeText(url); setCopied(true); window.setTimeout(() => setCopied(false), 1600) }
+    } catch { /* dismissed */ }
+  }
+
+  const stat = (value: number, label: string, onClick?: () => void) => {
+    const inner = (
+      <>
+        <span className="block text-[17px] md:text-[16px] font-bold text-[var(--c-text)] tabular leading-tight">{formatNumber(value)}</span>
+        <span className="block text-[12.5px] md:text-[15px] text-[var(--c-text-2)] md:ml-1 md:inline">{label}</span>
+      </>
+    )
+    return onClick
+      ? <button onClick={onClick} className="text-center md:text-left md:flex md:items-baseline hover:opacity-70 transition-opacity">{inner}</button>
+      : <div className="text-center md:text-left md:flex md:items-baseline">{inner}</div>
+  }
+
+  const btn = 'h-9 px-4 rounded-lg text-[14px] font-semibold flex items-center justify-center gap-1.5 transition-colors press'
+  const grey = `${btn} bg-[var(--c-input)] text-[var(--c-text)] hover:bg-[var(--c-raised)]`
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] overflow-hidden mb-4"
-      >
-        <div className="h-36 bg-gradient-to-br from-brand-green/20 to-brand-emerald/10 overflow-hidden">
-          {(user as any).coverImage && (
-            <img src={(user as any).coverImage} alt="" className="w-full h-full object-cover opacity-70" />
-          )}
-        </div>
-
-        <div className="px-4 sm:px-6 pb-6">
-          {/* The avatar is the only thing allowed to overlap the cover. The action
-              buttons used to sit in this same negative-margin row, so once they
-              wrapped on a narrow screen they were dragged up onto the cover photo
-              — outline buttons over a light image left their labels unreadable.
-              They now sit on their own row, below the cover, at every width. */}
-          <div className="-mt-12 mb-3">
-            <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified}
-              className="ring-4 ring-[var(--c-card)]" />
-          </div>
-
-          <div className="flex flex-wrap gap-2 mb-4">
-            {isOwnProfile ? (
-              <Link to="/settings">
-                <Button size="sm" variant="outline">Edit Profile</Button>
-              </Link>
-            ) : (
-              <>
-                <Button size="sm" variant="outline" onClick={handleMessage} className="flex-1 sm:flex-none min-w-0">
-                  <MessageSquare className="h-3.5 w-3.5" /> Message
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => startCall(false)} aria-label={`Call ${user.name}`}>
-                  <Phone className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => startCall(true)} aria-label={`Video call ${user.name}`}>
-                  <Video className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="sm" onClick={() => followMutation.mutate()} loading={followMutation.isPending}
-                  className="flex-1 sm:flex-none min-w-0">
-                  {followed ? <UserCheck className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
-                  {followed ? 'Following' : 'Follow'}
-                </Button>
-              </>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-[var(--c-text)]">{user.name}</h1>
-              {user.isVerified && (
-                <Badge variant="default" className="text-xs">{verifiedLabel(user.verifiedType)}</Badge>
-              )}
-            </div>
-            <p className="text-[var(--c-text-3)] text-sm mb-2">@{user.username}</p>
-            {user.bio && <p className="text-[var(--c-text-2)] text-sm leading-relaxed">{user.bio}</p>}
-          </div>
-
-          <div className="flex flex-wrap gap-4 text-sm text-[var(--c-text-3)] mb-5">
-            {user.location && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />{user.location}
-              </span>
-            )}
-            {user.country && user.country !== user.location && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />{user.country}
-              </span>
-            )}
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />Joined {formatDate(user.createdAt)}
-            </span>
-          </div>
-
-          {/* The header counts Instagram and TikTok lead with: how much they
-              have posted, who follows whom, and total likes received. */}
-          <div className="grid grid-cols-4 gap-2 text-sm">
-            <div className="text-center">
-              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(stats ? stats.reels + stats.products : 0)}</p>
-              <p className="text-[var(--c-text-3)] text-xs">Posts</p>
-            </div>
-            <button onClick={() => setFollowModal('followers')}
-              className="text-center cursor-pointer hover:opacity-70 transition-opacity">
-              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(followerCount)}</p>
-              <p className="text-[var(--c-text-3)] text-xs">Followers</p>
-            </button>
-            <button onClick={() => setFollowModal('following')}
-              className="text-center cursor-pointer hover:opacity-70 transition-opacity">
-              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber((user as any).followingCount ?? 0)}</p>
-              <p className="text-[var(--c-text-3)] text-xs">Following</p>
-            </button>
-            <div className="text-center">
-              <p className="font-bold text-[var(--c-text)] tabular-nums">{formatNumber(stats?.likesReceived ?? 0)}</p>
-              <p className="text-[var(--c-text-3)] text-xs">Likes</p>
-            </div>
-          </div>
-
-          {user.role === 'FARMER' && seller && (
-            <div className="flex gap-5 text-xs text-[var(--c-text-3)] mt-3 pt-3 border-t border-[var(--c-border)]">
-              <span><span className="font-semibold text-[var(--c-text)] tabular-nums">{formatNumber(seller.totalSales ?? 0)}</span> sales</span>
-              <span className="flex items-center gap-1">
-                <Star className="h-3.5 w-3.5 text-gold fill-gold" />
-                <span className="font-semibold text-[var(--c-text)]">{seller.rating?.toFixed(1) ?? '—'}</span> rating
-              </span>
-            </div>
-          )}
-        </div>
-      </motion.div>
-
-      {user.role === 'FARMER' && seller && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-[var(--c-card)] rounded-2xl border border-[var(--c-border)] p-5 mb-4"
-        >
-          <h2 className="font-semibold text-[var(--c-text)] mb-3 flex items-center gap-2">
-            <Package className="h-4 w-4 text-brand-green" /> Farm Details
-          </h2>
-          <p className="font-semibold text-[var(--c-text)] mb-1">{seller.farmName}</p>
-          {seller.farmDescription && (
-            <p className="text-[var(--c-text-2)] text-sm mb-3 leading-relaxed">{seller.farmDescription}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {seller.specializations?.map(s => (
-              <span key={s} className="text-xs bg-[var(--c-raised)] text-[var(--c-text-2)] px-2.5 py-1 rounded-full border border-[var(--c-border)]">
-                {s}
-              </span>
-            ))}
-          </div>
-          <Link to={`/farm/${user.username}`} className="mt-4 block">
-            <Button size="sm" variant="outline" className="w-full">View Storefront</Button>
+    <div className="max-w-[935px] mx-auto pb-8">
+      {/* Handle bar (phones) */}
+      <div className="md:hidden flex items-center justify-between px-4 h-12">
+        <h1 className="flex items-center gap-1.5 text-[19px] font-bold text-[var(--c-text)] min-w-0">
+          <span className="truncate">{user.username}</span>
+          {user.isVerified && <BadgeCheck className="h-[18px] w-[18px] text-white fill-brand-green flex-shrink-0" />}
+        </h1>
+        {isOwnProfile && (
+          <Link to="/settings" aria-label="Settings" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-[var(--c-text)] press">
+            <Settings className="h-6 w-6" strokeWidth={1.9} />
           </Link>
-        </motion.div>
-      )}
+        )}
+      </div>
+
+      <header className="px-4 md:px-10 md:pt-10 md:pb-11 md:flex md:items-start md:gap-20">
+        <div className="flex items-center gap-5 md:block">
+          {/* Tap the photo to watch their story, as on Instagram */}
+          <span className="md:hidden">
+            <StoryAvatar user={user} size={86} lookup onNoStory={isOwnProfile ? openComposer : undefined} />
+          </span>
+          <span className="hidden md:inline-flex">
+            <StoryAvatar user={user} size={150} lookup onNoStory={isOwnProfile ? openComposer : undefined} />
+          </span>
+          <div className="flex-1 grid grid-cols-4 gap-1 md:hidden">
+            {stat(stats ? stats.reels + stats.products : 0, 'posts')}
+            {stat(followerCount, 'followers', () => setFollowModal('followers'))}
+            {stat((user as any).followingCount ?? 0, 'following', () => setFollowModal('following'))}
+            {stat(stats?.likesReceived ?? 0, 'likes')}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 mt-3.5 md:mt-1">
+          {/* Desktop: handle and actions on one line */}
+          <div className="hidden md:flex items-center gap-2 mb-5 flex-wrap">
+            <h1 className="flex items-center gap-1.5 text-[20px] text-[var(--c-text)] mr-3">
+              {user.username}
+              {user.isVerified && <BadgeCheck className="h-5 w-5 text-white fill-brand-green" />}
+            </h1>
+            {actions()}
+          </div>
+          <div className="hidden md:flex gap-10 mb-5">
+            {stat(stats ? stats.reels + stats.products : 0, 'posts')}
+            {stat(followerCount, 'followers', () => setFollowModal('followers'))}
+            {stat((user as any).followingCount ?? 0, 'following', () => setFollowModal('following'))}
+            {stat(stats?.likesReceived ?? 0, 'likes')}
+          </div>
+
+          <p className="text-[14.5px] font-semibold text-[var(--c-text)]">{user.name}</p>
+          <p className="text-[13px] text-[var(--c-text-3)] flex items-center gap-1.5 flex-wrap">
+            <span>{ROLE[user.role] ?? 'Member'}</span>
+            {user.isVerified && <><span>·</span><span className="text-brand-green font-medium">{verifiedLabel(user.verifiedType)}</span></>}
+          </p>
+          {user.bio && <p className="text-[14.5px] text-[var(--c-text)] leading-snug mt-1 whitespace-pre-line">{user.bio}</p>}
+          <p className="text-[13px] text-[var(--c-text-3)] mt-1 flex items-center gap-3 flex-wrap">
+            {place && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{place}</span>}
+            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Joined {formatDate(user.createdAt)}</span>
+          </p>
+
+          {/* The shop, for sellers: the one thing a visitor most wants from a farmer's page */}
+          {user.role === 'FARMER' && seller && (
+            <Link to={`/farm/${user.username}`}
+              className="mt-3 flex items-center gap-3 p-3 rounded-2xl border border-[var(--c-border)] hover:bg-[var(--c-raised)] transition-colors md:max-w-md">
+              <span className="w-10 h-10 rounded-xl bg-brand-green/12 text-brand-green flex items-center justify-center flex-shrink-0"><Store className="h-5 w-5" /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[14px] font-semibold text-[var(--c-text)] truncate">{seller.farmName}</span>
+                <span className="flex items-center gap-2 text-[12.5px] text-[var(--c-text-3)] whitespace-nowrap min-w-0">
+                  <span className="flex items-center gap-0.5"><Star className="h-3 w-3 fill-gold text-gold" />{seller.rating ? seller.rating.toFixed(1) : 'New'}</span>
+                  <span>·</span><span>{formatNumber(seller.totalSales ?? 0)} sales</span>
+                  {seller.specializations?.[0] && <><span>·</span><span className="truncate">{seller.specializations.slice(0, 2).join(', ')}</span></>}
+                </span>
+              </span>
+              <span className="text-[13px] font-semibold text-brand-green flex-shrink-0">Visit shop</span>
+            </Link>
+          )}
+
+          <div className="md:hidden flex gap-1.5 mt-3.5">{actions()}</div>
+        </div>
+      </header>
 
       <ProfileContent userId={user._id} isOwnProfile={isOwnProfile} isSeller={user.role === 'FARMER'} />
 

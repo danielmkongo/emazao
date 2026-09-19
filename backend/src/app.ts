@@ -4,7 +4,8 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
+import jwt from 'jsonwebtoken'
 import path from 'path'
 import fs from 'fs'
 
@@ -48,6 +49,21 @@ import LiveSession from './models/LiveSession'
 import { migrateSaves } from './models/Save'
 
 const app = express()
+
+// nginx sits in front in production. Without this every request appears to
+// come from 127.0.0.1, so rate limits and audit logs saw one visitor: the
+// proxy. One hop, so a client cannot spoof its address with X-Forwarded-For.
+app.set('trust proxy', 1)
+
+/** The verified user id behind a request's bearer token, if any. */
+function userKey(req: express.Request): string | undefined {
+  const header = req.headers.authorization
+  if (!header?.startsWith('Bearer ')) return undefined
+  try {
+    const { id } = jwt.verify(header.slice(7), env.JWT_SECRET) as { id?: string }
+    return id ? `user:${id}` : undefined
+  } catch { return undefined }
+}
 const httpServer = createServer(app)
 
 /**
@@ -121,7 +137,18 @@ app.post('/api/payments/webhook', paymentWebhook)
 app.use(express.urlencoded({ extended: true }))
 
 // Rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false })
+// Each signed-in person gets their own budget, keyed by the verified user id
+// from their token; anonymous traffic is keyed by address. Keying everything
+// by IP alone throttled whole mobile networks, whose users share a handful of
+// carrier-NAT addresses, and 200 requests is less than one busy session of
+// scrolling, watching stories and chatting.
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: (req) => (userKey(req) ? 3000 : 600),
+  keyGenerator: (req) => userKey(req) ?? `ip:${ipKeyGenerator(req.ip ?? '')}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 app.use('/api', limiter)
 
 // Health check
