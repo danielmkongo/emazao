@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware'
 import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import User from '../models/User'
+import Notification from '../models/Notification'
 import Reel from '../models/Reel'
 import { sendNotification, emitToRoom } from '../services/notification.service'
 import { isUserOnline } from '../socket'
@@ -153,6 +154,13 @@ export const markRead = async (req: AuthRequest, res: Response) => {
     await Message.updateMany(
       { conversationId: req.params.conversationId, senderId: { $ne: req.user!.id }, readAt: null },
       { readAt: new Date() },
+    )
+    // Reading the chat is reading its "new message" notifications too. They
+    // used to stay unread, so the bell kept counting messages you had already
+    // opened and read.
+    await Notification.updateMany(
+      { userId: req.user!.id, type: 'MESSAGE', link: `/messages/${req.params.conversationId}`, isRead: { $ne: true } },
+      { isRead: true, readAt: new Date() },
     )
     // Live read-receipt update — without this the sender's read tick only
     // flips after their next refetch, not when the recipient actually reads it.

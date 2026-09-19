@@ -17,7 +17,7 @@ export default function MessagesLayout() {
 
   return (
     <div className="flex h-[calc(100dvh-84px-92px-env(safe-area-inset-top,0px))] lg:h-screen bg-[var(--c-bg)]">
-      <div className={`w-full lg:w-[360px] lg:flex-shrink-0 lg:border-r lg:border-[var(--c-border)] ${isThreadOpen ? 'hidden lg:flex' : 'flex'}`}>
+      <div className={`w-full min-w-0 overflow-hidden lg:w-[360px] lg:flex-shrink-0 lg:border-r lg:border-[var(--c-border)] ${isThreadOpen ? 'hidden lg:flex' : 'flex'}`}>
         <ConversationList activeId={id} />
       </div>
       <div className={`flex-1 min-w-0 ${isThreadOpen ? 'flex' : 'hidden lg:flex'}`}>

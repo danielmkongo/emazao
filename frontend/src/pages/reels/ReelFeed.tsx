@@ -704,9 +704,27 @@ export default function ReelFeed() {
   // link with no session; sending them to /feed would bounce them straight to
   // the login wall. Signed-out visitors land in the marketplace instead — still
   // public, and the natural next step after watching someone's produce.
+  // Back to wherever you came from when that was inside the app; a fresh tab
+  // or shared link has nothing to go back to, so it gets a sensible home.
   const exitReels = useCallback(() => {
-    navigate(user ? '/feed' : '/marketplace')
+    if (window.history.state?.idx > 0) navigate(-1)
+    else navigate(user ? '/feed' : '/marketplace')
   }, [navigate, user])
+
+  // One exit control for every state of the player — loading and empty screens
+  // used to have none, which left a phone user with no way out at all. Offset
+  // by the safe-area inset so it never sits under a notch or status bar.
+  const exitButton = (
+    <button
+      onClick={exitReels}
+      aria-label="Close reels"
+      title="Close (Esc)"
+      className="flex items-center justify-center h-10 w-10 rounded-full bg-black/45 backdrop-blur-md border border-white/15 text-white shadow-lg hover:bg-black/65 active:scale-90 transition-all"
+    >
+      <X className="h-5 w-5" strokeWidth={2.5} />
+    </button>
+  )
+  const exitPosition = 'absolute left-3 z-30 top-[calc(env(safe-area-inset-top,0px)+12px)]'
 
   // Keyboard navigation (PC)
   useEffect(() => {
@@ -721,13 +739,15 @@ export default function ReelFeed() {
 
   // Waiting on a direct-linked reel to load — show a spinner, not the empty state
   if (reelId && !leadReel && !reels.length) return (
-    <div className="h-[100dvh] bg-black flex items-center justify-center">
+    <div className="h-[100dvh] bg-black flex items-center justify-center relative">
+      <div className={exitPosition}>{exitButton}</div>
       <Loader2 className="h-10 w-10 text-white/40 animate-spin" />
     </div>
   )
 
   if (!reels.length) return (
-    <div className="h-[100dvh] bg-black flex items-center justify-center flex-col gap-4">
+    <div className="h-[100dvh] bg-black flex items-center justify-center flex-col gap-4 relative">
+      <div className={exitPosition}>{exitButton}</div>
       <Play className="h-16 w-16 text-white/10" />
       <p className="text-white/40 text-lg">No reels yet</p>
       <p className="text-white/20 text-sm">Farmers will post short videos here</p>
@@ -796,15 +816,8 @@ export default function ReelFeed() {
           back button. Deliberately quiet: an icon that sits at low opacity over
           the video and only firms up on hover, so it never competes with the
           content. Esc still works and is surfaced via the tooltip. */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-        <button
-          onClick={exitReels}
-          aria-label="Close reels"
-          title="Close (Esc)"
-          className="flex items-center justify-center h-9 w-9 rounded-full bg-black/25 backdrop-blur-sm text-white/60 hover:text-white hover:bg-black/50 active:scale-95 transition-all"
-        >
-          <X className="h-[18px] w-[18px]" strokeWidth={2.5} />
-        </button>
+      <div className={`${exitPosition} flex items-center gap-2`}>
+        {exitButton}
         {user?.role === 'FARMER' && (
           <button
             onClick={() => navigate('/live')}

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -55,15 +56,34 @@ export default function Notifications() {
     },
   })
 
+  // The bell reads its number from a separate query. Refreshing only the list
+  // left the badge showing the old count until a full reload.
+  const refreshCounts = () => {
+    queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
+  }
+
   const markAllMutation = useMutation({
     mutationFn: () => api.put('/notifications/read-all'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: refreshCounts,
   })
 
   const markOneMutation = useMutation({
     mutationFn: (id: string) => api.put(`/notifications/${id}/read`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: refreshCounts,
   })
+
+  // Opening this page clears the badge, as Instagram's activity tab does. The
+  // list keeps the unread highlighting it loaded with, so what is new is still
+  // visible for this visit; only the counter resets.
+  const clearedRef = useRef(false)
+  useEffect(() => {
+    if (clearedRef.current || !data || (data.unreadCount ?? 0) === 0) return
+    clearedRef.current = true
+    api.put('/notifications/read-all')
+      .then(() => queryClient.setQueryData(['notifications-count'], (old: any) => old ? { ...old, unreadCount: 0 } : { unreadCount: 0 }))
+      .catch(() => {})
+  }, [data, queryClient])
 
   const notifications = data?.data ?? []
   const unread = data?.unreadCount ?? 0

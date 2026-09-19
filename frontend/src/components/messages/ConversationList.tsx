@@ -83,7 +83,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const displayedUsers = searchResults ?? []
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full min-w-0">
       <div className="flex items-center justify-between px-4 py-4 lg:px-4 lg:py-3.5 border-b border-[var(--c-border)] shrink-0">
         <h1 className="text-2xl lg:text-lg font-bold text-[var(--c-text)]">Messages</h1>
         <button
@@ -130,7 +130,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
                 >
-                  <Link to={`/messages/${conv._id}`}>
+                  <Link to={`/messages/${conv._id}`} className="block min-w-0">
                     <div className={`flex items-center gap-4 p-4 lg:p-3 rounded-2xl transition-colors group ${
                       isActive ? 'bg-brand-green/10' : 'hover:bg-[var(--c-raised)]'
                     }`}>

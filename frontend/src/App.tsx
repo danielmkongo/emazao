@@ -92,8 +92,18 @@ function GlobalRealtimeHandler() {
     void refreshUnreadMessages()
   }, [user?._id])
 
-  useSocketEvent('notification:new', (n: { type: string; link?: string }) => {
+  useSocketEvent('notification:new', (n: { _id?: string; type: string; link?: string }) => {
     if (!user?._id) return
+    // A message in the conversation already on screen is read as it arrives;
+    // counting it would bump the bell for something you are looking at.
+    const inActiveChat = n.type === 'MESSAGE'
+      && n.link?.split('/messages/')[1] === useUnreadStore.getState().activeConversationId
+    if (inActiveChat) {
+      // It can be created a moment after the thread was marked read, so mark
+      // this one directly rather than leave it waiting in the bell.
+      if (n._id) api.put(`/notifications/${n._id}/read`).catch(() => {})
+      return
+    }
     playNotificationSound()
     queryClient.setQueryData(['notifications-count'], (old: { unreadCount: number } | undefined) =>
       old ? { ...old, unreadCount: old.unreadCount + 1 } : old

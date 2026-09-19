@@ -152,7 +152,10 @@ export default function Thread() {
       // a 403 — rejected the whole query and the conversation rendered as empty,
       // which reads as "chat is broken" rather than "the read receipt failed".
       api.put(`/messages/${id}/read`)
-        .then(() => refreshUnreadMessages())
+        .then(() => {
+          void refreshUnreadMessages()
+          queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
+        })
         .catch(() => {})
       return res.data.data
     },
@@ -253,8 +256,18 @@ export default function Thread() {
     socket.emit('join_conversation', id)
     socket.on('message:new', (msg: Message) => {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, msg))
-      // It is on screen, so it has arrived — tell the sender.
-      if (getSenderId(msg) !== user._id) socket.emit('message:delivered', { conversationId: id })
+      // It is on screen, so it has arrived — and, since you are looking at it,
+      // been read. Marking it read here also clears its notification, which
+      // otherwise added one to the bell for every message received mid-chat.
+      if (getSenderId(msg) !== user._id) {
+        socket.emit('message:delivered', { conversationId: id })
+        api.put(`/messages/${id}/read`)
+          .then(() => {
+            void refreshUnreadMessages()
+            queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
+          })
+          .catch(() => {})
+      }
       // Keeps the list beside the thread (desktop split-pane) in step with it.
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
