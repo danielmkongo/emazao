@@ -726,6 +726,25 @@ export default function ReelFeed() {
   // public, and the natural next step after watching someone's produce.
   // Back to wherever you came from when that was inside the app; a fresh tab
   // or shared link has nothing to go back to, so it gets a sensible home.
+  // Reels is black edge to edge. The page behind it is white in light mode, so
+  // on a real phone any sliver the player did not cover (the browser's toolbar
+  // sliding in and out, rounding, older browsers without dvh) showed as a white
+  // strip at the bottom. Paint the page and the browser's own bar black while
+  // Reels is open, and put them back after.
+  useEffect(() => {
+    const html = document.documentElement, body = document.body
+    const meta = document.querySelector('meta[name="theme-color"]')
+    const prev = { html: html.style.backgroundColor, body: body.style.backgroundColor, meta: meta?.getAttribute('content') }
+    html.style.backgroundColor = '#000'
+    body.style.backgroundColor = '#000'
+    meta?.setAttribute('content', '#000000')
+    return () => {
+      html.style.backgroundColor = prev.html
+      body.style.backgroundColor = prev.body
+      if (prev.meta) meta?.setAttribute('content', prev.meta)
+    }
+  }, [])
+
   const exitReels = useCallback(() => {
     if (window.history.state?.idx > 0) navigate(-1)
     else navigate(user ? '/feed' : '/marketplace')
@@ -759,7 +778,7 @@ export default function ReelFeed() {
 
   // Waiting on a direct-linked reel to load — show a spinner, not the empty state
   if (reelId && !leadReel && !reels.length) return (
-    <div className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black flex items-center justify-center relative">
+    <div className="h-[calc(100vh-56px-env(safe-area-inset-bottom,0px))] supports-[height:100dvh]:h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-screen lg:supports-[height:100dvh]:h-[100dvh] bg-black flex items-center justify-center relative">
       <div className={exitPosition}>{exitButton}</div>
       <Loader2 className="h-10 w-10 text-white/40 animate-spin" />
       <BottomNav variant="dark" />
@@ -768,7 +787,7 @@ export default function ReelFeed() {
   )
 
   if (!reels.length) return (
-    <div className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black flex items-center justify-center flex-col gap-4 relative">
+    <div className="h-[calc(100vh-56px-env(safe-area-inset-bottom,0px))] supports-[height:100dvh]:h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-screen lg:supports-[height:100dvh]:h-[100dvh] bg-black flex items-center justify-center flex-col gap-4 relative">
       <div className={exitPosition}>{exitButton}</div>
       <Play className="h-16 w-16 text-white/10" />
       <p className="text-white/40 text-lg">No reels yet</p>
@@ -782,7 +801,7 @@ export default function ReelFeed() {
     <>
     <div
       ref={containerRef}
-      className="h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-[100dvh] bg-black overflow-hidden relative select-none"
+      className="h-[calc(100vh-56px-env(safe-area-inset-bottom,0px))] supports-[height:100dvh]:h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-screen lg:supports-[height:100dvh]:h-[100dvh] bg-black overflow-hidden relative select-none"
       style={{ willChange: 'transform' }}
     >
       {/* Previous card */}
