@@ -63,18 +63,23 @@ export async function priceItems(rawItems: unknown): Promise<PricingResult> {
       quantity,
       unit: product.stockUnit ?? product.priceUnit,
       unitPrice: product.price,
-      totalPrice: parseFloat((product.price * quantity).toFixed(2)),
+      totalPrice: Math.round(product.price * quantity),
     })
   }
 
   return { ok: true, items }
 }
 
-/** Money for one seller's share: goods, delivery and the platform's cut. */
+/**
+ * Money for one seller's share: goods, delivery and the platform's cut, in
+ * whole shillings. Mobile money cannot move fractions, so a total of
+ * 2,265.25 would either be rejected or charged differently from what the
+ * buyer was shown.
+ */
 export function orderTotals(items: PricedItem[], deliveryFee = 0) {
-  const subtotal = parseFloat(items.reduce((sum, i) => sum + i.totalPrice, 0).toFixed(2))
-  const safeDelivery = Math.max(0, Number(deliveryFee) || 0)
-  const platformFee = parseFloat((subtotal * PLATFORM_FEE_RATE).toFixed(2))
-  const total = parseFloat((subtotal + safeDelivery + platformFee).toFixed(2))
+  const subtotal = Math.round(items.reduce((sum, i) => sum + i.totalPrice, 0))
+  const safeDelivery = Math.round(Math.max(0, Number(deliveryFee) || 0))
+  const platformFee = Math.round(subtotal * PLATFORM_FEE_RATE)
+  const total = subtotal + safeDelivery + platformFee
   return { subtotal, deliveryFee: safeDelivery, platformFee, total }
 }

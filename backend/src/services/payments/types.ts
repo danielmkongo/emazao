@@ -57,6 +57,20 @@ export type WebhookEvent =
   | { kind: 'PAYOUT_REVERSED'; orderReference: string; providerRef: string }
   | { kind: 'UNKNOWN' }
 
+/** What the provider itself says happened to a collection, asked directly. */
+export interface CollectionLookup {
+  status: CollectionStatus | 'PENDING'
+  amount: number
+  currency: string
+  providerRef?: string
+}
+
+/** What the provider says happened to a payout. */
+export interface PayoutLookup {
+  status: PayoutStatus | 'PENDING' | 'PROCESSING'
+  providerRef?: string
+}
+
 export interface PaymentProvider {
   readonly name: string
   /** Currencies this provider can actually collect in. Used to fail early with a clear message. */
@@ -67,4 +81,18 @@ export interface PaymentProvider {
 
   /** Returns null when the payload fails authenticity checks — treat as a 401, never process. */
   verifyAndParseWebhook(body: unknown): WebhookEvent | null
+
+  /**
+   * Ask the provider directly what happened to a collection. The source of
+   * truth when a webhook is missing, late or cannot be verified: the answer
+   * comes over our own authenticated connection, so nobody can forge it.
+   * Returns null when the provider has no record of the reference.
+   */
+  queryCollection(orderReference: string): Promise<CollectionLookup | null>
+
+  /** Same, for a payout. */
+  queryPayout(orderReference: string): Promise<PayoutLookup | null>
+
+  /** The reference a (possibly unsigned) webhook body is about, if it has one. */
+  referenceFromWebhook(body: unknown): string | null
 }

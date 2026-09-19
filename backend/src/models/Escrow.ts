@@ -18,6 +18,10 @@ export interface IEscrow extends Document {
   stripePaymentIntentId?: string
   releasedAt?: Date
   refundedAt?: Date
+  refundRef?: string
+  refundStatus?: 'PENDING' | 'SENT' | 'FAILED'
+  refundError?: string
+  releaseReason?: 'BUYER_CONFIRMED' | 'AUTO' | 'ADMIN' | 'DISPUTE'
   createdAt: Date
 }
 
@@ -38,6 +42,12 @@ const EscrowSchema = new Schema<IEscrow>(
     stripePaymentIntentId: { type: String },
     releasedAt: { type: Date },
     refundedAt: { type: Date },
+    // A refund is a real payout back to the buyer's wallet, tracked here so a
+    // failed one can be seen and retried rather than silently lost.
+    refundRef: { type: String },
+    refundStatus: { type: String, enum: ['PENDING', 'SENT', 'FAILED'] },
+    refundError: { type: String },
+    releaseReason: { type: String, enum: ['BUYER_CONFIRMED', 'AUTO', 'ADMIN', 'DISPUTE'] },
   },
   { timestamps: true }
 )

@@ -17,14 +17,27 @@ if (!hasEnvFile) {
 
 dotenv.config()
 
+/**
+ * The token-signing secrets. Production refuses to start without them (see
+ * app.ts), so the public fallback below can only ever apply in development.
+ * A short one is used as given but flagged: it is guessable.
+ */
+function secret(name: string, devFallback: string): string {
+  const value = process.env[name]
+  if (value && value.length < 16 && process.env['NODE_ENV'] === 'production') {
+    console.error(`🚨 ${name} is shorter than 16 characters and could be guessed. Replace it with a long random string (everyone will need to sign in again once).`)
+  }
+  return value || devFallback
+}
+
 export const env = {
   // Must match .env.example and the Vite dev proxy target (frontend/vite.config.ts).
   // These disagreed before: the example said 9000 while this fell back to 5000, so a
   // missing .env moved the API to a port nothing was proxying to.
   PORT: process.env['PORT'] || '9000',
   MONGO_URI: process.env['MONGO_URI'] || 'mongodb://localhost:27017/emazao',
-  JWT_SECRET: process.env['JWT_SECRET'] || 'fallback_secret',
-  JWT_REFRESH_SECRET: process.env['JWT_REFRESH_SECRET'] || 'fallback_refresh',
+  JWT_SECRET: secret('JWT_SECRET', 'fallback_secret'),
+  JWT_REFRESH_SECRET: secret('JWT_REFRESH_SECRET', 'fallback_refresh'),
   JWT_EXPIRES_IN: process.env['JWT_EXPIRES_IN'] || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env['JWT_REFRESH_EXPIRES_IN'] || '7d',
   CLIENT_URL: process.env['CLIENT_URL'] || 'http://localhost:5173',

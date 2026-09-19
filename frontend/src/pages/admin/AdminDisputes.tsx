@@ -14,8 +14,15 @@ interface Dispute {
   orderId: { _id: string; orderNumber: string; total: number }
   raisedById: { name: string; username: string }
   reason: string
+  description?: string
   status: string
   createdAt: string
+  escrow?: { _id: string; status: string; refundStatus?: 'PENDING' | 'SENT' | 'FAILED'; refundError?: string } | null
+}
+
+const REASON_LABEL: Record<string, string> = {
+  NOT_RECEIVED: 'Not received', NOT_AS_DESCRIBED: 'Not as described', DAMAGED: 'Damaged',
+  WRONG_QUANTITY: 'Wrong quantity', OTHER: 'Other',
 }
 
 const STATUS_TABS = ['OPEN', 'UNDER_REVIEW', 'RESOLVED_BUYER', 'RESOLVED_SELLER', 'ESCALATED']
@@ -36,9 +43,20 @@ export default function AdminDisputes() {
     },
   })
 
+  const retryMutation = useMutation({
+    mutationFn: (escrowId: string) => api.post(`/admin/escrows/${escrowId}/retry-refund`),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin-disputes'] }),
+    onError: (e: any) => window.alert(e?.response?.data?.message ?? 'Refund could not be sent'),
+  })
+
   const resolveMutation = useMutation({
-    mutationFn: ({ id, resolution }: { id: string; resolution: string }) =>
-      api.put(`/admin/disputes/${id}/resolve`, { resolution }),
+    mutationFn: ({ id, resolution }: { id: string; resolution: string }) => {
+      const msg = resolution === 'REFUND_BUYER'
+        ? 'Refund the buyer? The full amount is sent back to the mobile money number that paid.'
+        : 'Release the payment to the seller?'
+      if (!window.confirm(msg)) return Promise.reject(new Error('cancelled'))
+      return api.put(`/admin/disputes/${id}/resolve`, { resolution })
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-disputes'] }),
   })
 
@@ -81,12 +99,25 @@ export default function AdminDisputes() {
                     <span className="font-mono text-sm text-[var(--c-text-3)]">{d.orderId?.orderNumber}</span>
                     <Badge variant="urgent" className="text-xs">{d.status}</Badge>
                   </div>
-                  <p className="text-[var(--c-text)] font-medium">{d.reason}</p>
+                  <p className="text-[var(--c-text)] font-medium">{REASON_LABEL[d.reason] ?? d.reason}</p>
+                  {d.description && <p className="text-[var(--c-text-2)] text-sm mt-1 max-w-xl whitespace-pre-line">{d.description}</p>}
                   <p className="text-[var(--c-text-3)] text-sm">By @{d.raisedById?.username} · {timeAgo(d.createdAt)}</p>
                 </div>
                 <p className="text-[var(--c-text)] font-semibold">{formatCurrency(d.orderId?.total)}</p>
               </div>
-              {d.status === 'OPEN' && (
+              {d.escrow?.status === 'REFUNDED' && (
+                <div className={`mb-3 text-sm rounded-xl px-3 py-2 ${d.escrow.refundStatus === 'FAILED' ? 'bg-red-500/10 text-red-500' : 'bg-brand-green/10 text-brand-green'}`}>
+                  {d.escrow.refundStatus === 'SENT' ? 'Refund sent to the buyer\'s mobile money.'
+                    : d.escrow.refundStatus === 'FAILED' ? `Refund payout failed: ${d.escrow.refundError ?? 'unknown error'}`
+                    : 'Refund payout in progress.'}
+                  {d.escrow.refundStatus === 'FAILED' && (
+                    <Button size="sm" variant="outline" className="ml-3" onClick={() => retryMutation.mutate(d.escrow!._id)} disabled={retryMutation.isPending}>
+                      Retry refund
+                    </Button>
+                  )}
+                </div>
+              )}
+              {['OPEN', 'UNDER_REVIEW', 'ESCALATED'].includes(d.status) && (
                 <div className="flex gap-3">
                   <Button size="sm" onClick={() => resolveMutation.mutate({ id: d._id, resolution: 'RELEASE_TO_SELLER' })}>
                     <CheckCircle className="h-3.5 w-3.5" /> Release to Seller

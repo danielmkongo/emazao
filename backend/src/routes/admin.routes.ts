@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { protect } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
-import { listUsers, verifyUser, suspendUser, unsuspendUser, listDisputes, resolveDispute, getPlatformAnalytics } from '../controllers/admin.controller'
+import { listUsers, verifyUser, suspendUser, unsuspendUser, listDisputes, resolveDispute, retryRefund, getPlatformAnalytics } from '../controllers/admin.controller'
 import {
   listFlags, reviewFlag, listPendingVerifications,
   getVerificationDocuments, decideVerification,
@@ -23,6 +23,7 @@ router.put('/users/:id/suspend', suspendUser)
 router.put('/users/:id/unsuspend', unsuspendUser)
 router.get('/disputes', listDisputes)
 router.put('/disputes/:id/resolve', resolveDispute)
+router.post('/escrows/:id/retry-refund', retryRefund)
 router.get('/analytics/platform', getPlatformAnalytics)
 
 // Operations dashboard

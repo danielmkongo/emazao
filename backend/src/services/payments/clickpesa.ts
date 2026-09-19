@@ -80,6 +80,14 @@ class ClickPesaProvider implements PaymentProvider {
     return this.token
   }
 
+  private async get<T>(path: string): Promise<T | null> {
+    const res = await fetch(`${BASE_URL}${path}`, { headers: { Authorization: await this.getToken() } })
+    if (res.status === 404) return null
+    const text = await res.text()
+    if (!res.ok) throw new Error(`ClickPesa ${path} failed (${res.status}): ${text.slice(0, 300)}`)
+    return text ? (JSON.parse(text) as T) : null
+  }
+
   private async request<T>(path: string, payload: Record<string, unknown>): Promise<T> {
     const signed = env.CLICKPESA_CHECKSUM_KEY
       ? { ...payload, checksum: computeChecksum(env.CLICKPESA_CHECKSUM_KEY, payload) }
@@ -111,7 +119,7 @@ class ClickPesaProvider implements PaymentProvider {
     const data = await this.request<{ id: string; status: CollectionStatus; channel?: string }>(
       '/payments/initiate-ussd-push-request',
       {
-        amount: String(req.amount),
+        amount: String(Math.round(req.amount)),
         currency: req.currency,
         orderReference: req.orderReference,
         phoneNumber: normalisePhone(req.phoneNumber),
@@ -128,7 +136,7 @@ class ClickPesaProvider implements PaymentProvider {
       fee?: string
       beneficiary?: { accountName?: string; accountNumber?: string }
     }>('/payouts/create-mobile-money-payout', {
-      amount: req.amount,
+      amount: Math.floor(req.amount),
       currency: req.currency,
       orderReference: req.orderReference,
       phoneNumber: normalisePhone(req.phoneNumber),
@@ -140,6 +148,34 @@ class ClickPesaProvider implements PaymentProvider {
       fee: data.fee !== undefined ? Number(data.fee) : undefined,
       beneficiaryName: data.beneficiary?.accountName,
     }
+  }
+
+  async queryCollection(orderReference: string) {
+    // Returns a list: one entry per attempt against this reference.
+    const rows = await this.get<Array<Record<string, any>>>(`/payments/${encodeURIComponent(orderReference)}`)
+    const list = Array.isArray(rows) ? rows : rows ? [rows as Record<string, any>] : []
+    if (!list.length) return null
+    const paid = list.find(r => ['SUCCESS', 'SETTLED'].includes(String(r.status).toUpperCase()))
+    const r = paid ?? list[list.length - 1]
+    return {
+      status: String(r.status).toUpperCase() as 'SUCCESS',
+      amount: Number(r.collectedAmount ?? r.amount ?? 0),
+      currency: String(r.collectedCurrency ?? r.currency ?? ''),
+      providerRef: r.id ? String(r.id) : undefined,
+    }
+  }
+
+  async queryPayout(orderReference: string) {
+    const rows = await this.get<Array<Record<string, any>> | Record<string, any>>(`/payouts/${encodeURIComponent(orderReference)}`)
+    const r = Array.isArray(rows) ? rows[rows.length - 1] : rows
+    if (!r) return null
+    return { status: String(r.status).toUpperCase() as 'SUCCESS', providerRef: r.id ? String(r.id) : undefined }
+  }
+
+  referenceFromWebhook(body: unknown): string | null {
+    const data = (body as { data?: Record<string, unknown> } | null)?.data
+    const ref = data?.['orderReference']
+    return typeof ref === 'string' && /^[A-Za-z0-9]{1,64}$/.test(ref) ? ref : null
   }
 
   verifyAndParseWebhook(body: unknown): WebhookEvent | null {

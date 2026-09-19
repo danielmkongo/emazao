@@ -5,6 +5,9 @@ import User from '../models/User'
 import { getPaymentProvider } from '../services/payments'
 import { checkPayoutEligibility } from '../services/verification/tiers'
 import { recordPayoutIdentity } from './verification.controller'
+import { normaliseTzPhone } from './payment.controller'
+
+const MIN_WITHDRAWAL = 1000
 
 export const getWallet = async (req: AuthRequest, res: Response) => {
   try {
@@ -36,19 +39,21 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response) => {
   const reference = `PO${userId}${Date.now().toString(36)}`
 
   try {
-    const { amount, phoneNumber } = req.body
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid amount' })
+    // A number, in whole shillings, and worth the provider's fee to send.
+    const amount = Math.floor(Number(req.body?.amount))
+    if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL) {
+      return res.status(400).json({ success: false, message: `The minimum withdrawal is TZS ${MIN_WITHDRAWAL.toLocaleString()}` })
     }
+    const { phoneNumber } = req.body
 
     // Fall back to the account's registered number so a seller can cash out
     // without re-typing it, but let them override per withdrawal.
     const user = await User.findById(userId).select('phone')
-    const destination = phoneNumber || user?.phone
+    const destination = normaliseTzPhone(phoneNumber || user?.phone)
     if (!destination) {
       return res.status(400).json({
         success: false,
-        message: 'No mobile money number on file — add a phone number or supply one with this withdrawal',
+        message: 'Enter a Tanzanian mobile money number to withdraw to, e.g. 0712 345 678',
       })
     }
 

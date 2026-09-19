@@ -50,6 +50,9 @@ export interface IOrder extends Document {
   dispatchedAt?: Date
   trackingEvents?: { status: string; note?: string; location?: string; at: Date }[]
   escrowId?: mongoose.Types.ObjectId
+  payerPhone?: string
+  collectionRequestedAt?: Date
+  shippedAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -109,6 +112,14 @@ const OrderSchema = new Schema<IOrder>(
       at: { type: Date, default: Date.now },
     }],
     escrowId: { type: Schema.Types.ObjectId, ref: 'Escrow' },
+    // The mobile-money number that actually paid. A refund goes back to the
+    // same wallet the money came from, never to a number typed in later.
+    payerPhone: { type: String, select: false },
+    // When a payment prompt was last sent. Lets the reconciler ask the
+    // provider about recent attempts even if their webhook never arrives.
+    collectionRequestedAt: { type: Date, index: true },
+    // Starts the clock for automatic escrow release.
+    shippedAt: { type: Date },
     // Set when this order was bought together with other sellers' orders in one
     // cart checkout. Such an order must be paid through its checkout: paying it
     // on its own and then the checkout as well would charge the buyer twice.

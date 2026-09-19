@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { protect } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
-import { initiateCollection, releaseEscrow } from '../controllers/payment.controller'
+import { initiateCollection, verifyCollection, releaseEscrowByAdmin } from '../controllers/payment.controller'
 
 const router = Router()
 
@@ -11,6 +11,7 @@ const router = Router()
 
 router.use(protect)
 router.post('/collect', initiateCollection)
-router.post('/escrow/:id/release', requireRole('ADMIN', 'SUPER_ADMIN'), releaseEscrow)
+router.post('/verify', verifyCollection)
+router.post('/escrow/:id/release', requireRole('ADMIN', 'SUPER_ADMIN'), releaseEscrowByAdmin)
 
 export default router

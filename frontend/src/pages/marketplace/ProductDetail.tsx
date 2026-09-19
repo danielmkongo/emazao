@@ -53,8 +53,8 @@ function OrderModal({ product, seller, onClose }: OrderModalProps) {
   const [orderNumber, setOrderNumber] = useState('')
   const [confirming, setConfirming] = useState(false)
 
-  const subtotal = parseFloat((qty * product.price).toFixed(2))
-  const platformFee = parseFloat((subtotal * 0.025).toFixed(2))
+  const subtotal = Math.round(qty * product.price)
+  const platformFee = Math.round(subtotal * 0.025)
   const deliveryFee = 0
   const total = subtotal + platformFee + deliveryFee
 

@@ -3,6 +3,8 @@ import mongoose from 'mongoose'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Order from '../models/Order'
 import Escrow from '../models/Escrow'
+import { releaseEscrow } from '../services/money.service'
+import Dispute from '../models/Dispute'
 import Wallet from '../models/Wallet'
 import User from '../models/User'
 import Product from '../models/Product'
@@ -137,6 +139,8 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
     order.status = status
     if (status === 'DELIVERED') order.deliveredAt = new Date()
+    // Starts the clock for automatic release to the seller.
+    if (status === 'SHIPPED' && !order.shippedAt) order.shippedAt = new Date()
     await order.save()
 
     // Notify buyer when seller ships
@@ -145,7 +149,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
         userId: buyerIdStr,
         type: 'ORDER_SHIPPED',
         title: 'Your order has been shipped',
-        body: `Order ${order.orderNumber} is on its way. Confirm delivery when it arrives.`,
+        body: `Order ${order.orderNumber} is on its way. Confirm delivery when it arrives, or report a problem — otherwise the seller is paid automatically after 7 days.`,
         link: `/orders/${order._id}`,
         data: { orderId: order._id.toString() },
       })
@@ -159,97 +163,72 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
 export const confirmDelivery = async (req: AuthRequest, res: Response) => {
   try {
-    const order = await Order.findById(req.params.id)
+    const order = await Order.findById(req.params.id).select('buyerId status escrowId')
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
-    const buyerIdStr = (order.buyerId as any)?._id?.toString() ?? order.buyerId.toString()
-    if (buyerIdStr !== req.user!.id) {
-      return res.status(403).json({ success: false, message: 'Only buyer can confirm delivery' })
+    if (String(order.buyerId) !== req.user!.id) {
+      return res.status(403).json({ success: false, message: 'Only the buyer can confirm delivery' })
     }
-    // A second confirm on an already-completed order used to silently re-run:
-    // it overwrote deliveredAt with a fresh timestamp and reported success again,
-    // even though the escrow mutex below correctly blocked a second wallet
-    // credit. That mismatch is exactly the kind of thing that misleads an
-    // investigation — the audit trail's "delivered at" no longer matches when
-    // delivery was actually confirmed. Terminal/pending-dispute states are
-    // rejected outright rather than silently re-completed.
-    const nonConfirmable: typeof order.status[] = ['COMPLETED', 'CANCELLED', 'REFUNDED', 'DISPUTED']
-    if (nonConfirmable.includes(order.status)) {
-      return res.status(409).json({ success: false, message: `Order is already ${order.status.toLowerCase()}` })
+    // Only a paid order that is on its way (or arrived) can be confirmed. An
+    // unpaid order used to be confirmable, marking it complete with no money
+    // ever having changed hands.
+    if (!['PAYMENT_CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status)) {
+      return res.status(409).json({ success: false, message: `This order is ${order.status.toLowerCase().replace('_', ' ')} and cannot be confirmed` })
     }
-
-    order.status = 'COMPLETED'
-    order.deliveredAt = new Date()
-    await order.save()
-
-    // Release escrow if exists. The escrow's own HOLDING → RELEASED transition is
-    // the mutex here — findOneAndUpdate only succeeds for one caller even if this
-    // endpoint, the payment-controller release, and a dispute resolution all race
-    // for the same escrow.
-    if (order.escrowId) {
-      const escrow = await Escrow.findOneAndUpdate(
-        { _id: order.escrowId, status: 'HOLDING' },
-        { status: 'RELEASED', releasedAt: new Date() },
-        { new: true }
-      )
-      if (escrow) {
-        // escrow.amount already includes the buyer-paid platform fee (order.total),
-        // so the seller receives everything except that fee — not another cut of it.
-        const net = order.total - order.platformFee
-        await Wallet.findOneAndUpdate(
-          { userId: order.sellerId },
-          {
-            $inc: { balance: net, pendingBalance: -escrow.amount },
-            $push: {
-              transactions: {
-                type: 'ESCROW_RELEASE',
-                amount: net,
-                description: `Payment for order ${order.orderNumber}`,
-                reference: order._id.toString(),
-                status: 'completed',
-                createdAt: new Date(),
-              },
-            },
-          },
-          { upsert: true, setDefaultsOnInsert: true }
-        )
-      }
-    }
-
-    // Notify seller that payment was released
-    await sendNotification({
-      userId: order.sellerId.toString(),
-      type: 'ESCROW_RELEASED',
-      title: 'Payment released to your wallet',
-      body: `Order ${order.orderNumber} confirmed. Funds have been added to your wallet.`,
-      link: `/wallet`,
-      data: { orderId: order._id.toString() },
-    })
-
-    res.json({ success: true, data: order })
+    const result = await releaseEscrow(String(order._id), 'BUYER_CONFIRMED')
+    if (!result.released) return res.status(409).json({ success: false, message: result.message })
+    const updated = await Order.findById(order._id)
+    res.json({ success: true, data: updated })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
 }
 
+const DISPUTE_REASONS = ['NOT_RECEIVED', 'NOT_AS_DESCRIBED', 'DAMAGED', 'WRONG_QUANTITY', 'OTHER'] as const
+
+/**
+ * POST /api/orders/:id/dispute — report a problem with a paid order.
+ *
+ * Freezes the payment (escrow HOLDING → DISPUTED) so it can be neither released
+ * automatically nor withdrawn, and opens a Dispute for eMazao to review. This
+ * used to flip statuses without ever creating the Dispute, so the admin queue
+ * stayed empty and the money sat frozen with nobody told.
+ */
 export const disputeOrder = async (req: AuthRequest, res: Response) => {
   try {
+    const reason = String(req.body?.reason ?? '')
+    const description = String(req.body?.description ?? '').trim()
+    if (!DISPUTE_REASONS.includes(reason as any)) return res.status(400).json({ success: false, message: 'Choose what went wrong' })
+    if (description.length < 10) return res.status(400).json({ success: false, message: 'Describe the problem in a sentence or two' })
+    if (description.length > 2000) return res.status(400).json({ success: false, message: 'Please keep the description under 2000 characters' })
+
     const order = await Order.findById(req.params.id)
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
-
     const userId = req.user!.id
-    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user!.role)
-    if (!isAdmin && order.buyerId.toString() !== userId && order.sellerId.toString() !== userId) {
+    if (String(order.buyerId) !== userId && String(order.sellerId) !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
+    // Only while the money is still held: after release or refund there is
+    // nothing left to freeze.
+    if (!['PAYMENT_CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status) || !order.escrowId) {
+      return res.status(409).json({ success: false, message: 'Problems can be reported while the payment is still held' })
+    }
+    const escrow = await Escrow.findOneAndUpdate({ _id: order.escrowId, status: 'HOLDING' }, { status: 'DISPUTED' }, { new: true })
+    if (!escrow) return res.status(409).json({ success: false, message: 'This payment has already been released or is under review' })
 
     order.status = 'DISPUTED'
+    order.trackingEvents = [...(order.trackingEvents ?? []), { status: 'DISPUTED', note: 'Problem reported — payment on hold while eMazao reviews', at: new Date() }]
     await order.save()
+    const dispute = await Dispute.create({ orderId: order._id, raisedById: userId, reason, description, evidence: [] })
 
-    if (order.escrowId) {
-      await Escrow.findByIdAndUpdate(order.escrowId, { status: 'DISPUTED' })
-    }
+    const otherParty = String(order.buyerId) === userId ? order.sellerId : order.buyerId
+    await sendNotification({
+      userId: String(otherParty), type: 'ORDER',
+      title: 'A problem was reported with an order',
+      body: `Order ${order.orderNumber} is on hold while eMazao reviews it. We will be in touch.`,
+      link: `/orders/${order._id}`, data: { orderId: String(order._id) },
+    }).catch(() => {})
 
-    res.json({ success: true, data: order })
+    res.json({ success: true, data: { order, dispute } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

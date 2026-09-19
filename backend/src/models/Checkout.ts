@@ -16,6 +16,8 @@ export interface ICheckout extends Document {
   status: 'PENDING' | 'PAID' | 'CANCELLED'
   providerRef?: string
   paidAt?: Date
+  payerPhone?: string
+  collectionRequestedAt?: Date
   createdAt: Date
 }
 
@@ -28,6 +30,8 @@ const CheckoutSchema = new Schema<ICheckout>(
     status: { type: String, enum: ['PENDING', 'PAID', 'CANCELLED'], default: 'PENDING' },
     providerRef: { type: String },
     paidAt: { type: Date },
+    payerPhone: { type: String, select: false },
+    collectionRequestedAt: { type: Date, index: true },
   },
   { timestamps: true }
 )

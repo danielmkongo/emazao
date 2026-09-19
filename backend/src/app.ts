@@ -44,6 +44,7 @@ import cartRoutes from './routes/cart.routes'
 import storyRoutes from './routes/story.routes'
 import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
+import { startMoneyJobs } from './services/money.jobs'
 import { startRequirementExpiryJob } from './services/requirementExpiry.job'
 import LiveSession from './models/LiveSession'
 import { migrateSaves } from './models/Save'
@@ -225,7 +226,7 @@ const start = async () => {
     const degraded: Record<string, string> = {
       CLICKPESA_CLIENT_ID: 'payment collection disabled',
       CLICKPESA_API_KEY: 'payment collection disabled',
-      CLICKPESA_CHECKSUM_KEY: 'payment webhooks rejected — orders cannot be confirmed paid',
+      CLICKPESA_CHECKSUM_KEY: 'webhooks cannot be verified directly; payments are confirmed by asking ClickPesa instead',
       NIDA_HASH_KEY: 'seller ID verification disabled',
       // Falls back to a shared default, so fingerprints stay correlatable across
       // deployments — a weaker signal for self-dealing detection, not an outage.
@@ -251,6 +252,7 @@ const start = async () => {
   // works for everything except saving reels.
   await migrateSaves().catch(err => console.error('saves migration failed:', (err as Error).message))
   startRecommendationJobs()
+  if (env.NODE_ENV !== 'test') startMoneyJobs()
   startRequirementExpiryJob()
   httpServer.listen(parseInt(env.PORT), () => {
     console.log(`🚀 EMAZAO API running on port ${env.PORT}`)

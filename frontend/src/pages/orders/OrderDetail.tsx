@@ -12,6 +12,7 @@ import { PaymentForm } from '@/components/payment/PaymentForm'
 import { formatCurrency, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
+import { ReportProblemSheet } from '@/components/orders/ReportProblemSheet'
 import type { ApiResponse, Order, User } from '@/types'
 
 const statusVariant: Record<string, 'default' | 'gold' | 'organic' | 'urgent' | 'outline'> = {
@@ -83,10 +84,7 @@ export default function OrderDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
   })
 
-  const disputeMutation = useMutation({
-    mutationFn: () => api.post(`/orders/${id}/dispute`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
-  })
+  const [reportOpen, setReportOpen] = useState(false)
 
   // Dispatching issues the tracking number and opens the shipment's event
   // history — a plain status flip to SHIPPED gave the buyer nothing to follow.
@@ -151,8 +149,11 @@ export default function OrderDetail() {
   const buyer = order.buyerId as unknown as User
   const isBuyer = user?._id === (typeof order.buyerId === 'string' ? order.buyerId : buyer?._id)
   const isSeller = user?._id === (typeof order.sellerId === 'string' ? order.sellerId : seller?._id)
-  const canConfirm = isBuyer && order.status === 'SHIPPED'
-  const canDispute = isBuyer && ['SHIPPED', 'DELIVERED'].includes(order.status)
+  const canConfirm = isBuyer && ['SHIPPED', 'DELIVERED'].includes(order.status)
+  // From the moment it is paid: a seller who never ships is a problem too.
+  const canDispute = isBuyer && ['PAYMENT_CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status)
+  const shippedAt = (order as any).shippedAt ?? (order as any).dispatchedAt
+  const autoReleaseOn = shippedAt ? new Date(new Date(shippedAt).getTime() + 7 * 86_400_000) : null
   const canMarkShipped = isSeller && (order.status === 'PAYMENT_CONFIRMED' || order.status === 'PROCESSING')
   const canPay = isBuyer && order.status === 'PENDING'
 
@@ -345,12 +346,20 @@ export default function OrderDetail() {
             </Button>
           )}
           {canDispute && (
-            <Button variant="outline" onClick={() => disputeMutation.mutate()} disabled={disputeMutation.isPending}>
-              <AlertTriangle className="h-4 w-4" />
-              {disputeMutation.isPending ? '…' : 'Dispute'}
+            <Button variant="outline" onClick={() => setReportOpen(true)}>
+              <AlertTriangle className="h-4 w-4" /> Report a problem
             </Button>
           )}
         </motion.div>
+      )}
+      {canConfirm && autoReleaseOn && (
+        <p className="text-xs text-[var(--c-text-3)] mt-2">
+          Payment goes to the seller automatically on {autoReleaseOn.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} unless you report a problem before then.
+        </p>
+      )}
+      {reportOpen && (
+        <ReportProblemSheet orderId={order._id} onClose={() => setReportOpen(false)}
+          onDone={() => { setReportOpen(false); queryClient.invalidateQueries({ queryKey: ['order', id] }) }} />
       )}
 
       {reviewOpen && (

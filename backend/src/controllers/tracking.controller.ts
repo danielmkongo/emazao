@@ -64,6 +64,8 @@ export const dispatchOrder = async (req: AuthRequest, res: Response) => {
     order.carrier = carrier?.trim()
     order.dispatchedAt = new Date()
     order.status = 'SHIPPED'
+    // Starts the clock for automatic release to the seller.
+    if (!order.shippedAt) order.shippedAt = order.dispatchedAt
     if (estimatedDelivery) order.estimatedDelivery = new Date(estimatedDelivery)
     order.trackingEvents = [
       ...(order.trackingEvents ?? []),

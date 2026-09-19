@@ -4,6 +4,7 @@ import User from '../models/User'
 import Order from '../models/Order'
 import Product from '../models/Product'
 import Dispute from '../models/Dispute'
+import { releaseEscrow, refundBuyer, sendRefund } from '../services/money.service'
 import Escrow from '../models/Escrow'
 import Wallet from '../models/Wallet'
 import { escapeRegex } from '../utils/regexEscape'
@@ -87,7 +88,17 @@ export const listDisputes = async (req: AuthRequest, res: Response) => {
       .limit(Number(limit))
     const total = await Dispute.countDocuments(query)
 
-    res.json({ success: true, data: disputes, pagination: { page: Number(page), limit: Number(limit), total } })
+    // Refund progress lives on the escrow; show it next to the dispute so a
+    // failed refund payout is visible and can be retried.
+    const escrows = await Escrow.find({ orderId: { $in: disputes.map(d => (d.orderId as any)?._id).filter(Boolean) } })
+      .select('orderId status refundStatus refundError').lean()
+    const byOrder = new Map(escrows.map(e => [String(e.orderId), e]))
+    const data = disputes.map(d => {
+      const e = byOrder.get(String((d.orderId as any)?._id))
+      return { ...d.toObject(), escrow: e ? { _id: e._id, status: e.status, refundStatus: e.refundStatus, refundError: e.refundError } : null }
+    })
+
+    res.json({ success: true, data, pagination: { page: Number(page), limit: Number(limit), total } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -96,50 +107,23 @@ export const listDisputes = async (req: AuthRequest, res: Response) => {
 export const resolveDispute = async (req: AuthRequest, res: Response) => {
   try {
     const { resolution } = req.body
-    const dispute = await Dispute.findById(req.params.id).populate('orderId')
-    if (!dispute) return res.status(404).json({ success: false, message: 'Dispute not found' })
-
-    dispute.status = resolution === 'REFUND_BUYER' ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER'
-    dispute.resolution = resolution
-    await dispute.save()
+    if (!['RELEASE_TO_SELLER', 'REFUND_BUYER'].includes(resolution)) {
+      return res.status(400).json({ success: false, message: 'Resolution must be RELEASE_TO_SELLER or REFUND_BUYER' })
+    }
+    // Claim the dispute first so two admins cannot resolve it both ways.
+    const dispute = await Dispute.findOneAndUpdate(
+      { _id: req.params.id, status: { $in: ['OPEN', 'UNDER_REVIEW', 'ESCALATED'] } },
+      { status: resolution === 'REFUND_BUYER' ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER', resolution },
+      { new: true },
+    ).populate('orderId')
+    if (!dispute) return res.status(409).json({ success: false, message: 'This dispute was already resolved' })
 
     const order = dispute.orderId as any
-    if (order?.escrowId) {
-      if (resolution === 'RELEASE_TO_SELLER') {
-        // The escrow's own DISPUTED → RELEASED transition is the mutex, same
-        // pattern as the buyer- and admin-triggered release paths.
-        const escrow = await Escrow.findOneAndUpdate(
-          { _id: order.escrowId, status: 'DISPUTED' },
-          { status: 'RELEASED', releasedAt: new Date() },
-          { new: true }
-        )
-        if (escrow) {
-          const net = order.total - order.platformFee
-          await Wallet.findOneAndUpdate(
-            { userId: order.sellerId },
-            {
-              $inc: { balance: net, pendingBalance: -escrow.amount },
-              $push: {
-                transactions: {
-                  type: 'ESCROW_RELEASE',
-                  amount: net,
-                  description: `Dispute resolved for order ${order.orderNumber}`,
-                  reference: order._id.toString(),
-                  status: 'completed',
-                  createdAt: new Date(),
-                },
-              },
-            },
-            { upsert: true, setDefaultsOnInsert: true }
-          )
-        }
-      } else if (resolution === 'REFUND_BUYER') {
-        await Escrow.findOneAndUpdate(
-          { _id: order.escrowId, status: 'DISPUTED' },
-          { status: 'REFUNDED', refundedAt: new Date() }
-        )
-      }
-    }
+    // Real money moves here: the seller's wallet is credited, or the buyer's own
+    // mobile-money wallet is paid back. Refunds used to only relabel the escrow.
+    const money = resolution === 'RELEASE_TO_SELLER'
+      ? await releaseEscrow(String(order._id), 'DISPUTE', 'DISPUTED')
+      : await refundBuyer(String(order._id), 'DISPUTED')
 
     // Money moved here, so this is the entry an auditor is most likely to need.
     await recordAudit(req, {
@@ -148,10 +132,25 @@ export const resolveDispute = async (req: AuthRequest, res: Response) => {
       targetId: String(dispute._id),
       targetLabel: order?.orderNumber,
       summary: `Resolved dispute on order ${order?.orderNumber ?? '—'} as ${resolution}`,
-      meta: { resolution, orderTotal: order?.total, platformFee: order?.platformFee },
+      meta: { resolution, orderTotal: order?.total, platformFee: order?.platformFee, outcome: money },
     })
 
-    res.json({ success: true, data: dispute })
+    res.json({ success: true, data: dispute, outcome: money })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+/** POST /api/admin/escrows/:id/retry-refund — re-send a refund whose payout failed. */
+export const retryRefund = async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await sendRefund(String(req.params.id))
+    await recordAudit(req, {
+      action: 'REFUND_RETRY', targetType: 'Escrow', targetId: String(req.params.id),
+      summary: result.sent ? 'Refund payout re-sent' : `Refund retry failed: ${result.error ?? 'unknown'}`,
+    })
+    if (!result.sent) return res.status(502).json({ success: false, message: result.error ?? 'Refund could not be sent' })
+    res.json({ success: true })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }
