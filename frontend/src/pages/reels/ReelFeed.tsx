@@ -447,7 +447,7 @@ function ReelCard({
         {reel.caption && (
           // Opened, the caption can run long; it scrolls inside the lower part
           // of the video rather than pushing the controls off screen.
-          <div className="mb-2 max-h-[40vh] overflow-y-auto no-scrollbar" data-no-drag>
+          <div className="mb-2 max-h-[40vh] overflow-y-auto no-scrollbar touch-pan-y overscroll-contain" data-no-drag>
             <ExpandableText className="text-white/90 text-sm drop-shadow" moreClassName="text-white font-semibold drop-shadow">{reel.caption}</ExpandableText>
           </div>
         )}
@@ -735,12 +735,26 @@ export default function ReelFeed() {
     const html = document.documentElement, body = document.body
     const meta = document.querySelector('meta[name="theme-color"]')
     const prev = { html: html.style.backgroundColor, body: body.style.backgroundColor, meta: meta?.getAttribute('content') }
+    const prevLock = { htmlOverflow: html.style.overflow, bodyOverflow: body.style.overflow, htmlOver: html.style.overscrollBehavior, bodyOver: body.style.overscrollBehavior }
     html.style.backgroundColor = '#000'
     body.style.backgroundColor = '#000'
+    // The page itself must never move under the player. On a real phone the
+    // browser took the first pixels of an upward swipe to scroll the page (or
+    // collapse its address bar), sliding the player up and leaving a gap below
+    // it until the user dragged back down.
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+    body.style.overscrollBehavior = 'none'
+    window.scrollTo(0, 0)
     meta?.setAttribute('content', '#000000')
     return () => {
       html.style.backgroundColor = prev.html
       body.style.backgroundColor = prev.body
+      html.style.overflow = prevLock.htmlOverflow
+      body.style.overflow = prevLock.bodyOverflow
+      html.style.overscrollBehavior = prevLock.htmlOver
+      body.style.overscrollBehavior = prevLock.bodyOver
       if (prev.meta) meta?.setAttribute('content', prev.meta)
     }
   }, [])
@@ -801,7 +815,7 @@ export default function ReelFeed() {
     <>
     <div
       ref={containerRef}
-      className="h-[calc(100vh-56px-env(safe-area-inset-bottom,0px))] supports-[height:100dvh]:h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-screen lg:supports-[height:100dvh]:h-[100dvh] bg-black overflow-hidden relative select-none"
+      className="h-[calc(100vh-56px-env(safe-area-inset-bottom,0px))] supports-[height:100dvh]:h-[calc(100dvh-56px-env(safe-area-inset-bottom,0px))] lg:h-screen lg:supports-[height:100dvh]:h-[100dvh] bg-black overflow-hidden fixed inset-x-0 top-0 lg:relative select-none touch-none overscroll-none"
       style={{ willChange: 'transform' }}
     >
       {/* Previous card */}
