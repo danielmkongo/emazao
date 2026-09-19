@@ -134,7 +134,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
     if (!conversation) return res.status(400).json({ success: false, message: 'Cannot create conversation' })
 
-    const message = await deliverMessage(conversation, senderId, { content: String(content ?? '').trim(), mediaUrl })
+    const clientId = typeof req.body?.clientId === 'string' && /^[\w-]{1,64}$/.test(req.body.clientId) ? req.body.clientId : undefined
+    const message = await deliverMessage(conversation, senderId, { content: String(content ?? '').trim(), mediaUrl, clientId })
     res.status(201).json({ success: true, data: { message, conversationId: conversation._id } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -190,7 +191,7 @@ const SHARED_REEL_POPULATE = {
 export async function deliverMessage(
   conversation: any,
   senderId: string,
-  fields: { content: string; mediaUrl?: string; sharedReel?: string; storyReply?: Record<string, unknown> },
+  fields: { content: string; mediaUrl?: string; sharedReel?: string; storyReply?: Record<string, unknown>; clientId?: string },
 ) {
   // If the recipient is connected, the push below reaches their device
   // immediately — so record delivery now rather than waiting for them to open

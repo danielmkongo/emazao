@@ -7,6 +7,7 @@ export interface IMessage extends Document {
   mediaUrl?: string
   mediaType?: 'IMAGE' | 'VIDEO'
   sharedReel?: mongoose.Types.ObjectId
+  clientId?: string
   storyReply?: {
     storyId: mongoose.Types.ObjectId
     ownerId: mongoose.Types.ObjectId
@@ -29,6 +30,9 @@ const MessageSchema = new Schema<IMessage>(
     // the reel itself is the message. Empty text with nothing attached is still
     // refused, in the controller.
     content: { type: String, default: '' },
+    // The sender's own id for this message, echoed back so their app can swap
+    // its "sending…" copy for the saved one instead of showing both.
+    clientId: { type: String, maxlength: 64 },
     mediaUrl: { type: String },
     mediaType: { type: String, enum: ['IMAGE', 'VIDEO'] },
     // A reel sent from its share sheet, rendered in the thread as a card that

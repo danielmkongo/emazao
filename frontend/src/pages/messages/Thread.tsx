@@ -22,6 +22,8 @@ interface Message {
   createdAt: string
   /** Set only on the optimistic copy shown before the server confirms. */
   pending?: boolean
+  /** The sender's own id for this message; ties the saved copy to its "sending…" copy. */
+  clientId?: string
   /** A reel sent from its share sheet. Null if it has since been removed. */
   sharedReel?: {
     _id: string; thumbnailUrl?: string; videoUrl?: string; caption?: string; title?: string
@@ -147,8 +149,19 @@ function MessageTicks({ msg }: { msg: Message }) {
 // Append a message only if it isn't already in the list. The backend broadcasts
 // 'message:new' to the whole conversation room — including the sender — so without
 // this the sender would see their own message twice (once optimistically, once echoed).
-const appendUnique = (old: Message[] = [], m: Message) =>
-  old.some(x => x._id === m._id) ? old : [...old, m]
+//
+// The saved copy of your own message can arrive over the socket before the
+// send request itself answers. It carries the clientId of the "sending…" copy
+// already on screen, so it replaces that copy in place; appending it instead
+// showed the message twice until the request finished.
+const appendUnique = (old: Message[] = [], m: Message) => {
+  if (old.some(x => x._id === m._id)) return m.clientId ? old.filter(x => x._id !== m.clientId) : old
+  if (m.clientId) {
+    const i = old.findIndex(x => x._id === m.clientId)
+    if (i !== -1) return [...old.slice(0, i), m, ...old.slice(i + 1)]
+  }
+  return [...old, m]
+}
 
 export default function Thread() {
   const { id } = useParams<{ id: string }>()
@@ -157,6 +170,8 @@ export default function Thread() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const [text, setText] = useState('')
+  // Minted before each send so the request and its "sending…" copy share it.
+  const nextClientId = useRef('')
   const [peerTyping, setPeerTyping] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const typingSentRef = useRef(false)
@@ -242,7 +257,7 @@ export default function Thread() {
       }
       const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
         '/messages',
-        { conversationId: id, content }
+        { conversationId: id, content, clientId: nextClientId.current }
       )
       return res.data.data
     },
@@ -252,7 +267,7 @@ export default function Thread() {
     onMutate: (content: string) => {
       if (isNewConvo || !user?._id) return
       const optimistic: Message = {
-        _id: `pending-${Date.now()}`,
+        _id: nextClientId.current,
         senderId: user._id,
         content,
         createdAt: new Date().toISOString(),
@@ -274,11 +289,9 @@ export default function Thread() {
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
         navigate(`/messages/${data.conversationId}`, { replace: true })
       } else {
-        if (ctx?.optimisticId) {
-          queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
-            old.filter(m => m._id !== ctx.optimisticId))
-        }
-        queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, data.message))
+        // Replaces the "sending…" copy in place (or does nothing if the socket
+        // already did), so the message never shows twice.
+        queryClient.setQueryData(['messages', id], (old: Message[] = []) => appendUnique(old, { ...data.message, clientId: ctx?.optimisticId }))
         // Only the recipient receives 'notification:new', so nothing else would
         // tell the sender's own inbox that this thread just moved to the top
         // with a new last line.
@@ -385,6 +398,7 @@ export default function Thread() {
   const handleSend = () => {
     stopTyping()
     if (!text.trim() || sendMutation.isPending || !canSend) return
+    nextClientId.current = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
     sendMutation.mutate(text.trim())
     if (!isNewConvo) setText('')
   }
