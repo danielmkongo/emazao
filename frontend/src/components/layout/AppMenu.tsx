@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import {
-  Package, ShoppingBag, Wallet, FileText, HeartPulse, LayoutDashboard, ShieldCheck, Receipt,
+  Package, ShoppingBag, Wallet, FileText, LayoutDashboard, ShieldCheck, Receipt,
   Settings, MessageSquareHeart, Sun, Moon, LogOut, Bookmark, ChevronRight,
 } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/ui/language-switcher'
@@ -12,8 +12,9 @@ import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 
 /**
- * Everything that is not one of the main tabs: orders, wallet, requests,
- * special nutrition, the seller dashboard, settings. One list, shown as the
+ * Your account and everything personal that is not a main tab: orders,
+ * wallet, requests, the seller dashboard, settings. Shopping lives in the
+ * Market (special nutrition included), not here. One list, shown as the
  * desktop sidebar's "More" popover and as the phone's profile menu sheet, so
  * the two can never offer different things.
  */
@@ -47,7 +48,6 @@ export function AppMenuList({ onDone, rows = 'compact' }: { onDone: () => void; 
       {link('/cart', ShoppingBag, t('nav.cart'))}
       {link('/wallet', Wallet, t('nav.wallet'))}
       {link('/requirements', FileText, t('nav.requirements'))}
-      {link('/nutrition', HeartPulse, t('nav.nutrition'))}
       {large && link('/profile?tab=saved', Bookmark, t('common.saved'))}
       {isAdmin && link('/admin/overview', ShieldCheck, 'Admin panel')}
       {isAdmin && link('/admin/transactions', Receipt, 'Transactions')}

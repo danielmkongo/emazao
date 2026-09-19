@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Heart, MessageCircle, Send, Bookmark, ShoppingBag, Check, Loader2, Leaf, Star, Volume2, VolumeX, Play, MapPin } from 'lucide-react'
 import { ShareSheet } from '@/components/reels/ShareSheet'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
+import { ExpandableText } from '@/components/ui/ExpandableText'
 import { ReelThumb } from '@/components/reels/ReelThumb'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
 import { shortAgo } from '@/components/stories/StoryViewer'
@@ -12,6 +13,7 @@ import { useCart } from '@/hooks/useCart'
 import { useAuthStore } from '@/store/authStore'
 import { formatCurrency, formatNumber, cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { patchReelEverywhere } from '@/lib/reelCache'
 import type { StoryGroup } from '@/lib/stories'
 import type { Product, Reel, User } from '@/types'
 
@@ -70,7 +72,10 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
     if (next === liked) return
     pending.current.like = true
     setLiked(next); setLikes(c => c + (next ? 1 : -1))
-    try { await api.post('/social/like', { targetId: item._id, targetType: isReel ? 'Reel' : 'Product' }) }
+    try {
+      await api.post('/social/like', { targetId: item._id, targetType: isReel ? 'Reel' : 'Product' })
+      if (isReel) patchReelEverywhere(item._id, r => ({ userLiked: next, likeCount: Math.max(0, (r.likeCount ?? 0) + (next ? 1 : -1)) }))
+    }
     catch { setLiked(!next); setLikes(c => c + (next ? -1 : 1)) }
     finally { pending.current.like = false }
   }
@@ -80,7 +85,10 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
     pending.current.save = true
     const next = !saved
     setSaved(next)
-    try { await api.post('/social/save', { targetId: item._id, targetType: isReel ? 'Reel' : 'Product' }) }
+    try {
+      await api.post('/social/save', { targetId: item._id, targetType: isReel ? 'Reel' : 'Product' })
+      if (isReel) patchReelEverywhere(item._id, r => ({ userSaved: next, saveCount: Math.max(0, (r.saveCount ?? 0) + (next ? 1 : -1)) }))
+    }
     catch { setSaved(!next) }
     finally { pending.current.save = false }
   }
@@ -304,11 +312,11 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
       <div className="px-3.5 pb-4 space-y-1">
         {likes > 0 && <p className="text-[14px] font-semibold text-[var(--c-text)] tabular">{t('feed.likes', { count: likes })}</p>}
         {caption && (
-          <p className="text-[14px] text-[var(--c-text)] leading-[1.4] line-clamp-2">
-            <Link to={author ? `/profile/${author.username}` : '#'} className="font-semibold mr-1.5">{author?.username}</Link>
+          <ExpandableText className="text-[14px] text-[var(--c-text)] leading-[1.4]" moreClassName="text-[var(--c-text-3)]">
+            <Link to={author ? `/profile/${author.username}` : '#'} onClick={e => e.stopPropagation()} className="font-semibold mr-1.5">{author?.username}</Link>
             {!isReel && <span className="font-semibold">{product!.title}. </span>}
             <span className="text-[var(--c-text-2)]">{caption}</span>
-          </p>
+          </ExpandableText>
         )}
         {isReel && (reel!.commentCount ?? 0) > 0 && (
           <button onClick={() => navigate(href, { state: { reel, openComments: true } })} className="text-[14px] text-[var(--c-text-3)]">

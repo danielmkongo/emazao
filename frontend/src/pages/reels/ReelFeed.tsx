@@ -11,6 +11,8 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import { ShareSheet } from '@/components/reels/ShareSheet'
 import { CommentsDrawer } from '@/components/reels/CommentsDrawer'
+import { patchReelEverywhere } from '@/lib/reelCache'
+import { ExpandableText } from '@/components/ui/ExpandableText'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { CreateSheet } from '@/components/layout/CreateSheet'
 import type { ApiResponse, Reel, User, Product } from '@/types'
@@ -178,6 +180,7 @@ function ReelCard({
     setLikeCount(prev => newLiked ? prev + 1 : prev - 1)
     try {
       await api.post('/social/like', { targetId: reel._id, targetType: 'Reel' })
+      patchReelEverywhere(reel._id, r => ({ userLiked: newLiked, likeCount: Math.max(0, (r.likeCount ?? 0) + (newLiked ? 1 : -1)) }))
     } catch {
       setLiked(!newLiked)
       setLikeCount(prev => newLiked ? prev - 1 : prev + 1)
@@ -196,6 +199,7 @@ function ReelCard({
     setSaveCount(c => Math.max(0, c + (next ? 1 : -1)))
     try {
       await api.post('/social/save', { targetId: reel._id, targetType: 'Reel' })
+      patchReelEverywhere(reel._id, r => ({ userSaved: next, saveCount: Math.max(0, (r.saveCount ?? 0) + (next ? 1 : -1)) }))
     } catch {
       setSaved(!next)
       setSaveCount(c => Math.max(0, c + (next ? -1 : 1)))
@@ -238,6 +242,7 @@ function ReelCard({
 
   const onSharedToPeople = (count: number) => {
     setShareCount(prev => prev + count)
+    patchReelEverywhere(reel._id, r => ({ shareCount: (r.shareCount ?? 0) + count }))
     setShareToastText(count === 1 ? 'Sent' : `Sent to ${count} people`)
     setShareToast(true)
     setTimeout(() => setShareToast(false), 2000)
@@ -261,6 +266,7 @@ function ReelCard({
 
     if (shared) {
       setShareCount(prev => prev + 1)
+      patchReelEverywhere(reel._id, r => ({ shareCount: (r.shareCount ?? 0) + 1 }))
       setShareToastText('Link copied')
       setShareToast(true)
       setTimeout(() => setShareToast(false), 2000)
@@ -397,7 +403,7 @@ function ReelCard({
 
       {/* Right actions */}
       <div
-        className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10"
+        className="absolute right-3 lg:right-24 bottom-32 flex flex-col items-center gap-5 z-10"
         onPointerDown={e => e.stopPropagation()}
       >
         <Avatar src={reelUser?.avatar} name={reelUser?.name ?? 'Farmer'} size="sm" verified={reelUser?.isVerified} />
@@ -430,7 +436,7 @@ function ReelCard({
       </div>
 
       {/* Bottom info */}
-      <div className="absolute bottom-0 left-0 right-14 p-4 z-10" onPointerDown={e => e.stopPropagation()}>
+      <div className="absolute bottom-0 left-0 right-14 lg:right-40 p-4 z-10" onPointerDown={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-2">
           <span className="font-semibold text-white drop-shadow">@{reelUser?.username}</span>
           {reelUser?.isVerified && <Badge variant="default" className="text-xs px-1.5 py-0">✓</Badge>}
@@ -438,7 +444,13 @@ function ReelCard({
             <Eye className="h-3.5 w-3.5" />{formatNumber(viewCount)}
           </span>
         </div>
-        {reel.caption && <p className="text-white/80 text-sm mb-2 line-clamp-2 drop-shadow">{reel.caption}</p>}
+        {reel.caption && (
+          // Opened, the caption can run long; it scrolls inside the lower part
+          // of the video rather than pushing the controls off screen.
+          <div className="mb-2 max-h-[40vh] overflow-y-auto no-scrollbar" data-no-drag>
+            <ExpandableText className="text-white/90 text-sm drop-shadow" moreClassName="text-white font-semibold drop-shadow">{reel.caption}</ExpandableText>
+          </div>
+        )}
         {reel.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {reel.tags.slice(0, 3).map(tag => (
@@ -473,7 +485,10 @@ function ReelCard({
             reelOwnerId={reelUser?._id}
             count={commentCount}
             onClose={() => setShowComments(false)}
-            onCountChange={d => setCommentCount(n => Math.max(0, n + d))}
+            onCountChange={d => {
+              setCommentCount(n => Math.max(0, n + d))
+              patchReelEverywhere(reel._id, r => ({ commentCount: Math.max(0, (r.commentCount ?? 0) + d) }))
+            }}
           />
         )}
       </AnimatePresence>

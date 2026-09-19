@@ -83,7 +83,8 @@
     "close": "Close",
     "seeAll": "See all",
     "share": "Share",
-    "more": "More"
+    "more": "More",
+    "less": "less"
   },
   "product": {
     "perUnit": "per",

@@ -112,6 +112,11 @@ export default function Marketplace() {
           </label>
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+          {/* Special nutrition leads the row: it is a way of shopping, so it
+              lives where people shop, visible even after the banner scrolls away. */}
+          <Link to="/nutrition" className="flex-shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13.5px] font-semibold bg-brand-green/12 text-brand-green hover:bg-brand-green/20 transition-colors press">
+            <HeartPulse className="h-4 w-4" />{t('nav.nutrition')}
+          </Link>
           <Chip active={organic} onClick={() => setOrganic(o => !o)}><Leaf className="h-4 w-4" />{t('feed.organic')}</Chip>
           <Chip active={!categoryId} onClick={() => setCategoryId('')}>{t('shop.all')}</Chip>
           {categories?.map(c => (

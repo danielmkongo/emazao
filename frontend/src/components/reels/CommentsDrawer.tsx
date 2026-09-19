@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Heart, Loader2, Trash2 } from 'lucide-react'
@@ -161,6 +162,10 @@ export function CommentsDrawer({
     },
     initialPageParam: 1,
     getNextPageParam: last => last.next ?? undefined,
+    // Opening comments always checks with the server, so what you see is what
+    // everyone else sees, including anything posted since you last looked.
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
   const comments = data?.pages.flatMap(p => p.items) ?? []
 
@@ -218,17 +223,20 @@ export function CommentsDrawer({
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
-  return (
+  // Rendered at page level: inside the reel card it sat in the card's own
+  // layer, underneath the desktop up/down arrows, which then swallowed taps
+  // on its close button and input. Bottom sheet on phones, side panel on
+  // desktop as TikTok does.
+  return createPortal(
     <motion.div
       initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="absolute inset-x-0 bottom-0 bg-[#0e1411]/[0.97] backdrop-blur-xl rounded-t-3xl z-30 flex flex-col"
-      style={{ maxHeight: '72%' }}
+      className="fixed inset-x-0 bottom-0 max-h-[72vh] lg:inset-y-0 lg:left-auto lg:w-[420px] lg:max-h-none bg-[#0e1411]/[0.97] backdrop-blur-xl rounded-t-3xl lg:rounded-t-none lg:rounded-l-3xl z-[60] flex flex-col pb-[env(safe-area-inset-bottom,0px)]"
       onPointerDown={e => e.stopPropagation()}
     >
       <div className="flex justify-center pt-2.5"><span className="w-10 h-1 rounded-full bg-white/20" /></div>
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-        <h3 className="font-semibold text-white text-sm">{formatNumber(count)} comments</h3>
+        <h3 className="font-semibold text-white text-sm">{formatNumber(count)} {count === 1 ? 'comment' : 'comments'}</h3>
         <button onClick={onClose} aria-label="Close comments" className="text-white/60 hover:text-white transition-colors">
           <X className="h-5 w-5" />
         </button>
@@ -298,6 +306,7 @@ export function CommentsDrawer({
       ) : (
         <p className="border-t border-white/10 px-4 py-3 text-center text-white/50 text-sm">Sign in to join the conversation.</p>
       )}
-    </motion.div>
+    </motion.div>,
+    document.body,
   )
 }

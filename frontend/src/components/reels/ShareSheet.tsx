@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { X, Search, Check, Link2, Share, Send, Loader2 } from 'lucide-react'
@@ -91,10 +92,12 @@ export function ShareSheet({
     try { await navigator.share({ url }) } catch { /* cancelled */ }
   }
 
-  return (
+  // Portalled to the page so it is never trapped under a transformed parent
+  // (a reel card), where "fixed" stops meaning the whole screen.
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
       onClick={onClose}
       onPointerDown={e => e.stopPropagation()}
     >
@@ -196,6 +199,7 @@ export function ShareSheet({
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   )
 }
