@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { ReelThumb } from '@/components/reels/ReelThumb'
-import { SellerReviews } from '@/components/reviews/SellerReviews'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Clapperboard, Grid3x3, Bookmark, Heart, Play, Lock, Package, Store } from 'lucide-react'
+import { Clapperboard, Grid3x3, Bookmark, Heart, Play, Lock, Package } from 'lucide-react'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatNumber, formatCurrency } from '@/lib/utils'
@@ -105,24 +104,17 @@ function GridSkeleton({ tall }: { tall?: boolean }) {
  * Saved and Liked on your own profile only. Those two are private on both
  * Instagram and TikTok — what someone bookmarks or likes is theirs to know.
  */
-export function ProfileContent({ userId, isOwnProfile, isSeller, defaultTab }: {
-  userId: string; isOwnProfile: boolean; isSeller: boolean
-  /** Arriving from the Market opens the shop rather than the reels. */
-  defaultTab?: Tab
-}) {
+export function ProfileContent({ userId, isOwnProfile, isSeller }: { userId: string; isOwnProfile: boolean; isSeller: boolean }) {
   // ?tab=saved (from the menu's Saved entry) opens straight onto that tab.
-  // 'shop' is the seller-facing name for the products tab.
   const [params] = useSearchParams()
-  const raw = params.get('tab')
-  const wanted = (raw === 'shop' ? 'posts' : raw) as Tab | null
-  const start = (wanted && ['reels', 'posts', 'saved', 'liked'].includes(wanted) ? wanted : defaultTab) ?? 'reels'
-  const [tab, setTab] = useState<Tab>(start)
+  const wanted = params.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(wanted && ['reels', 'posts', 'saved', 'liked'].includes(wanted) ? wanted : 'reels')
   const [savedKind, setSavedKind] = useState<Kind>('Reel')
   const [likedKind, setLikedKind] = useState<Kind>('Reel')
 
   // Reset when moving between profiles, so another person's page never opens on
   // a private tab left selected from your own.
-  useEffect(() => { setTab(start) }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setTab('reels') }, [userId])
 
   const reels = useInfiniteQuery({
     queryKey: ['profile-reels', userId],
@@ -151,11 +143,9 @@ export function ProfileContent({ userId, isOwnProfile, isSeller, defaultTab }: {
   const saved = useSocialList('saved', savedKind, isOwnProfile && tab === 'saved')
   const liked = useSocialList('liked', likedKind, isOwnProfile && tab === 'liked')
 
-  // A seller's products are their shop, so that tab leads and is named for it.
   const tabs: { key: Tab; label: string; icon: typeof Heart; private?: boolean }[] = [
-    ...(isSeller ? [{ key: 'posts' as Tab, label: 'Shop', icon: Store }] : []),
     { key: 'reels', label: 'Reels', icon: Clapperboard },
-    ...(isSeller ? [] : [{ key: 'posts' as Tab, label: 'Posts', icon: Grid3x3 }]),
+    { key: 'posts', label: 'Posts', icon: Grid3x3 },
     ...(isOwnProfile ? [
       { key: 'saved' as Tab, label: 'Saved', icon: Bookmark, private: true },
       { key: 'liked' as Tab, label: 'Liked', icon: Heart, private: true },
@@ -216,21 +206,9 @@ export function ProfileContent({ userId, isOwnProfile, isSeller, defaultTab }: {
         <Empty icon={Clapperboard} title={isOwnProfile ? 'Share your first reel' : 'No reels yet'}
           body={isOwnProfile ? 'Show your harvest, your farm, your produce up close. Reels are how buyers find you.' : 'When they post reels, you will see them here.'} />)}
 
-      {tab === 'posts' && (
-        <>
-          {renderList(posts, 'Product',
-            <Empty icon={Package} title={isOwnProfile && isSeller ? 'List your first product' : 'Nothing for sale yet'}
-              body={isOwnProfile && isSeller ? 'Everything you list for sale shows up here.' : 'What they list for sale will appear here.'} />)}
-          {/* Reviews come from delivered orders only, so the rating reflects
-              buyers who actually received something. */}
-          {isSeller && (
-            <div className="px-4 pt-8 pb-2">
-              <h2 className="text-[15px] font-bold text-[var(--c-text)] mb-3">Customer reviews</h2>
-              <SellerReviews sellerId={userId} />
-            </div>
-          )}
-        </>
-      )}
+      {tab === 'posts' && renderList(posts, 'Product',
+        <Empty icon={Package} title={isOwnProfile && isSeller ? 'List your first product' : 'No posts yet'}
+          body={isOwnProfile && isSeller ? 'Products you list appear here as posts.' : 'Products they list will appear here.'} />)}
 
       {tab === 'saved' && isOwnProfile && (
         <>
