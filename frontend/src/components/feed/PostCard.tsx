@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Heart, MessageCircle, Send, Bookmark, ShoppingBag, Check, Loader2, Leaf, Star, Volume2, VolumeX, Play, MapPin } from 'lucide-react'
 import { ShareSheet } from '@/components/reels/ShareSheet'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
+import { HScroll } from '@/components/ui/HScroll'
 import { ExpandableText } from '@/components/ui/ExpandableText'
 import { ReelThumb } from '@/components/reels/ReelThumb'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
@@ -226,14 +227,15 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
             </span>
           </>
         ) : images.length ? (
-          <div className="w-full h-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar" onScroll={onScroll}>
+          <HScroll className="w-full h-full flex snap-x snap-mandatory" outerClassName="w-full h-full"
+            step="page" inset onScroll={onScroll}>
             {images.map((src, i) => (
               <div key={src + i} className="w-full h-full flex-shrink-0 snap-center">
                 <ImageWithFallback src={src} alt={i === 0 ? product!.title : ''} loading={i === 0 ? 'eager' : 'lazy'}
                   className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
               </div>
             ))}
-          </div>
+          </HScroll>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-green/15 to-harvest/10">
             <Leaf className="h-14 w-14 text-brand-green/40" />

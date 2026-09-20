@@ -6,6 +6,7 @@ import { Search, X, Leaf, Sprout, ArrowUpDown, Loader2, Flame, ChevronRight, Hea
 import { FeedProductCard, unitLabel } from '@/components/feed/FeedProductCard'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
 import { CategoryIcon } from '@/lib/categoryIcons'
+import { HScroll } from '@/components/ui/HScroll'
 import { NUTRITION_GROUPS, ALL_NUTRITION, NUTRITION_DISCLAIMER, type NutritionKey } from '@/lib/nutrition'
 import { formatCurrency, cn } from '@/lib/utils'
 import api from '@/lib/api'
@@ -142,7 +143,7 @@ export default function Marketplace() {
             </select>
           </label>
         </div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+        <HScroll className="flex gap-2 px-4" inset label="Categories">
           {/* Special nutrition leads the row: a way of shopping, so it filters
               right here like the other chips. */}
           <Chip active={!!nutrition} onClick={toggleNutrition}><HeartPulse className="h-4 w-4" />{t('nav.nutrition')}</Chip>
@@ -153,16 +154,16 @@ export default function Marketplace() {
               <CategoryIcon slug={c.slug} className="h-4 w-4" />{c.name}
             </Chip>
           ))}
-        </div>
+        </HScroll>
         {nutrition && (
-          <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 mt-2">
+          <HScroll className="flex gap-2 px-4" outerClassName="mt-2" inset label="Nutrition groups">
             <GroupChip active={nutrition === 'ALL'} onClick={() => setNutrition('ALL')}>{t('shop.allGroups')}</GroupChip>
             {NUTRITION_GROUPS.map(g => (
               <GroupChip key={g.key} active={nutrition === g.key} onClick={() => setNutrition(g.key)}>
                 <g.icon className="h-4 w-4" />{sw ? g.sw : g.en}
               </GroupChip>
             ))}
-          </div>
+          </HScroll>
         )}
       </div>
 
@@ -176,7 +177,7 @@ export default function Marketplace() {
                   <Flame className="h-5 w-5 text-harvest" /> {t('panel.sellingFast')}
                 </h2>
               </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 snap-x scroll-px-4">
+              <HScroll className="flex gap-3 px-4 snap-x scroll-px-4" inset>
                 {trending.slice(0, 10).map((p, i) => (
                   <Link key={p._id} to={`/marketplace/product/${p.slug || p._id}`} className="relative w-[150px] flex-shrink-0 snap-start group">
                     <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[var(--c-input)]">
@@ -190,7 +191,7 @@ export default function Marketplace() {
                     </div>
                   </Link>
                 ))}
-              </div>
+              </HScroll>
             </section>
           )}
           <button onClick={toggleNutrition} className="mx-4 mt-5 w-[calc(100%-2rem)] text-left flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-green/12 via-brand-lime/10 to-harvest/12 border border-brand-green/15 press">

@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaymentForm } from '@/components/payment/PaymentForm'
 import { ImageWithFallback } from '@/components/ui/image-with-fallback'
+import { HScroll } from '@/components/ui/HScroll'
 import { FeedProductCard, unitLabel } from '@/components/feed/FeedProductCard'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import api from '@/lib/api'
@@ -480,7 +481,8 @@ export default function ProductDetail() {
           {/* ── Gallery ─────────────────────────────────────────── */}
           <div className="md:sticky md:top-8">
             <div className="relative aspect-square md:rounded-3xl overflow-hidden bg-[var(--c-input)]">
-              <div ref={galleryRef} className="w-full h-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              <HScroll innerRef={galleryRef} className="w-full h-full flex snap-x snap-mandatory"
+                outerClassName="w-full h-full" step="page" inset
                 onScroll={e => setSlide(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
                 {images.map((src, i) => (
                   <div key={i} className="w-full h-full flex-shrink-0 snap-center">
@@ -488,7 +490,7 @@ export default function ProductDetail() {
                       className="w-full h-full object-cover" fallbackClassName="w-full h-full" />
                   </div>
                 ))}
-              </div>
+              </HScroll>
 
               <button onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/marketplace'))} aria-label="Back"
                 className={`absolute top-3 left-3 ${roundBtn}`}>
