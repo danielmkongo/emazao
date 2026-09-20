@@ -433,6 +433,8 @@ function VerifiedTick() {
   )
 }
 
+const LIKE = '❤️'
+
 function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
   story: Story; ownerName: string; onFocusChange: (v: boolean) => void; onSent: (kind: 'reaction' | 'reply') => void
 }) {
@@ -441,37 +443,93 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
   const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(false)
   const [burst, setBurst] = useState<string | null>(null)
-  // What this viewer has reacted with. A reaction is a toggle: tapping the
-  // heart ten times used to send the owner ten messages.
+
+  // One reaction per viewer per story. `mine` is what the screen shows and
+  // changes on the tap itself; `server` is what the server last confirmed;
+  // `want` is where we are heading. Keeping the three apart is what makes
+  // rapid tapping work — the old code refused a tap while a request was in
+  // flight, so an impatient second tap did nothing at all and the reaction
+  // appeared not to come off.
   const [mine, setMine] = useState<string | undefined>(story.myReaction)
+  const server = useRef<string | undefined>(story.myReaction)
+  const want = useRef<string | undefined>(story.myReaction)
+  const inFlight = useRef(false)
+  const touched = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setText(''); setMine(story.myReaction) }, [story._id, story.myReaction])
+  useEffect(() => {
+    setText('')
+    touched.current = false
+    setMine(story.myReaction)
+    server.current = story.myReaction
+    want.current = story.myReaction
+  }, [story._id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const send = async (payload: { content?: string; reaction?: string }) => {
+  // A later refetch of the feed may carry the viewer's saved reaction, but it
+  // must never overwrite one they have just tapped in this sitting.
+  useEffect(() => {
+    if (touched.current) return
+    setMine(story.myReaction)
+    server.current = story.myReaction
+    want.current = story.myReaction
+  }, [story.myReaction])
+
+  /**
+   * Walk the server to whatever the last tap asked for. The endpoint toggles,
+   * so clearing a reaction means sending back the one that is there. Looping
+   * rather than firing per tap means ten taps cost at most a couple of
+   * requests and always settle on what the viewer last chose.
+   */
+  const flush = useCallback(async () => {
+    if (inFlight.current) return
+    inFlight.current = true
+    try {
+      while (want.current !== server.current) {
+        const target = want.current ?? server.current
+        if (!target) break
+        const res = await api.post<ApiResponse<{ reacted: boolean; reaction?: string }>>(
+          `/stories/${story._id}/reply`, { reaction: target })
+        server.current = res.data.data?.reacted ? res.data.data.reaction : undefined
+      }
+    } catch {
+      // Show what the server actually holds rather than a state it never took.
+      want.current = server.current
+      setMine(server.current)
+    } finally {
+      inFlight.current = false
+    }
+  }, [story._id])
+
+  /** Tapping the same one again takes it back; a different one replaces it. */
+  const react = (emoji: string) => {
+    const undoing = mine === emoji
+    const next = undoing ? undefined : emoji
+    touched.current = true
+    ;(undoing ? unlikeHaptic : likeHaptic)()
+    setMine(next)
+    want.current = next
+    if (!undoing) {
+      setBurst(emoji)
+      window.setTimeout(() => setBurst(null), 900)
+      onSent('reaction')
+    }
+    void flush()
+  }
+
+  const sendReply = async (content: string) => {
     if (sending) return
-    const toggling = !!payload.reaction && !payload.content
-    const undoing = toggling && mine === payload.reaction
-    // Buzz on the press, not on the response: a confirmation that arrives
-    // half a second later is not felt as a confirmation.
-    if (toggling) (undoing ? unlikeHaptic : likeHaptic)()
-    else sendHaptic()
-    // Show the new state straight away; put it back if the server disagrees.
-    const before = mine
-    if (toggling) setMine(undoing ? undefined : payload.reaction)
+    sendHaptic()
     setSending(true)
     try {
-      await api.post(`/stories/${story._id}/reply`, payload)
-      if (payload.reaction && !undoing) { setBurst(payload.reaction); window.setTimeout(() => setBurst(null), 900) }
+      await api.post(`/stories/${story._id}/reply`, { content })
       setText('')
       inputRef.current?.blur()
-      if (!undoing) onSent(payload.reaction && !payload.content ? 'reaction' : 'reply')
-    } catch {
-      // The bar stays filled so nothing typed is lost.
-      if (toggling) setMine(before)
-    }
+      onSent('reply')
+    } catch { /* the bar stays filled so nothing typed is lost */ }
     finally { setSending(false) }
   }
+
+  const liked = mine === LIKE
 
   return (
     <div className="relative">
@@ -480,7 +538,7 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
             className="absolute bottom-full inset-x-0 mb-4 grid grid-cols-4 gap-y-4 justify-items-center">
             {STORY_REACTIONS.map(r => (
-              <button key={r} onMouseDown={e => e.preventDefault()} onClick={() => send({ reaction: r })}
+              <button key={r} onMouseDown={e => e.preventDefault()} onClick={() => react(r)}
                 aria-pressed={mine === r}
                 className={`text-[34px] leading-none transition-transform hover:scale-125 active:scale-90 ${
                   mine === r ? 'scale-125 drop-shadow-[0_0_10px_rgba(255,255,255,.55)]' : ''}`}
@@ -499,7 +557,7 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
           </motion.span>
         )}
       </AnimatePresence>
-      <form onSubmit={e => { e.preventDefault(); if (text.trim()) send({ content: text.trim() }) }} className="flex items-center gap-2">
+      <form onSubmit={e => { e.preventDefault(); if (text.trim()) sendReply(text.trim()) }} className="flex items-center gap-2">
         <input
           ref={inputRef}
           value={text}
@@ -510,17 +568,17 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
           maxLength={1000}
           className="flex-1 h-11 rounded-full bg-transparent border border-white/60 px-4 text-white text-[14px] placeholder:text-white/75 focus:outline-none focus:border-white"
         />
-        {text.trim() ? (
-          <button type="submit" disabled={sending} aria-label={t('stories.send')} className="h-11 px-3 text-white font-semibold text-[14px] press">
+        {/* The like is a like. It stays put whatever else is happening, it is
+            always a heart, and the only thing it says is liked or not — the
+            other emoji live in the reactions row above. */}
+        <button type="button" onClick={() => react(LIKE)} aria-pressed={liked}
+          aria-label={t('stories.like')}
+          className={`w-11 h-11 flex items-center justify-center press transition-colors ${liked ? 'text-red-500' : 'text-white'}`}>
+          <HeartIcon filled={liked} />
+        </button>
+        {!!text.trim() && (
+          <button type="submit" disabled={sending} aria-label={t('stories.send')} className="h-11 pr-1 text-white font-semibold text-[14px] press">
             {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-6 w-6" />}
-          </button>
-        ) : (
-          <button type="button" onClick={() => send({ reaction: '❤️' })} aria-pressed={!!mine}
-            aria-label={t('stories.like')}
-            className={`w-11 h-11 flex items-center justify-center press transition-colors ${mine ? 'text-red-500' : 'text-white'}`}>
-            {mine && mine !== '❤️'
-              ? <span className="text-[26px] leading-none">{mine}</span>
-              : <HeartIcon filled={!!mine} />}
           </button>
         )}
       </form>
