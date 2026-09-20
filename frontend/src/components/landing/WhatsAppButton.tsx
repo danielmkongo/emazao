@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 // Real WhatsApp glyph rather than a generic chat-bubble icon (lucide has no
 // brand icons) — recognizable at a glance is the whole point of this button.
 function WhatsAppGlyph({ className }: { className?: string }) {
@@ -14,13 +16,14 @@ function WhatsAppGlyph({ className }: { className?: string }) {
  * the only options being "read more sections" or "create an account".
  */
 export function WhatsAppButton({ phone = '255754660033', hidden = false }: { phone?: string; hidden?: boolean }) {
+  const { t } = useTranslation()
   return (
     <a
       href={`https://wa.me/${phone}`}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Chat with eMazao on WhatsApp"
-      title="Chat with us on WhatsApp"
+      aria-label={t('landing.whatsapp.aria')}
+      title={t('landing.whatsapp.title')}
       // Fixed-position, so it floats over whatever content happens to be
       // underneath — the footer already lists both numbers directly, so the
       // button hides once it's in view instead of sitting on top of that
