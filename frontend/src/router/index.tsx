@@ -39,7 +39,6 @@ const ProductDetail = lazy(() => import('@/pages/marketplace/ProductDetail'))
 const Requirements = lazy(() => import('@/pages/requirements/Requirements'))
 const PostRequirement = lazy(() => import('@/pages/requirements/PostRequirement'))
 const RequirementDetail = lazy(() => import('@/pages/requirements/RequirementDetail'))
-const Storefront = lazy(() => import('@/pages/farm/Storefront'))
 const MessagesLayout = lazy(() => import('@/pages/messages/MessagesLayout'))
 const Thread = lazy(() => import('@/pages/messages/Thread'))
 const Orders = lazy(() => import('@/pages/orders/Orders'))
@@ -150,7 +149,9 @@ export const router = createBrowserRouter([
     children: [
       { path: '/marketplace', element: wrap(Marketplace) },
       { path: '/marketplace/product/:slug', element: wrap(ProductDetail) },
-      { path: '/farm/:username', element: wrap(Storefront) },
+      // A seller's shop and their profile are one page. The old shop link
+      // still works and opens it on the Shop tab.
+      { path: '/farm/:username', element: wrap(Profile) },
       { path: '/profile/:username', element: wrap(Profile) },
       { path: '/explore', element: wrap(Explore) },
       { path: '/nutrition', element: wrap(Nutrition) },

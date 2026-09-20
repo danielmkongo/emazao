@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MapPin, Calendar, Star, Phone, Video, UserCheck, X, Menu, BadgeCheck, Store, Check } from 'lucide-react'
@@ -86,6 +86,10 @@ const ROLE: Record<string, string> = {
 
 export default function Profile() {
   const { username } = useParams<{ username?: string }>()
+  // /farm/:username is the same page as /profile/:username — a seller is one
+  // person, not a shop and a stranger. Old shop links keep working and simply
+  // open on the Shop tab.
+  const fromMarket = useLocation().pathname.startsWith('/farm')
   const { user: me } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -159,6 +163,8 @@ export default function Profile() {
     <div className="text-center py-20 text-[var(--c-text-3)]">User not found</div>
   )
 
+  const isSeller = user.role === 'FARMER'
+  const banner = seller?.bannerImage || (user as any).coverImage
   const followerCount = (user as any).followersCount ?? 0
   const stats = data?.stats
   const place = [user.location, user.country !== user.location ? user.country : null].filter(Boolean).join(', ')
@@ -208,6 +214,20 @@ export default function Profile() {
 
   return (
     <div className="max-w-[935px] mx-auto pb-8">
+      {/* A seller's own banner: the shop front, above their profile */}
+      {isSeller && banner && (
+        <div className="relative h-36 md:h-52 md:rounded-2xl overflow-hidden md:mt-2 bg-[var(--c-input)]">
+          <img src={banner} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+          {!!seller?.rating && (
+            <span className="absolute top-3 right-3 flex items-center gap-1 bg-black/55 backdrop-blur-sm rounded-full px-2.5 py-1 text-white text-[12px] font-semibold">
+              <Star className="h-3.5 w-3.5 fill-gold text-gold" />{seller.rating.toFixed(1)}
+              <span className="text-white/70 font-normal">({seller.ratingCount ?? 0})</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Handle bar (phones) */}
       <div className="md:hidden flex items-center justify-between px-4 h-12">
         <h1 className="flex items-center gap-1.5 text-[19px] font-bold text-[var(--c-text)] min-w-0">
@@ -267,28 +287,43 @@ export default function Profile() {
             <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Joined {formatDate(user.createdAt)}</span>
           </p>
 
-          {/* The shop, for sellers: the one thing a visitor most wants from a farmer's page */}
-          {user.role === 'FARMER' && seller && (
-            <Link to={`/farm/${user.username}`}
-              className="mt-3 flex items-center gap-3 p-3 rounded-2xl border border-[var(--c-border)] hover:bg-[var(--c-raised)] transition-colors md:max-w-md">
-              <span className="w-10 h-10 rounded-xl bg-brand-green/12 text-brand-green flex items-center justify-center flex-shrink-0"><Store className="h-5 w-5" /></span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[14px] font-semibold text-[var(--c-text)] truncate">{seller.farmName}</span>
-                <span className="flex items-center gap-2 text-[12.5px] text-[var(--c-text-3)] whitespace-nowrap min-w-0">
-                  <span className="flex items-center gap-0.5"><Star className="h-3 w-3 fill-gold text-gold" />{seller.rating ? seller.rating.toFixed(1) : 'New'}</span>
-                  <span>·</span><span>{formatNumber(seller.totalSales ?? 0)} sales</span>
-                  {seller.specializations?.[0] && <><span>·</span><span className="truncate">{seller.specializations.slice(0, 2).join(', ')}</span></>}
-                </span>
-              </span>
-              <span className="text-[13px] font-semibold text-brand-green flex-shrink-0">Visit shop</span>
-            </Link>
+          {/* The farm itself: what the separate shop page used to hold */}
+          {isSeller && seller && (
+            <div className="mt-3 space-y-2.5">
+              <p className="flex items-center gap-2 text-[14.5px] font-semibold text-[var(--c-text)]">
+                <Store className="h-4 w-4 text-brand-green" />{seller.farmName}
+              </p>
+              {seller.farmDescription && <p className="text-[14px] text-[var(--c-text-2)] leading-snug">{seller.farmDescription}</p>}
+              {!!seller.certifications?.length && (
+                <div className="flex flex-wrap gap-1.5">
+                  {seller.certifications.map(c => (
+                    <span key={c} className="flex items-center gap-1 text-[12px] bg-brand-green/10 text-brand-green rounded-full px-2.5 py-1">
+                      <Check className="h-3 w-3" />{c}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                {[
+                  { v: `${seller.onTimeDelivery ?? 0}%`, l: 'On time', c: 'text-brand-green' },
+                  { v: formatNumber(seller.totalSales ?? 0), l: 'Sales', c: 'text-[var(--c-text)]' },
+                  { v: seller.rating ? seller.rating.toFixed(1) : 'New', l: 'Rating', c: 'text-gold' },
+                ].map(x => (
+                  <div key={x.l} className="flex-1 rounded-xl bg-[var(--c-input)] py-2 text-center">
+                    <p className={`text-[16px] font-bold tabular ${x.c}`}>{x.v}</p>
+                    <p className="text-[11.5px] text-[var(--c-text-3)]">{x.l}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="md:hidden flex gap-1.5 mt-3.5">{actions()}</div>
         </div>
       </header>
 
-      <ProfileContent userId={user._id} isOwnProfile={isOwnProfile} isSeller={user.role === 'FARMER'} />
+      <ProfileContent userId={user._id} isOwnProfile={isOwnProfile} isSeller={isSeller}
+        defaultTab={fromMarket ? 'posts' : undefined} />
 
       <AppMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
