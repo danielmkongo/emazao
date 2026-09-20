@@ -22,19 +22,22 @@ export const HeroSection = () => {
 
       <div className="relative mx-auto grid min-h-[calc(100vh-4.75rem)] max-w-[1440px] items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_.95fr] lg:px-12">
         <div className="max-w-3xl">
-          <motion.h1 {...reveal()} className="text-[clamp(3.6rem,7.2vw,7.5rem)] font-semibold leading-[.89] tracking-[-.065em]" style={{ fontFamily: 'var(--font-display)' }}>
-            Grow it.<br />Show it. <span className="text-[#d9ff43]">Sell it.</span>
-          </motion.h1>
-          <motion.p {...reveal(.12)} className="mt-7 max-w-xl text-lg leading-8 text-white/65 sm:text-xl">
-            Show your harvest, build an audience and sell directly to serious buyers—all in one agricultural network.
+          <motion.p {...reveal()} className="mb-5 text-[11px] font-bold uppercase tracking-[.22em] text-[#d9ff43]/85 sm:text-xs">
+            Connecting farmers, markets and opportunities across Africa
           </motion.p>
-          <motion.div {...reveal(.22)} className="mt-9 flex flex-wrap gap-3">
-            <Link to="/register?intent=sell" className="group flex items-center gap-3 rounded-full bg-[#d9ff43] px-7 py-4 font-bold text-[#0b160e] transition-transform hover:scale-[1.03]">Join as a farmer <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></Link>
-            <Link to="/register?intent=buy" className="group flex items-center gap-3 rounded-full border border-white/25 bg-white/10 px-7 py-4 font-semibold backdrop-blur-md transition-colors hover:bg-white/15">Join as a buyer <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
+          <motion.h1 {...reveal(.06)} className="text-[clamp(3.6rem,7.2vw,7.5rem)] font-semibold leading-[.89] tracking-[-.065em]" style={{ fontFamily: 'var(--font-display)' }}>
+            Grow. Sell. <span className="text-[#d9ff43]">Buy.</span>
+          </motion.h1>
+          <motion.p {...reveal(.14)} className="mt-7 max-w-xl text-lg leading-8 text-white/65 sm:text-xl">
+            Connect with trusted buyers and sellers of agricultural, aquaculture, fish and livestock commodities—trade with confidence.
+          </motion.p>
+          <motion.div {...reveal(.22)} className="mt-9 flex flex-wrap items-center gap-3">
+            <Link to="/marketplace" className="group flex items-center gap-3 rounded-full bg-[#d9ff43] px-8 py-4 text-lg font-bold text-[#0b160e] transition-transform hover:scale-[1.03]"><Compass className="h-5 w-5" /> Explore the market <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></Link>
+            <Link to="/register" className="group flex items-center gap-3 rounded-full border border-white/25 bg-white/10 px-7 py-4 font-semibold backdrop-blur-md transition-colors hover:bg-white/15">Create an account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
           </motion.div>
-          <motion.div {...reveal(.28)} className="mt-5"><Link to="/marketplace" className="inline-flex items-center gap-2 text-sm font-semibold text-white/65 hover:text-white"><Compass className="h-4 w-4" /> Explore the market before joining</Link></motion.div>
+          <motion.p {...reveal(.28)} className="mt-4 text-sm text-white/45">No account needed to browse produce, farms and prices.</motion.p>
           <motion.div {...reveal(.32)} className="mt-11 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-6 text-sm text-white/65">
-            <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Verified sellers</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Escrow-protected payments</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Direct messaging</span>
+            <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Verified sellers</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Delivery guarantee</span><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#d9ff43]" /> Instant cashout</span>
           </motion.div>
           <motion.div {...reveal(.4)} className="mt-9 max-w-md lg:hidden">
             <div className="flex items-center gap-4 rounded-2xl border border-white/15 bg-[#102018]/90 p-3 shadow-2xl backdrop-blur-xl">
