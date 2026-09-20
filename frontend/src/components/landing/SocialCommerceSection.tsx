@@ -44,7 +44,7 @@ export const SocialCommerceSection = () => {
               </div>
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs backdrop-blur-md"><Play className="h-3.5 w-3.5 fill-[#d9ff43] text-[#d9ff43]" /> {t('landing.social.harvestUpdate')}</div>
               <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-                <div className="flex items-center gap-2 text-sm font-bold"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#d9ff43] text-[#102014]">N</span> Neema&apos;s Farm <BadgeCheck className="h-4 w-4 text-[#d9ff43]" /></div>
+                <div className="flex items-center gap-2 text-sm font-bold"><img src="/mathew.png" alt="" className="h-7 w-7 rounded-full object-cover object-top" /> Mathew&apos;s Farm <BadgeCheck className="h-4 w-4 text-[#d9ff43]" /></div>
                 <p className="mt-3 max-w-md text-lg font-semibold">{t('landing.social.caption')}</p>
                 <div className="mt-4 flex gap-4 text-xs text-white/65"><span className="flex items-center gap-1.5"><Heart className="h-4 w-4" /> 284</span><span className="flex items-center gap-1.5"><MessageCircle className="h-4 w-4" /> 36</span><span className="flex items-center gap-1.5"><Users className="h-4 w-4" /> {t('landing.social.views', { count: '1.2k' })}</span></div>
               </div>
