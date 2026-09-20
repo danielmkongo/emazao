@@ -22,7 +22,10 @@ export const HeroSection = () => {
 
       <div className="relative mx-auto grid min-h-[calc(100vh-4.75rem)] max-w-[1440px] items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_.95fr] lg:px-12">
         <div className="max-w-3xl">
-          <motion.p {...reveal()} className="mb-5 text-[11px] font-bold uppercase tracking-[.22em] text-[#d9ff43]/85 sm:text-xs">
+          {/* A quiet label, not a second headline: the lime is spent on "Buy."
+              and the main button, so this recedes into the photograph. */}
+          <motion.p {...reveal()} className="mb-5 flex items-center gap-3 text-[11px] font-medium uppercase tracking-[.18em] text-white/45 sm:text-[11.5px]">
+            <span className="hidden h-px w-7 shrink-0 bg-white/25 sm:block" />
             Connecting farmers, markets and opportunities across Africa
           </motion.p>
           <motion.h1 {...reveal(.06)} className="text-[clamp(3.6rem,7.2vw,7.5rem)] font-semibold leading-[.89] tracking-[-.065em]" style={{ fontFamily: 'var(--font-display)' }}>
