@@ -111,7 +111,7 @@ export default function Storefront() {
             className="ring-4 ring-[var(--c-bg)] flex-shrink-0" />
           <div className="hidden sm:flex gap-2 ml-auto pb-2 flex-shrink-0">
             <Button size="sm" variant="outline" onClick={viewContent}>
-              <Clapperboard className="h-3.5 w-3.5" /> View content
+              <Clapperboard className="h-3.5 w-3.5" /> View profile
             </Button>
             {!isOwnProfile && (
               <>
@@ -159,7 +159,7 @@ export default function Storefront() {
         {/* Mobile: full-width actions below the details rather than crowding them */}
         <div className="flex sm:hidden gap-2 mt-4">
           <Button size="sm" variant="outline" onClick={viewContent} className="flex-1">
-            <Clapperboard className="h-3.5 w-3.5" /> View content
+            <Clapperboard className="h-3.5 w-3.5" /> View profile
           </Button>
         </div>
         {!isOwnProfile && (
