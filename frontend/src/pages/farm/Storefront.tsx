@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { MapPin, Package, Star, Users, MessageSquare, UserCheck, UserPlus } from 'lucide-react'
+import { MapPin, Package, Star, Users, MessageSquare, UserCheck, UserPlus, Clapperboard } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { FeedProductCard } from '@/components/feed/FeedProductCard'
@@ -48,6 +48,8 @@ export default function Storefront() {
     // Settle on what the server actually recorded rather than on our guess.
     onSuccess: (following) => { if (typeof following === 'boolean') setFollowing(following) },
   })
+
+  const viewContent = () => navigate(`/profile/${username}`)
 
   const handleMessage = () => {
     if (!isAuthenticated) { navigate('/login'); return }
@@ -107,8 +109,12 @@ export default function Storefront() {
         <div className="flex items-end gap-4">
           <Avatar src={user.avatar} name={user.name} size="2xl" verified={user.isVerified}
             className="ring-4 ring-[var(--c-bg)] flex-shrink-0" />
-          {!isOwnProfile && (
-            <div className="hidden sm:flex gap-2 ml-auto pb-2 flex-shrink-0">
+          <div className="hidden sm:flex gap-2 ml-auto pb-2 flex-shrink-0">
+            <Button size="sm" variant="outline" onClick={viewContent}>
+              <Clapperboard className="h-3.5 w-3.5" /> View content
+            </Button>
+            {!isOwnProfile && (
+              <>
               <Button size="sm" variant="outline" onClick={handleMessage}>
                 <MessageSquare className="h-3.5 w-3.5" /> Message
               </Button>
@@ -123,8 +129,9 @@ export default function Storefront() {
                   : <><UserPlus className="h-3.5 w-3.5" /> Follow</>
                 }
               </Button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="mt-3 min-w-0">
@@ -150,8 +157,13 @@ export default function Storefront() {
         </div>
 
         {/* Mobile: full-width actions below the details rather than crowding them */}
+        <div className="flex sm:hidden gap-2 mt-4">
+          <Button size="sm" variant="outline" onClick={viewContent} className="flex-1">
+            <Clapperboard className="h-3.5 w-3.5" /> View content
+          </Button>
+        </div>
         {!isOwnProfile && (
-          <div className="flex sm:hidden gap-2 mt-4">
+          <div className="flex sm:hidden gap-2 mt-2">
             <Button size="sm" variant="outline" onClick={handleMessage} className="flex-1">
               <MessageSquare className="h-3.5 w-3.5" /> Message
             </Button>
