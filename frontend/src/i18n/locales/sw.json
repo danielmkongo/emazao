@@ -241,5 +241,43 @@
     "noFarmers": "Hakuna wakulima wanaolingana na “{{q}}”",
     "noLive": "Hakuna aliye mubashara sasa",
     "noLiveBody": "Mkulima akianza mubashara, ataonekana hapa na juu ya mtiririko wako."
+  },
+  "landing": {
+    "nav": {
+      "marketplace": "Soko",
+      "community": "Jamii",
+      "howItWorks": "Jinsi inavyofanya kazi",
+      "buyerRequests": "Mahitaji ya wanunuzi",
+      "signIn": "Ingia",
+      "join": "Jiunge na eMazao",
+      "joinShort": "Jiunge",
+      "toggleNav": "Fungua menyu",
+      "home": "Mwanzo wa eMazao",
+      "language": "Lugha"
+    },
+    "hero": {
+      "eyebrow": "Tunaunganisha wakulima, masoko na fursa kote Afrika",
+      "grow": "Lima.",
+      "sell": "Uza.",
+      "buy": "Nunua.",
+      "sub": "Ungana na wanunuzi na wauzaji wanaoaminika wa mazao ya kilimo, ufugaji wa samaki, samaki na mifugo—fanya biashara kwa uhakika.",
+      "explore": "Tazama soko",
+      "createAccount": "Fungua akaunti",
+      "noAccountNeeded": "Huhitaji akaunti kuangalia mazao, mashamba na bei.",
+      "verifiedSellers": "Wauzaji waliothibitishwa",
+      "deliveryGuarantee": "Uhakika wa usafirishaji",
+      "instantCashout": "Toa pesa papo hapo",
+      "imageAlt": "Mashamba ya kijani wakati wa macheo",
+      "freshToday": "Mabichi ya leo",
+      "verifiedGrower": "Mkulima aliyethibitishwa",
+      "availableFrom": "Yanapatikana kutoka {{farm}}",
+      "from": "Kuanzia",
+      "ticker": {
+        "one": "Kutoka shambani hadi sokoni",
+        "two": "Kutoka mkulima hadi mnunuzi",
+        "three": "Kutoka hapa hadi dunia nzima",
+        "four": "Biashara ya kuaminika"
+      }
+    }
   }
 }

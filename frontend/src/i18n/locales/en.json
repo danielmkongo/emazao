@@ -241,5 +241,43 @@
     "noFarmers": "No farmers match “{{q}}”",
     "noLive": "Nobody is live right now",
     "noLiveBody": "When a farmer goes live, they will show up here and at the top of your feed."
+  },
+  "landing": {
+    "nav": {
+      "marketplace": "Marketplace",
+      "community": "Community",
+      "howItWorks": "How it works",
+      "buyerRequests": "Buyer requests",
+      "signIn": "Sign in",
+      "join": "Join eMazao",
+      "joinShort": "Join",
+      "toggleNav": "Toggle navigation",
+      "home": "eMazao home",
+      "language": "Language"
+    },
+    "hero": {
+      "eyebrow": "Connecting farmers, markets and opportunities across Africa",
+      "grow": "Grow.",
+      "sell": "Sell.",
+      "buy": "Buy.",
+      "sub": "Connect with trusted buyers and sellers of agricultural, aquaculture, fish and livestock commodities—trade with confidence.",
+      "explore": "Explore the market",
+      "createAccount": "Create an account",
+      "noAccountNeeded": "No account needed to browse produce, farms and prices.",
+      "verifiedSellers": "Verified sellers",
+      "deliveryGuarantee": "Delivery guarantee",
+      "instantCashout": "Instant cashout",
+      "imageAlt": "Green agricultural fields at sunrise",
+      "freshToday": "Fresh today",
+      "verifiedGrower": "Verified grower",
+      "availableFrom": "Available from {{farm}}",
+      "from": "From",
+      "ticker": {
+        "one": "Harvest to market",
+        "two": "Farmer to buyer",
+        "three": "Local to global",
+        "four": "Trade with trust"
+      }
+    }
   }
 }
