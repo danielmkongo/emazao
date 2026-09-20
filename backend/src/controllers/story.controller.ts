@@ -6,7 +6,7 @@ import StoryView from '../models/StoryView'
 import Follow from '../models/Follow'
 import Product from '../models/Product'
 import User from '../models/User'
-import { deliverMessage, directConversation } from './message.controller'
+import { deliverMessage, directConversation, retractStoryReaction } from './message.controller'
 
 const AUTHOR_FIELDS = 'name username avatar isVerified role'
 const PRODUCT_FIELDS = 'title price priceUnit images slug status'
@@ -33,16 +33,22 @@ function isHttpUrl(value: unknown): value is string {
  */
 async function groupForViewer(stories: any[], viewerId?: string) {
   const seen = new Set<string>()
+  // What this viewer reacted with, if anything: a reaction is a toggle, so the
+  // viewer has to be told which story they have already reacted to.
+  const mine = new Map<string, string>()
   if (viewerId && stories.length) {
-    const views = await StoryView.find({ viewerId, storyId: { $in: stories.map(s => s._id) } }).select('storyId').lean()
-    views.forEach(v => seen.add(String(v.storyId)))
+    const views = await StoryView.find({ viewerId, storyId: { $in: stories.map(s => s._id) } }).select('storyId reaction').lean()
+    views.forEach(v => {
+      seen.add(String(v.storyId))
+      if (v.reaction) mine.set(String(v.storyId), v.reaction)
+    })
   }
   const groups = new Map<string, { user: any; stories: any[]; latestAt: Date; allSeen: boolean }>()
   for (const s of stories) {
     const author = s.userId
     if (!author?._id) continue
     const key = String(author._id)
-    const story = { ...s, userId: key, seen: seen.has(String(s._id)) || key === viewerId }
+    const story = { ...s, userId: key, seen: seen.has(String(s._id)) || key === viewerId, myReaction: mine.get(String(s._id)) }
     const g = groups.get(key)
     if (g) {
       g.stories.push(story)
@@ -247,6 +253,42 @@ export const replyToStory = async (req: AuthRequest, res: Response) => {
 
     const owner = await User.findById(ownerId).select('_id isActive')
     if (!owner) return res.status(404).json({ success: false, message: 'User not found' })
+
+    // A reaction is a toggle on the story, not a stream of messages: tapping
+    // the heart ten times used to send ten messages the owner had to read.
+    // Reacting again with the same emoji takes it back; a different emoji
+    // replaces it. Either way the viewer leaves exactly one message behind.
+    // A reaction sent with a written reply is part of that reply, so it is left
+    // alone here.
+    const isToggle = !!reaction && !content
+    if (isToggle) {
+      const prev = await StoryView.findOne({ storyId: story._id, viewerId: me }).select('reaction')
+      const undo = prev?.reaction === reaction
+      await StoryView.updateOne(
+        { storyId: story._id, viewerId: me },
+        undo
+          ? { $unset: { reaction: '' }, $setOnInsert: { ownerId: story.userId } }
+          : { $set: { reaction }, $setOnInsert: { ownerId: story.userId } },
+        { upsert: true },
+      )
+      if (undo && prev?.reaction) await Story.updateOne({ _id: story._id }, { $inc: { reactionCount: -1 } })
+      if (!undo && !prev?.reaction) await Story.updateOne({ _id: story._id }, { $inc: { reactionCount: 1 } })
+
+      // Retract whatever the last tap left in the chat before sending anything.
+      const conv = await directConversation(me, ownerId)
+      await retractStoryReaction(conv, me, String(story._id))
+      if (undo) {
+        return res.json({ success: true, data: { reacted: false, conversationId: conv._id } })
+      }
+      const message = await deliverMessage(conv, me, {
+        content: '',
+        storyReply: {
+          storyId: story._id, ownerId: story.userId, mediaUrl: story.mediaUrl,
+          mediaType: story.mediaType, text: story.text, background: story.background, reaction,
+        },
+      })
+      return res.status(201).json({ success: true, data: { reacted: true, reaction, message, conversationId: conv._id } })
+    }
 
     if (reaction) {
       const prev = await StoryView.findOneAndUpdate(

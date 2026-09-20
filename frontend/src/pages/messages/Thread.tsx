@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/authStore'
@@ -10,7 +10,7 @@ import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
 import { STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
-import type { ApiResponse, User } from '@/types'
+import type { ApiResponse, Product, User } from '@/types'
 
 interface Message {
   _id: string
@@ -29,6 +29,8 @@ interface Message {
     _id: string; thumbnailUrl?: string; videoUrl?: string; caption?: string; title?: string
     status?: string; viewCount?: number; userId?: User
   } | null
+  /** The listing a question was asked about, from a product's "Ask" button. */
+  sharedProduct?: Pick<Product, '_id' | 'title' | 'slug' | 'images' | 'price' | 'priceUnit' | 'status'> | null
   /** A reply or reaction to a story, with a copy of what the story showed. */
   storyReply?: {
     storyId: string; ownerId: string; mediaUrl?: string; mediaType?: 'IMAGE' | 'VIDEO'
@@ -108,6 +110,35 @@ function SharedReelCard({ reel, isMe }: { reel: NonNullable<Message['sharedReel'
   )
 }
 
+/**
+ * The listing a question is about, shown with the question itself. A seller
+ * with a dozen products cannot answer "is this still available?" without it.
+ */
+function SharedProductCard({ product, isMe }: { product: Message['sharedProduct']; isMe: boolean }) {
+  if (!product) {
+    return (
+      <div className={`w-56 rounded-2xl border border-[var(--c-border)] px-4 py-5 text-center text-xs text-[var(--c-text-3)] ${isMe ? 'ml-auto' : ''}`}>
+        This listing is no longer available
+      </div>
+    )
+  }
+  return (
+    <a href={`/marketplace/product/${product.slug}`}
+      className="flex items-center gap-2.5 w-[230px] p-2 rounded-2xl border border-[var(--c-border)] bg-[var(--c-card)] press">
+      <div className="w-12 h-12 rounded-xl overflow-hidden bg-[var(--c-input)] shrink-0">
+        {product.images?.[0] && <img src={product.images[0]} alt="" className="w-full h-full object-cover" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-[var(--c-text)] truncate">{product.title}</p>
+        <p className="text-[12px] font-semibold text-brand-green tabular">
+          TZS {product.price?.toLocaleString()}
+          <span className="font-normal text-[var(--c-text-4)]"> / {product.priceUnit}</span>
+        </p>
+      </div>
+    </a>
+  )
+}
+
 interface Conversation {
   _id: string
   participants: User[]
@@ -180,6 +211,20 @@ export default function Thread() {
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
+  // Marking read has to also refresh the inbox: it shows its own per-thread
+  // unread count, and without this it kept saying "3 new messages" on a
+  // conversation that had just been read — including story reactions, which
+  // arrive while the reader is somewhere else entirely.
+  const markThreadRead = useCallback((convId: string) => {
+    api.put(`/messages/${convId}/read`)
+      .then(() => {
+        void refreshUnreadMessages()
+        queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      })
+      .catch(() => {})
+  }, [queryClient])
+
   const isNewConvo = id === 'new'
   const recipientIdParam = searchParams.get('recipientId')
   // Recipient passed via navigate state (from compose modal / Message button)
@@ -197,24 +242,44 @@ export default function Thread() {
 
   const newConvoRecipient = stateRecipient ?? fetchedRecipient
 
+  // "Ask" on a listing arrives with ?productId=..., so the question travels
+  // with its subject attached. Dismissible: a thread may wander off the
+  // product, and the attachment is spent once the question is sent.
+  const productIdParam = searchParams.get('productId')
+  const stateProduct = (location.state as { product?: Product } | null)?.product
+  const [dropped, setDropped] = useState(false)
+  const { data: fetchedProduct } = useQuery({
+    queryKey: ['product-by-id', productIdParam],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<Product>>(`/products/${productIdParam}`)
+      return res.data.data
+    },
+    enabled: !!productIdParam && !stateProduct && !dropped,
+  })
+  const attachedProduct = dropped ? undefined : (stateProduct ?? fetchedProduct)
+
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Message[]>>(`/messages/${id}`)
-      // Marking the thread read is a side effect, not part of loading it. It used
-      // to be awaited inside this queryFn, so any failure there — a network blip,
-      // a 403 — rejected the whole query and the conversation rendered as empty,
-      // which reads as "chat is broken" rather than "the read receipt failed".
-      api.put(`/messages/${id}/read`)
-        .then(() => {
-          void refreshUnreadMessages()
-          queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
-        })
-        .catch(() => {})
+      // Marking the thread read is a side effect, not part of loading it: it
+      // used to be awaited inside this queryFn, so any failure there — a
+      // network blip, a 403 — rejected the whole query and the conversation
+      // rendered as empty, which reads as "chat is broken" rather than "the
+      // read receipt failed". The effect below owns it now, so a thread served
+      // from cache is marked read as well as one that was just fetched.
       return res.data.data
     },
     enabled: !isNewConvo && !!id,
   })
+
+  // Anything on screen is read. Keyed on the message count so reopening a
+  // cached thread, where the query never refetches, still clears its badge.
+  useEffect(() => {
+    if (isNewConvo || !id || !messages?.length) return
+    if (!messages.some(m => getSenderId(m) !== user?._id && !m.readAt)) return
+    markThreadRead(id)
+  }, [id, isNewConvo, messages, user?._id, markThreadRead])
 
   // Register this conversation as "currently being viewed" so the global
   // notification handler doesn't bump the unread badge/play a sound for
@@ -232,6 +297,18 @@ export default function Thread() {
       return res.data.data
     },
   })
+
+  // Every "Message"/"Ask" button lands on /messages/new, but there is usually
+  // already a thread with that person. Without this their history only appeared
+  // after the first message was sent — the conversation looked empty at exactly
+  // the moment its context mattered most.
+  const existingWithRecipient = isNewConvo && recipientIdParam
+    ? conversations?.find(c => c.participants.some(p => String(p._id) === recipientIdParam))
+    : undefined
+  useEffect(() => {
+    if (!existingWithRecipient) return
+    navigate(`/messages/${existingWithRecipient._id}${location.search}`, { replace: true, state: location.state })
+  }, [existingWithRecipient?._id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const conversation = conversations?.find(c => c._id === id)
   // Resolve the counterpart by elimination, and never guess. The previous
@@ -251,13 +328,13 @@ export default function Thread() {
       if (isNewConvo) {
         const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
           '/messages',
-          { recipientId: recipientIdParam, content }
+          { recipientId: recipientIdParam, content, productId: attachedProduct?._id }
         )
         return res.data.data
       }
       const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
         '/messages',
-        { conversationId: id, content, clientId: nextClientId.current }
+        { conversationId: id, content, clientId: nextClientId.current, productId: attachedProduct?._id }
       )
       return res.data.data
     },
@@ -272,6 +349,7 @@ export default function Thread() {
         content,
         createdAt: new Date().toISOString(),
         pending: true,
+        ...(attachedProduct ? { sharedProduct: attachedProduct } : {}),
       }
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, optimistic])
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -287,6 +365,7 @@ export default function Thread() {
     onSuccess: (data, _vars, ctx) => {
       if (isNewConvo) {
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
+        setDropped(true)
         navigate(`/messages/${data.conversationId}`, { replace: true })
       } else {
         // Replaces the "sending…" copy in place (or does nothing if the socket
@@ -296,6 +375,7 @@ export default function Thread() {
         // tell the sender's own inbox that this thread just moved to the top
         // with a new last line.
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
+        setDropped(true)
         setText('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       }
@@ -313,16 +393,17 @@ export default function Thread() {
       // otherwise added one to the bell for every message received mid-chat.
       if (getSenderId(msg) !== user._id) {
         socket.emit('message:delivered', { conversationId: id })
-        api.put(`/messages/${id}/read`)
-          .then(() => {
-            void refreshUnreadMessages()
-            queryClient.invalidateQueries({ queryKey: ['notifications-count'] })
-          })
-          .catch(() => {})
+        markThreadRead(id)
       }
       // Keeps the list beside the thread (desktop split-pane) in step with it.
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    })
+    // A story reaction taken back: drop it here too, or the owner keeps
+    // looking at a heart the sender has already removed.
+    socket.on('message:removed', ({ messageId }: { messageId: string }) => {
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) => old.filter(m => m._id !== messageId))
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
     })
     socket.on('message:read', ({ readerId, readAt }: { readerId: string; readAt: string }) => {
       // The other participant just read our messages — flip the tick to "read"
@@ -352,7 +433,7 @@ export default function Thread() {
     socket.emit('message:delivered', { conversationId: id })
 
     return () => {
-      socket.off('message:new'); socket.off('message:read')
+      socket.off('message:new'); socket.off('message:read'); socket.off('message:removed')
       socket.off('message:delivered'); socket.off('typing')
       if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
       socket.emit('leave_conversation', id)
@@ -511,6 +592,9 @@ export default function Thread() {
                   {msg.sharedReel !== undefined && (
                     <SharedReelCard reel={msg.sharedReel as any} isMe={isMe} />
                   )}
+                  {msg.sharedProduct !== undefined && (
+                    <SharedProductCard product={msg.sharedProduct} isMe={isMe} />
+                  )}
                   {msg.storyReply && (
                     <StoryReplyCard reply={msg.storyReply} isMe={isMe} otherName={other?.name?.split(' ')[0]} />
                   )}
@@ -518,7 +602,7 @@ export default function Thread() {
                   {Boolean(msg.content) && (
                   <div
                     className={`
-                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel || msg.storyReply?.reaction ? 'mt-3' : ''}
+                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel || msg.storyReply?.reaction ? 'mt-3' : ''} ${msg.sharedProduct !== undefined ? 'mt-1.5' : ''}
                       ${isMe
                         ? `bg-brand-green text-white
                            ${!prevSame ? 'rounded-t-2xl' : 'rounded-t-lg'}
@@ -549,6 +633,21 @@ export default function Thread() {
 
       {/* ── Input ── */}
       <div className="shrink-0 px-4 py-3 border-t border-[var(--c-border)] bg-[var(--c-card)]">
+        {attachedProduct && (
+          <div className="max-w-4xl mx-auto mb-2.5 flex items-center gap-2.5 p-2 rounded-2xl bg-[var(--c-input)] border border-[var(--c-border)]">
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--c-raised)] shrink-0">
+              {attachedProduct.images?.[0] && <img src={attachedProduct.images[0]} alt="" className="w-full h-full object-cover" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] leading-tight text-[var(--c-text-4)]">Asking about</p>
+              <p className="text-[13px] font-semibold text-[var(--c-text)] truncate">{attachedProduct.title}</p>
+            </div>
+            <button onClick={() => setDropped(true)} aria-label="Remove listing"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)] shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <div className="flex-1 flex items-center bg-[var(--c-input)] border border-[var(--c-border)] rounded-full px-4 transition-all focus-within:border-brand-green">
             <input
@@ -557,7 +656,7 @@ export default function Thread() {
               onChange={e => { setText(e.target.value); signalTyping() }}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
               disabled={!canSend}
-              placeholder={canSend ? `Message ${other?.name ?? ''}…` : 'Pick someone to message first'}
+              placeholder={!canSend ? 'Pick someone to message first' : attachedProduct ? 'Ask about this listing…' : `Message ${other?.name ?? ''}…`}
               className="flex-1 bg-transparent py-2.5 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none"
             />
           </div>

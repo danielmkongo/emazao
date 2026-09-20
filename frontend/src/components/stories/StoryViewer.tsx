@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
+import { likeHaptic, unlikeHaptic, sendHaptic } from '@/lib/haptics'
 import { X, Send, Eye, Trash2, Volume2, VolumeX, ChevronLeft, ChevronRight, ShoppingBag, Loader2, MoreHorizontal } from 'lucide-react'
 import { router } from '@/router'
 import { useAuthStore } from '@/store/authStore'
@@ -440,20 +441,35 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
   const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(false)
   const [burst, setBurst] = useState<string | null>(null)
+  // What this viewer has reacted with. A reaction is a toggle: tapping the
+  // heart ten times used to send the owner ten messages.
+  const [mine, setMine] = useState<string | undefined>(story.myReaction)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setText('') }, [story._id])
+  useEffect(() => { setText(''); setMine(story.myReaction) }, [story._id, story.myReaction])
 
   const send = async (payload: { content?: string; reaction?: string }) => {
     if (sending) return
+    const toggling = !!payload.reaction && !payload.content
+    const undoing = toggling && mine === payload.reaction
+    // Buzz on the press, not on the response: a confirmation that arrives
+    // half a second later is not felt as a confirmation.
+    if (toggling) (undoing ? unlikeHaptic : likeHaptic)()
+    else sendHaptic()
+    // Show the new state straight away; put it back if the server disagrees.
+    const before = mine
+    if (toggling) setMine(undoing ? undefined : payload.reaction)
     setSending(true)
     try {
       await api.post(`/stories/${story._id}/reply`, payload)
-      if (payload.reaction) { setBurst(payload.reaction); window.setTimeout(() => setBurst(null), 900) }
+      if (payload.reaction && !undoing) { setBurst(payload.reaction); window.setTimeout(() => setBurst(null), 900) }
       setText('')
       inputRef.current?.blur()
-      onSent(payload.reaction && !payload.content ? 'reaction' : 'reply')
-    } catch { /* the bar stays filled so nothing typed is lost */ }
+      if (!undoing) onSent(payload.reaction && !payload.content ? 'reaction' : 'reply')
+    } catch {
+      // The bar stays filled so nothing typed is lost.
+      if (toggling) setMine(before)
+    }
     finally { setSending(false) }
   }
 
@@ -465,7 +481,10 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
             className="absolute bottom-full inset-x-0 mb-4 grid grid-cols-4 gap-y-4 justify-items-center">
             {STORY_REACTIONS.map(r => (
               <button key={r} onMouseDown={e => e.preventDefault()} onClick={() => send({ reaction: r })}
-                className="text-[34px] leading-none hover:scale-125 active:scale-90 transition-transform" aria-label={t('stories.reactWith', { emoji: r })}>
+                aria-pressed={mine === r}
+                className={`text-[34px] leading-none transition-transform hover:scale-125 active:scale-90 ${
+                  mine === r ? 'scale-125 drop-shadow-[0_0_10px_rgba(255,255,255,.55)]' : ''}`}
+                aria-label={t('stories.reactWith', { emoji: r })}>
                 {r}
               </button>
             ))}
@@ -496,8 +515,12 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
             {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-6 w-6" />}
           </button>
         ) : (
-          <button type="button" onClick={() => send({ reaction: '❤️' })} aria-label={t('stories.like')} className="w-11 h-11 flex items-center justify-center text-white press">
-            <HeartIcon />
+          <button type="button" onClick={() => send({ reaction: '❤️' })} aria-pressed={!!mine}
+            aria-label={t('stories.like')}
+            className={`w-11 h-11 flex items-center justify-center press transition-colors ${mine ? 'text-red-500' : 'text-white'}`}>
+            {mine && mine !== '❤️'
+              ? <span className="text-[26px] leading-none">{mine}</span>
+              : <HeartIcon filled={!!mine} />}
           </button>
         )}
       </form>
@@ -505,9 +528,10 @@ function ReplyBar({ story, ownerName, onFocusChange, onSent }: {
   )
 }
 
-function HeartIcon() {
+function HeartIcon({ filled }: { filled?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className={`w-7 h-7 transition-transform ${filled ? 'scale-110' : ''}`}
+      fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
       <path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.6 3.4 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z" />
     </svg>
   )

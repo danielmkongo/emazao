@@ -467,7 +467,8 @@ export default function ProductDetail() {
 
   const messageSeller = () => {
     if (!isAuthenticated) { navigate('/login'); return }
-    navigate(`/messages/new?recipientId=${seller._id}`, { state: { recipient: seller } })
+    // Carry the listing so the seller sees what is being asked about.
+    navigate(`/messages/new?recipientId=${seller._id}&productId=${data._id}`, { state: { recipient: seller, product: data } })
   }
 
   const roundBtn = 'w-10 h-10 rounded-full bg-white/90 dark:bg-black/60 text-black flex items-center justify-center shadow-md backdrop-blur press'

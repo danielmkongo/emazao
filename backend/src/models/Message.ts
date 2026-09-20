@@ -7,6 +7,7 @@ export interface IMessage extends Document {
   mediaUrl?: string
   mediaType?: 'IMAGE' | 'VIDEO'
   sharedReel?: mongoose.Types.ObjectId
+  sharedProduct?: mongoose.Types.ObjectId
   clientId?: string
   storyReply?: {
     storyId: mongoose.Types.ObjectId
@@ -38,6 +39,11 @@ const MessageSchema = new Schema<IMessage>(
     // A reel sent from its share sheet, rendered in the thread as a card that
     // opens the reel — Instagram and TikTok's "send to" rather than a pasted link.
     sharedReel: { type: Schema.Types.ObjectId, ref: 'Reel' },
+    // The listing a question is about, attached when a buyer taps "Ask" on a
+    // product. A reference rather than a copy: a seller answering "is this
+    // still available?" should see the listing as it stands now, including its
+    // current price and stock, not as it looked when the question was asked.
+    sharedProduct: { type: Schema.Types.ObjectId, ref: 'Product' },
     // A reply or reaction to a story. A copy of what the story showed rather
     // than a reference: the story is gone in a day but the conversation stays,
     // and "what was this about?" must still be answerable next week.

@@ -6,6 +6,7 @@ import Message from '../models/Message'
 import User from '../models/User'
 import Notification from '../models/Notification'
 import Reel from '../models/Reel'
+import Product from '../models/Product'
 import { sendNotification, emitToRoom } from '../services/notification.service'
 import { isUserOnline } from '../socket'
 
@@ -78,6 +79,7 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
     const messages = await Message.find({ conversationId })
       .populate('senderId', 'name username avatar')
       .populate(SHARED_REEL_POPULATE)
+      .populate(SHARED_PRODUCT_POPULATE)
       .sort({ createdAt: 1 })
       .limit(100)
     res.json({ success: true, data: messages })
@@ -88,12 +90,25 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
 
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { recipientId, content, mediaUrl, conversationId: existingConvId } = req.body
+    const { recipientId, content, mediaUrl, conversationId: existingConvId, productId } = req.body
     const senderId = req.user!.id
+
+    // A question asked from a listing carries that listing, so the seller sees
+    // which of their products is being asked about instead of "is this still
+    // available?" with no subject.
+    let sharedProduct: string | undefined
+    if (productId) {
+      if (!mongoose.isValidObjectId(productId)) {
+        return res.status(400).json({ success: false, message: 'Invalid product' })
+      }
+      const product = await Product.findById(productId).select('_id')
+      if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
+      sharedProduct = String(product._id)
+    }
 
     // The schema no longer requires text, because a shared reel can travel with
     // no note. An ordinary message still needs something in it.
-    if (!String(content ?? '').trim() && !mediaUrl) {
+    if (!String(content ?? '').trim() && !mediaUrl && !sharedProduct) {
       return res.status(400).json({ success: false, message: 'Message cannot be empty' })
     }
 
@@ -135,7 +150,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     if (!conversation) return res.status(400).json({ success: false, message: 'Cannot create conversation' })
 
     const clientId = typeof req.body?.clientId === 'string' && /^[\w-]{1,64}$/.test(req.body.clientId) ? req.body.clientId : undefined
-    const message = await deliverMessage(conversation, senderId, { content: String(content ?? '').trim(), mediaUrl, clientId })
+    const message = await deliverMessage(conversation, senderId, { content: String(content ?? '').trim(), mediaUrl, clientId, sharedProduct })
     res.status(201).json({ success: true, data: { message, conversationId: conversation._id } })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
@@ -183,6 +198,12 @@ const SHARED_REEL_POPULATE = {
   populate: { path: 'userId', select: 'name username avatar isVerified' },
 }
 
+/** How an attached listing is embedded wherever a message is sent to a client. */
+const SHARED_PRODUCT_POPULATE = {
+  path: 'sharedProduct',
+  select: 'title slug images price priceUnit status availableStock stockUnit',
+}
+
 /**
  * Store a message in a conversation and tell everyone who needs to know.
  * Shared by ordinary sends and reel shares so the two cannot drift apart on
@@ -191,7 +212,7 @@ const SHARED_REEL_POPULATE = {
 export async function deliverMessage(
   conversation: any,
   senderId: string,
-  fields: { content: string; mediaUrl?: string; sharedReel?: string; storyReply?: Record<string, unknown>; clientId?: string },
+  fields: { content: string; mediaUrl?: string; sharedReel?: string; sharedProduct?: string; storyReply?: Record<string, unknown>; clientId?: string },
 ) {
   // If the recipient is connected, the push below reaches their device
   // immediately — so record delivery now rather than waiting for them to open
@@ -207,13 +228,16 @@ export async function deliverMessage(
   const preview = fields.content
     ? (fields.storyReply ? `Replied to your story: ${fields.content}` : fields.content)
     : fields.storyReply ? `Reacted ${reaction ?? ''} to your story`.replace('  ', ' ')
-    : fields.sharedReel ? 'Shared a reel' : fields.mediaUrl ? 'Sent a photo' : ''
+    : fields.sharedReel ? 'Shared a reel'
+    : fields.sharedProduct ? 'Asked about a product'
+    : fields.mediaUrl ? 'Sent a photo' : ''
   conversation.lastMessage = preview
   conversation.lastMessageAt = new Date()
   await conversation.save()
 
   await message.populate('senderId', 'name username avatar')
   if (fields.sharedReel) await message.populate(SHARED_REEL_POPULATE)
+  if (fields.sharedProduct) await message.populate(SHARED_PRODUCT_POPULATE)
 
   emitToRoom(`conv:${conversation._id}`, 'message:new', message)
 
@@ -223,12 +247,46 @@ export async function deliverMessage(
       userId: deliverToId,
       type: 'MESSAGE',
       title: fields.storyReply ? `${sender?.name ?? 'Someone'} replied to your story`
-        : fields.sharedReel ? `${sender?.name ?? 'Someone'} sent you a reel` : 'New message',
+        : fields.sharedReel ? `${sender?.name ?? 'Someone'} sent you a reel`
+        : fields.sharedProduct ? `${sender?.name ?? 'Someone'} asked about your listing` : 'New message',
       body: `${sender?.name ?? 'Someone'}: ${preview.slice(0, 80)}${preview.length > 80 ? '…' : ''}`,
       link: `/messages/${conversation._id}`,
     })
   }
   return message
+}
+
+/**
+ * Take back the bare reaction a viewer left on one story, so re-reacting
+ * replaces it rather than stacking. Only reactions with no words of their own
+ * are retractable — a written reply is a message, and messages are not unsent.
+ * Also rewinds the inbox preview when the retracted line was the last one.
+ */
+export async function retractStoryReaction(conversation: any, senderId: string, storyId: string) {
+  const gone = await Message.findOneAndDelete({
+    conversationId: conversation._id,
+    senderId,
+    'storyReply.storyId': storyId,
+    'storyReply.reaction': { $exists: true, $ne: null },
+    content: '',
+  })
+  if (!gone) return
+  emitToRoom(`conv:${conversation._id}`, 'message:removed', { messageId: String(gone._id), conversationId: String(conversation._id) })
+  // Only the bell entry raised for this exact message — it is written
+  // immediately after it, so a tight window around its timestamp cannot catch
+  // an unrelated unread message in the same thread.
+  await Notification.deleteMany({
+    type: 'MESSAGE',
+    link: `/messages/${conversation._id}`,
+    isRead: { $ne: true },
+    createdAt: { $gte: gone.createdAt, $lte: new Date(+gone.createdAt + 5000) },
+  })
+  const last = await Message.findOne({ conversationId: conversation._id }).sort({ createdAt: -1 })
+  conversation.lastMessage = last
+    ? (last.content || (last.get('storyReply')?.reaction ? 'Reacted to a story' : last.get('sharedReel') ? 'Shared a reel' : last.get('sharedProduct') ? 'Asked about a product' : 'Sent a photo'))
+    : ''
+  conversation.lastMessageAt = last?.createdAt ?? conversation.lastMessageAt
+  await conversation.save()
 }
 
 /** Find the one-to-one conversation between two people, creating it if needed. */

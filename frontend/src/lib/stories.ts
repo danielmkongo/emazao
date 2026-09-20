@@ -28,6 +28,8 @@ export interface Story {
   viewCount: number
   reactionCount: number
   seen: boolean
+  /** What this viewer reacted with, if anything. A reaction is a toggle. */
+  myReaction?: string
   expiresAt: string
   createdAt: string
 }
