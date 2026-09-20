@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatNumber, verifiedLabel } from '@/lib/utils'
 import { ProfileContent } from '@/components/profile/ProfileContent'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
+import { ExpandableText } from '@/components/ui/ExpandableText'
 import { useStoryUI } from '@/lib/stories'
 import { AppMenuSheet } from '@/components/layout/AppMenu'
 import { useAuthStore } from '@/store/authStore'
@@ -293,7 +294,12 @@ export default function Profile() {
               <p className="flex items-center gap-2 text-[14.5px] font-semibold text-[var(--c-text)]">
                 <Store className="h-4 w-4 text-brand-green" />{seller.farmName}
               </p>
-              {seller.farmDescription && <p className="text-[14px] text-[var(--c-text-2)] leading-snug">{seller.farmDescription}</p>}
+              {seller.farmDescription && (
+                // Clamped so the Shop and Reels tabs stay within reach on a phone.
+                <ExpandableText className="text-[14px] text-[var(--c-text-2)] leading-snug" moreClassName="text-[var(--c-text-3)]">
+                  {seller.farmDescription}
+                </ExpandableText>
+              )}
               {!!seller.certifications?.length && (
                 <div className="flex flex-wrap gap-1.5">
                   {seller.certifications.map(c => (

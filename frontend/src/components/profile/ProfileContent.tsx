@@ -201,11 +201,11 @@ export function ProfileContent({ userId, isOwnProfile, isSeller, defaultTab }: {
           const on = tab === t.key
           return (
             <button key={t.key} role="tab" aria-selected={on} onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-12 text-[12px] font-semibold uppercase tracking-wider border-b-2 md:border-b-0 md:border-t-2 -mb-px md:mb-0 md:-mt-px transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 h-12 text-[11.5px] sm:text-[12px] font-semibold uppercase tracking-wide border-b-2 md:border-b-0 md:border-t-2 -mb-px md:mb-0 md:-mt-px transition-colors ${
                 on ? 'border-[var(--c-text)] text-[var(--c-text)]' : 'border-transparent text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
               }`}>
-              <t.icon className="h-[22px] w-[22px] md:h-4 md:w-4" strokeWidth={on ? 2.3 : 1.9} />
-              <span className="hidden sm:inline">{t.label}</span>
+              <t.icon className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={on ? 2.3 : 1.9} />
+              <span>{t.label}</span>
               {t.private && <Lock className="h-3 w-3 opacity-60" />}
             </button>
           )
