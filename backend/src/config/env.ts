@@ -51,6 +51,18 @@ export const env = {
   CLICKPESA_API_KEY: process.env['CLICKPESA_API_KEY'] || '',
   // Optional, but leaving it unset disables webhook authenticity checks entirely.
   CLICKPESA_CHECKSUM_KEY: process.env['CLICKPESA_CHECKSUM_KEY'] || '',
+
+  // Cards (Visa/Mastercard) go through Snippe's hosted checkout. Leaving the
+  // API key unset simply means the card option is not offered — mobile money
+  // carries on regardless, so a missing key can never take payments down.
+  // Where a provider should post callbacks. Defaults to CLIENT_URL because
+  // emazao.com proxies /api to this service; set it explicitly if the API is
+  // ever served from its own hostname.
+  API_URL: process.env['API_URL'] || process.env['CLIENT_URL'] || '',
+  CARD_PAYMENT_PROVIDER: process.env['CARD_PAYMENT_PROVIDER'] || 'snippe',
+  SNIPPE_BASE_URL: process.env['SNIPPE_BASE_URL'] || 'https://api.snippe.sh',
+  SNIPPE_API_KEY: process.env['SNIPPE_API_KEY'] || '',
+  SNIPPE_WEBHOOK_SECRET: process.env['SNIPPE_WEBHOOK_SECRET'] || '',
   // --- Identity & risk ---
   // Keys the national ID hash. Changing it orphans every stored hash, so treat it
   // as permanent once live — rotating it means re-collecting every seller's ID.

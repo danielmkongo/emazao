@@ -3,7 +3,9 @@ import mongoose from 'mongoose'
 import { AuthRequest } from '../middleware/auth.middleware'
 import Order from '../models/Order'
 import Checkout from '../models/Checkout'
-import { getPaymentProvider } from '../services/payments'
+import User from '../models/User'
+import { env } from '../config/env'
+import { getPaymentProvider, getCardProvider } from '../services/payments'
 import {
   CHECKOUT_PREFIX, REFUND_PREFIX, collectionRef, checkoutRef,
   recordCollection, reconcileCollection, reconcilePayout, returnFailedPayout, releaseEscrow,
@@ -158,6 +160,168 @@ export const paymentWebhook = async (req: Request, res: Response) => {
     console.error('[payments] webhook handling failed:', err.message)
   }
   // Always 2xx once handled — a 5xx makes the provider replay an event we recorded.
+  res.json({ received: true })
+}
+
+/**
+ * GET /api/payments/methods — which rails this buyer can actually use.
+ *
+ * The card button is drawn from this rather than assumed, so an unset Snippe
+ * key means the option quietly is not offered instead of a button that fails
+ * when someone presses it.
+ */
+export const cardMethods = async (_req: AuthRequest, res: Response) => {
+  res.json({ success: true, data: { mobileMoney: true, card: Boolean(getCardProvider()) } })
+}
+
+/**
+ * POST /api/payments/card/checkout — open a hosted card page for an order.
+ *
+ * Returns a URL to send the buyer to. Everything after that happens on the
+ * provider's side; we learn the outcome from the webhook, or by asking.
+ */
+export const startCardCheckout = async (req: AuthRequest, res: Response) => {
+  try {
+    const provider = getCardProvider()
+    if (!provider?.createCheckout) {
+      return res.status(503).json({ success: false, message: 'Card payments are not available yet. Please pay with mobile money.' })
+    }
+
+    const { orderId, checkoutId } = req.body
+    const buyer = await User.findById(req.user!.id).select('name email phone').lean()
+    const customer = { name: buyer?.name, email: buyer?.email, phone: (buyer as any)?.phone }
+
+    // The same guards as mobile money: an order already paid, cancelled or
+    // part of an open group checkout must not be chargeable a second time.
+    let reference: string
+    let amount: number
+    let currency: string
+    let describe: string
+    let save: () => Promise<unknown>
+
+    if (checkoutId) {
+      if (!mongoose.isValidObjectId(checkoutId)) return res.status(400).json({ success: false, message: 'Invalid checkout' })
+      const group = await Checkout.findById(checkoutId)
+      if (!group) return res.status(404).json({ success: false, message: 'Checkout not found' })
+      if (String(group.buyerId) !== req.user!.id) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (group.status !== 'PENDING') return res.status(400).json({ success: false, message: `This checkout is already ${group.status.toLowerCase()}` })
+      const orders = await Order.find({ _id: { $in: group.orderIds } }).select('status total').lean()
+      if (orders.length !== group.orderIds.length || orders.some(o => o.status !== 'PENDING')) {
+        return res.status(409).json({ success: false, message: 'Some orders in this checkout are no longer awaiting payment.' })
+      }
+      reference = checkoutRef(String(group._id))
+      amount = Math.round(orders.reduce((sum, o) => sum + o.total, 0))
+      currency = group.currency
+      describe = `eMazao order group ${String(group._id).slice(-6).toUpperCase()}`
+      save = () => Checkout.updateOne({ _id: group._id }, { collectionRequestedAt: new Date() })
+    } else {
+      if (!mongoose.isValidObjectId(orderId)) return res.status(400).json({ success: false, message: 'Invalid order' })
+      const order = await Order.findById(orderId)
+      if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+      if (String(order.buyerId) !== req.user!.id) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (order.status !== 'PENDING') return res.status(400).json({ success: false, message: `Order is ${order.status}, not payable` })
+      if (order.checkoutId) {
+        const group = await Checkout.findById(order.checkoutId).select('status').lean()
+        if (group?.status === 'PENDING') {
+          return res.status(409).json({
+            success: false,
+            message: 'This order was placed with others from your cart — pay for them together from the checkout.',
+            data: { checkoutId: order.checkoutId },
+          })
+        }
+      }
+      reference = collectionRef(String(order._id))
+      amount = Math.round(order.total)
+      currency = order.currency
+      describe = `eMazao order ${order.orderNumber ?? String(order._id).slice(-6).toUpperCase()}`
+      save = () => Order.updateOne({ _id: order._id }, { collectionRequestedAt: new Date() })
+    }
+
+    if (!provider.supportedCurrencies.includes(currency)) {
+      return res.status(400).json({ success: false, message: `Cards cannot be charged in ${currency} yet.` })
+    }
+
+    const session = await provider.createCheckout({
+      orderReference: reference,
+      amount,
+      currency,
+      description: describe,
+      redirectUrl: `${env.CLIENT_URL}/orders${orderId ? `/${orderId}` : ''}?paid=pending`,
+      webhookUrl: `${env.API_URL || env.CLIENT_URL}/api/payments/card/webhook`,
+      customer,
+      methods: ['card'],
+    })
+
+    // Store the provider's reference before answering: if the buyer pays and
+    // the webhook is lost, this is the only way back to the payment.
+    const target = checkoutId
+      ? Checkout.updateOne({ _id: checkoutId }, { cardSessionRef: session.providerRef })
+      : Order.updateOne({ _id: orderId }, { cardSessionRef: session.providerRef })
+    await target
+    await save()
+
+    res.json({ success: true, data: { checkoutUrl: session.checkoutUrl, providerRef: session.providerRef, amount, expiresAt: session.expiresAt } })
+  } catch (err: any) {
+    console.error('[payments] card checkout failed:', err.message)
+    res.status(502).json({ success: false, message: 'Could not open the card payment page. Please try again, or pay with mobile money.' })
+  }
+}
+
+/**
+ * POST /api/payments/card/webhook (mounted in app.ts, unauthenticated)
+ *
+ * Separate from the mobile-money callback because the two providers prove
+ * themselves differently: Snippe signs the raw bytes with a timestamp, which
+ * is why app.ts keeps the original buffer. An unverifiable callback is not
+ * acted on, but its session is looked up over our own authenticated
+ * connection — so a lost signature never loses a payment, and a forged one
+ * achieves nothing.
+ */
+export const cardWebhook = async (req: Request, res: Response) => {
+  const provider = getCardProvider()
+  if (!provider) return res.status(503).json({ success: false, message: 'Card payments are not configured' })
+
+  const event = provider.verifyAndParseWebhook(req.body, {
+    rawBody: (req as any).rawBody,
+    headers: req.headers as Record<string, string | string[] | undefined>,
+  })
+
+  try {
+    if (!event || event.kind === 'UNKNOWN') {
+      // Ask the provider what really happened rather than trusting the body.
+      const sessionRef = (provider as any).sessionFromWebhook?.(req.body)
+      if (sessionRef && provider.queryCollectionByRef) {
+        const paid = await provider.queryCollectionByRef(sessionRef)
+        if (paid?.status === 'SUCCESS' || paid?.status === 'SETTLED') {
+          const owner = await Order.findOne({ cardSessionRef: sessionRef }).select('_id').lean()
+            ?? await Checkout.findOne({ cardSessionRef: sessionRef }).select('_id').lean()
+          if (owner) {
+            const ref = await Checkout.exists({ _id: owner._id })
+              ? checkoutRef(String(owner._id))
+              : collectionRef(String(owner._id))
+            await recordCollection(ref, { amount: paid.amount, currency: paid.currency, providerRef: sessionRef }, provider.name)
+          }
+        }
+      }
+      return res.json({ received: true })
+    }
+
+    switch (event.kind) {
+      case 'COLLECTION_SUCCEEDED':
+        await recordCollection(
+          event.orderReference,
+          { amount: event.amount, currency: event.currency, providerRef: event.providerRef },
+          provider.name,
+        )
+        break
+      // A failed card leaves the order PENDING so the buyer can try again,
+      // with a card or with mobile money.
+      default:
+        break
+    }
+  } catch (err: any) {
+    console.error('[payments] card webhook handling failed:', err.message)
+  }
   res.json({ received: true })
 }
 

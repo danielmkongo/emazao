@@ -17,6 +17,8 @@ export interface ICheckout extends Document {
   providerRef?: string
   paidAt?: Date
   payerPhone?: string
+  /** Snippe's own id for the hosted checkout, so its status can be asked for later. */
+  cardSessionRef?: string
   collectionRequestedAt?: Date
   createdAt: Date
 }
@@ -31,6 +33,10 @@ const CheckoutSchema = new Schema<ICheckout>(
     providerRef: { type: String },
     paidAt: { type: Date },
     payerPhone: { type: String, select: false },
+    // A card goes through the provider's hosted page, and that page is indexed
+    // by the provider's reference rather than ours — so keep it, or a payment
+    // whose webhook never arrives can never be reconciled.
+    cardSessionRef: { type: String, index: true },
     collectionRequestedAt: { type: Date, index: true },
   },
   { timestamps: true }

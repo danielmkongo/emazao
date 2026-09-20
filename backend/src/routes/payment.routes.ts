@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { protect } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
-import { initiateCollection, verifyCollection, releaseEscrowByAdmin } from '../controllers/payment.controller'
+import { initiateCollection, verifyCollection, releaseEscrowByAdmin, startCardCheckout, cardMethods } from '../controllers/payment.controller'
 
 const router = Router()
 
@@ -10,7 +10,9 @@ const router = Router()
 // session token.
 
 router.use(protect)
+router.get('/methods', cardMethods)
 router.post('/collect', initiateCollection)
+router.post('/card/checkout', startCardCheckout)
 router.post('/verify', verifyCollection)
 router.post('/escrow/:id/release', requireRole('ADMIN', 'SUPER_ADMIN'), releaseEscrowByAdmin)
 

@@ -51,6 +51,8 @@ export interface IOrder extends Document {
   trackingEvents?: { status: string; note?: string; location?: string; at: Date }[]
   escrowId?: mongoose.Types.ObjectId
   payerPhone?: string
+  /** Snippe's own id for the hosted checkout, so its status can be asked for later. */
+  cardSessionRef?: string
   collectionRequestedAt?: Date
   shippedAt?: Date
   createdAt: Date
@@ -117,6 +119,10 @@ const OrderSchema = new Schema<IOrder>(
     payerPhone: { type: String, select: false },
     // When a payment prompt was last sent. Lets the reconciler ask the
     // provider about recent attempts even if their webhook never arrives.
+    // A card goes through the provider's hosted page, and that page is indexed
+    // by the provider's reference rather than ours — so keep it, or a payment
+    // whose webhook never arrives can never be reconciled.
+    cardSessionRef: { type: String, index: true },
     collectionRequestedAt: { type: Date, index: true },
     // Starts the clock for automatic escrow release.
     shippedAt: { type: Date },

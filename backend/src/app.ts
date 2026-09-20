@@ -14,7 +14,7 @@ import { connectDB } from './config/db'
 import { initSocket } from './socket'
 import { setIo } from './services/notification.service'
 import { errorHandler, notFound } from './middleware/errorHandler'
-import { paymentWebhook } from './controllers/payment.controller'
+import { paymentWebhook, cardWebhook } from './controllers/payment.controller'
 
 // Routes
 import authRoutes from './routes/auth.routes'
@@ -127,7 +127,15 @@ app.use(cors({ origin: corsOrigin, credentials: true }))
 // console.error inside its own catch block.
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 
-app.use(express.json({ limit: '10mb' }))
+// Snippe signs the raw bytes of a webhook, so those bytes have to survive
+// parsing. Only the payment callbacks keep a copy — holding one for every
+// upload in the app would double their memory for no reason.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    if ((req as any).originalUrl?.startsWith('/api/payments/')) (req as any).rawBody = buf
+  },
+}))
 
 // Payment provider callback. Mounted outside the /api router stack so it bypasses
 // `protect` — the provider proves itself with an HMAC checksum over the payload
@@ -135,6 +143,9 @@ app.use(express.json({ limit: '10mb' }))
 // JSON rather than the raw byte stream, so unlike Stripe this can safely run
 // after express.json().
 app.post('/api/payments/webhook', paymentWebhook)
+// Cards come back on their own path so each provider's signature scheme is
+// checked by the provider that issued it, rather than guessed at.
+app.post('/api/payments/card/webhook', cardWebhook)
 app.use(express.urlencoded({ extended: true }))
 
 // Rate limiting

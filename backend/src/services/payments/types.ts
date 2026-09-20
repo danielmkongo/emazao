@@ -57,6 +57,49 @@ export type WebhookEvent =
   | { kind: 'PAYOUT_REVERSED'; orderReference: string; providerRef: string }
   | { kind: 'UNKNOWN' }
 
+/**
+ * A hosted checkout page, for rails that cannot be driven from our own UI.
+ *
+ * Mobile money is a push to a phone: we send the number and the buyer approves
+ * on their handset, so the whole thing happens behind our own screen. A card
+ * cannot work that way — taking a PAN on our own form would put eMazao inside
+ * PCI scope for no benefit — so the buyer goes to the provider's page and
+ * comes back. Same escrow either way: the money lands in the platform account
+ * and is released on delivery.
+ */
+export interface CheckoutRequest {
+  orderReference: string
+  amount: number
+  currency: string
+  description?: string
+  /** Where the buyer lands once they are done, successful or not. */
+  redirectUrl: string
+  /** Where the provider should post events for this payment. */
+  webhookUrl?: string
+  customer?: { name?: string; phone?: string; email?: string }
+  /** Which rails the page should offer. Defaults to card. */
+  methods?: ('card' | 'mobile_money')[]
+}
+
+export interface CheckoutResult {
+  /** The provider's own id for the session, which is how it is looked up later. */
+  providerRef: string
+  checkoutUrl: string
+  expiresAt?: string
+}
+
+/**
+ * Everything a webhook carries besides its parsed body.
+ *
+ * Providers that sign the raw bytes need exactly those bytes: re-serialising
+ * the JSON reorders keys and changes whitespace, and the signature no longer
+ * matches. ClickPesa hashes a canonical form and ignores this entirely.
+ */
+export interface WebhookContext {
+  rawBody?: Buffer | string
+  headers?: Record<string, string | string[] | undefined>
+}
+
 /** What the provider itself says happened to a collection, asked directly. */
 export interface CollectionLookup {
   status: CollectionStatus | 'PENDING'
@@ -80,7 +123,17 @@ export interface PaymentProvider {
   createPayout(req: PayoutRequest): Promise<PayoutResult>
 
   /** Returns null when the payload fails authenticity checks — treat as a 401, never process. */
-  verifyAndParseWebhook(body: unknown): WebhookEvent | null
+  verifyAndParseWebhook(body: unknown, ctx?: WebhookContext): WebhookEvent | null
+
+  /**
+   * Open a hosted checkout page. Only implemented by providers that have one;
+   * callers check for it rather than assuming, so a provider without cards
+   * simply means the card option is not offered.
+   */
+  createCheckout?(req: CheckoutRequest): Promise<CheckoutResult>
+
+  /** Look a collection up by the provider's own reference rather than ours. */
+  queryCollectionByRef?(providerRef: string): Promise<CollectionLookup | null>
 
   /**
    * Ask the provider directly what happened to a collection. The source of

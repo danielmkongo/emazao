@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Smartphone, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Smartphone, Loader2, CheckCircle2, ShieldCheck, CreditCard, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import type { ApiResponse } from '@/types'
@@ -24,11 +24,18 @@ const POLL_MS = 4000
 const GIVE_UP_MS = 3 * 60_000
 
 /**
- * Mobile money checkout. We ask the provider to push a USSD prompt to the
- * buyer's handset; they approve with their PIN. Rather than leaving them on an
- * open-ended "waiting…", this screen keeps asking the server, which checks
- * with the provider directly, and flips to "Payment received" the moment it
- * clears — whether or not the provider's webhook has arrived.
+ * Checkout, on either rail.
+ *
+ * Mobile money is a USSD prompt pushed to the buyer's handset, approved with
+ * their PIN, so it all happens behind this screen. Rather than leaving them on
+ * an open-ended "waiting…", it keeps asking the server, which checks with the
+ * provider directly, and flips to "Payment received" the moment it clears —
+ * whether or not the provider's webhook has arrived.
+ *
+ * A card cannot work that way, and taking a card number on this form would put
+ * eMazao inside PCI scope for no benefit, so the buyer goes to the provider's
+ * hosted page and comes back. Escrow is identical either way. The card option
+ * only appears when the server says a card provider is actually configured.
  */
 export function PaymentForm({
   orderId,
@@ -43,6 +50,8 @@ export function PaymentForm({
   onSuccess: () => void
   onCancel?: () => void
 }) {
+  const [method, setMethod] = useState<'momo' | 'card'>('momo')
+  const [cardAvailable, setCardAvailable] = useState(false)
   const [phone, setPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [stage, setStage] = useState<'form' | 'waiting' | 'paid' | 'timeout'>('form')
@@ -50,6 +59,33 @@ export function PaymentForm({
   const startedAt = useRef(0)
 
   const target = checkoutId ? { checkoutId } : { orderId }
+
+  // Ask rather than assume: on a server with no Snippe key the card button
+  // would otherwise be there to press and fail.
+  useEffect(() => {
+    api.get<ApiResponse<{ card: boolean }>>('/payments/methods')
+      .then(res => setCardAvailable(Boolean(res.data.data?.card)))
+      .catch(() => setCardAvailable(false))
+  }, [])
+
+  /**
+   * Hand the buyer over to the provider's page. We leave this tab rather than
+   * opening a new one: a popup blocked mid-payment is a lost sale, and coming
+   * back is a redirect the provider already handles.
+   */
+  const payByCard = async () => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await api.post<ApiResponse<{ checkoutUrl: string }>>('/payments/card/checkout', target)
+      const url = res.data.data?.checkoutUrl
+      if (!url) throw new Error('no url')
+      window.location.href = url
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not open the card payment page. Try mobile money instead.')
+      setSubmitting(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,6 +185,55 @@ export function PaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {cardAvailable && (
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="How to pay">
+          {([
+            { key: 'momo' as const, icon: Smartphone, title: 'Mobile money', sub: 'M-Pesa, Airtel, Mixx, Halo' },
+            { key: 'card' as const, icon: CreditCard, title: 'Card', sub: 'Visa or Mastercard' },
+          ]).map(({ key, icon: Icon, title, sub }) => (
+            <button
+              key={key} type="button" role="radio" aria-checked={method === key}
+              onClick={() => { setMethod(key); setError(null) }}
+              className={`rounded-xl border px-3 py-3 text-left transition-colors ${
+                method === key
+                  ? 'border-brand-green bg-brand-green/8 ring-2 ring-brand-green/15'
+                  : 'border-[var(--c-border)] bg-[var(--c-input)] hover:border-brand-green/40'}`}
+            >
+              <Icon className={`h-5 w-5 ${method === key ? 'text-brand-green' : 'text-[var(--c-text-3)]'}`} />
+              <p className="mt-2 text-[13.5px] font-semibold text-[var(--c-text)]">{title}</p>
+              <p className="text-[11.5px] text-[var(--c-text-4)] leading-tight">{sub}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {method === 'card' ? (
+        <>
+          <div className="flex items-start gap-2 text-xs text-[var(--c-text-3)]">
+            <ExternalLink className="h-4 w-4 text-brand-green flex-shrink-0" />
+            <span>You'll finish on our payment provider's secure page and come straight back. eMazao never sees your card number.</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-[var(--c-text-3)]">
+            <ShieldCheck className="h-4 w-4 text-brand-green flex-shrink-0" />
+            <span>Held by eMazao until you confirm delivery. If there's a problem, report it and you can be refunded.</span>
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="flex gap-3">
+            {onCancel && (
+              <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={submitting}>Cancel</Button>
+            )}
+            <Button type="button" className="flex-[2]" onClick={payByCard} disabled={submitting} loading={submitting}>
+              {submitting ? 'Opening…' : 'Continue to card payment'}
+            </Button>
+          </div>
+        </>
+      ) : (
+      <>
       <div>
         <label htmlFor="momo-phone" className="text-sm text-[var(--c-text-3)] mb-2 block">Mobile money number</label>
         <input
@@ -180,6 +265,8 @@ export function PaymentForm({
           {submitting ? 'Sending request…' : 'Pay with mobile money'}
         </Button>
       </div>
+      </>
+      )}
     </form>
   )
 }
