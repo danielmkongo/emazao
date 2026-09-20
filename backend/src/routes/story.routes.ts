@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { protect, optionalProtect } from '../middleware/auth.middleware'
 import {
-  getStoryFeed, getUserStories, createStory, viewStory, getStoryViewers, replyToStory, deleteStory,
+  getStoryFeed, getUserStories, createStory, viewStory, getStoryViewers, replyToStory, deleteStory, getStory,
 } from '../controllers/story.controller'
 
 const router = Router()
@@ -14,6 +14,7 @@ router.get('/feed', getStoryFeed)
 router.post('/', createStory)
 router.post('/:id/view', viewStory)
 router.get('/:id/viewers', getStoryViewers)
+router.get('/:id', getStory)
 router.post('/:id/reply', replyToStory)
 router.delete('/:id', deleteStory)
 

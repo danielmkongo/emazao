@@ -8,6 +8,10 @@ export interface IMessage extends Document {
   mediaType?: 'IMAGE' | 'VIDEO'
   sharedReel?: mongoose.Types.ObjectId
   sharedProduct?: mongoose.Types.ObjectId
+  replyTo?: mongoose.Types.ObjectId
+  recalledAt?: Date
+  editedAt?: Date
+  editHistory?: { content: string; at: Date }[]
   clientId?: string
   storyReply?: {
     storyId: mongoose.Types.ObjectId
@@ -58,6 +62,26 @@ const MessageSchema = new Schema<IMessage>(
         reaction: String,
       }, { _id: false }),
     },
+    // The message this one answers, quoted above it in the thread. A
+    // reference, not a copy: if the original is edited the quote should say
+    // what it says now, and a recalled original must disappear here too.
+    replyTo: { type: Schema.Types.ObjectId, ref: 'Message' },
+
+    // Unsending. The row is kept and the text is left in place: a buyer and a
+    // seller arguing over what was promised is exactly when someone reaches
+    // for the delete button, so an admin reviewing a dispute has to be able to
+    // see what was said. The API redacts it for the two participants instead.
+    recalledAt: { type: Date },
+
+    // Likewise for edits — the current text lives in `content`, and every
+    // version it replaced is kept here with the time it was replaced.
+    editedAt: { type: Date },
+    editHistory: [{
+      _id: false,
+      content: { type: String },
+      at: { type: Date },
+    }],
+
     // Set when the message actually reaches the recipient's client — either
     // pushed over their socket while they are connected, or on their next fetch
     // of the thread if they were offline. Distinct from readAt, which means they

@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play, X } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play, X, Undo2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
+import { MessageMenu, useMessageActions, type MessageAction } from '@/components/messages/MessageActions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/authStore'
 import { useUnreadStore } from '@/store/unreadStore'
 import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
-import { STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
+import { STORY_BACKGROUNDS, useStoryUI, type StoryBackground, type StoryGroup } from '@/lib/stories'
 import type { ApiResponse, Product, User } from '@/types'
 
 interface Message {
@@ -22,6 +23,15 @@ interface Message {
   createdAt: string
   /** Set only on the optimistic copy shown before the server confirms. */
   pending?: boolean
+  /** Unsent by its author. The server sends no text with it, only the fact. */
+  recalledAt?: string
+  /** Last edited at; the content field already holds the current wording. */
+  editedAt?: string
+  /** The message this one answers, quoted above it. */
+  replyTo?: {
+    _id: string; content?: string; mediaUrl?: string; recalledAt?: string
+    senderId?: { _id: string; name?: string; username?: string } | string
+  } | null
   /** The sender's own id for this message; ties the saved copy to its "sending…" copy. */
   clientId?: string
   /** A reel sent from its share sheet. Null if it has since been removed. */
@@ -44,7 +54,25 @@ interface Message {
  * it is clear whose story it was.
  */
 function StoryReplyCard({ reply, isMe, otherName }: { reply: NonNullable<Message['storyReply']>; isMe: boolean; otherName?: string }) {
+  const openViewer = useStoryUI(s => s.openViewer)
+  const [checking, setChecking] = useState(false)
   const whose = `${otherName ?? 'their'}'s story`
+
+  /**
+   * The card carries its own snapshot so an old conversation still makes
+   * sense, but a story that is still up is worth opening properly — video,
+   * attached produce, the lot. The snapshot is the fallback, not the target.
+   */
+  const open = async () => {
+    if (checking) return
+    setChecking(true)
+    try {
+      const res = await api.get<ApiResponse<StoryGroup>>(`/stories/${reply.storyId}`)
+      if (res.data.data?.stories?.length) openViewer([res.data.data])
+    } catch {
+      // Expired, deleted, or no longer visible to us: the snapshot stays.
+    } finally { setChecking(false) }
+  }
   const label = reply.reaction
     ? (isMe ? `You reacted to ${whose}` : 'Reacted to your story')
     : (isMe ? `You replied to ${whose}` : 'Replied to your story')
@@ -52,7 +80,8 @@ function StoryReplyCard({ reply, isMe, otherName }: { reply: NonNullable<Message
     <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${reply.reaction ? 'mb-4' : 'mb-1'}`}>
       <span className="text-[11.5px] text-[var(--c-text-3)] mb-1 px-1">{label}</span>
       <div className="relative">
-        <div className={`w-[112px] aspect-[9/16] rounded-2xl overflow-hidden border border-[var(--c-border)] ${isMe ? 'mr-1' : 'ml-1'}`}>
+        <button onClick={open} aria-label="Open this story"
+          className={`block w-[112px] aspect-[9/16] rounded-2xl overflow-hidden border border-[var(--c-border)] press ${isMe ? 'mr-1' : 'ml-1'} ${checking ? 'opacity-60' : ''}`}>
           {reply.mediaUrl
             ? (reply.mediaType === 'VIDEO'
               ? <video src={`${reply.mediaUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover" />
@@ -62,7 +91,7 @@ function StoryReplyCard({ reply, isMe, otherName }: { reply: NonNullable<Message
                 <p className="text-white text-[11px] font-bold text-center leading-tight line-clamp-6" style={{ fontFamily: 'var(--font-display)' }}>{reply.text}</p>
               </div>
             )}
-        </div>
+        </button>
         {reply.reaction && (
           <span className={`absolute -bottom-3 ${isMe ? '-left-3' : '-right-3'} text-[34px] leading-none drop-shadow`}>{reply.reaction}</span>
         )}
@@ -136,6 +165,33 @@ function SharedProductCard({ product, isMe }: { product: Message['sharedProduct'
         </p>
       </div>
     </a>
+  )
+}
+
+/** How long a sender has to take a message back or fix it. Mirrors the server. */
+const EDIT_WINDOW_MS = 60_000
+
+const withinWindow = (msg: Message) => Date.now() - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS
+
+/**
+ * The line a reply is answering, sitting above it as WhatsApp shows it.
+ * Tapping it jumps to the original, which is the whole point of quoting:
+ * "which of the four prices do you mean" has an answer you can get to.
+ */
+function QuotedMessage({ reply, isMe, myId, onJump }: {
+  reply: NonNullable<Message['replyTo']>; isMe: boolean; myId?: string; onJump: () => void
+}) {
+  const sender = typeof reply.senderId === 'object' ? reply.senderId : undefined
+  const who = sender?._id === myId ? 'You' : (sender?.name?.split(' ')[0] ?? 'Them')
+  const body = reply.recalledAt ? 'Message recalled' : (reply.content || (reply.mediaUrl ? 'Photo' : ''))
+  return (
+    <button onClick={onJump}
+      className={`w-full text-left rounded-xl border-l-[3px] px-2.5 py-1.5 mb-1 max-w-full ${
+        isMe ? 'bg-black/10 border-white/60' : 'bg-[var(--c-input)] border-brand-green'}`}>
+      <span className={`block text-[11.5px] font-semibold ${isMe ? 'text-white/90' : 'text-brand-green'}`}>{who}</span>
+      <span className={`block text-[12.5px] line-clamp-2 ${
+        isMe ? 'text-white/75' : 'text-[var(--c-text-3)]'} ${reply.recalledAt ? 'italic' : ''}`}>{body}</span>
+    </button>
   )
 }
 
@@ -248,6 +304,11 @@ export default function Thread() {
   const productIdParam = searchParams.get('productId')
   const stateProduct = (location.state as { product?: Product } | null)?.product
   const [dropped, setDropped] = useState(false)
+  // What the composer is currently doing: writing a new line, answering one,
+  // or rewriting one that has already been sent.
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [editing, setEditing] = useState<Message | null>(null)
+  const { longPress, sheetNode } = useMessageActions()
   const { data: fetchedProduct } = useQuery({
     queryKey: ['product-by-id', productIdParam],
     queryFn: async () => {
@@ -328,13 +389,13 @@ export default function Thread() {
       if (isNewConvo) {
         const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
           '/messages',
-          { recipientId: recipientIdParam, content, productId: attachedProduct?._id }
+          { recipientId: recipientIdParam, content, productId: attachedProduct?._id, replyTo: replyingTo?._id }
         )
         return res.data.data
       }
       const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
         '/messages',
-        { conversationId: id, content, clientId: nextClientId.current, productId: attachedProduct?._id }
+        { conversationId: id, content, clientId: nextClientId.current, productId: attachedProduct?._id, replyTo: replyingTo?._id }
       )
       return res.data.data
     },
@@ -376,6 +437,7 @@ export default function Thread() {
         // with a new last line.
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
         setDropped(true)
+        setReplyingTo(null)
         setText('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       }
@@ -403,6 +465,16 @@ export default function Thread() {
     // looking at a heart the sender has already removed.
     socket.on('message:removed', ({ messageId }: { messageId: string }) => {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => old.filter(m => m._id !== messageId))
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    })
+    socket.on('message:recalled', ({ messageId, recalledAt }: { messageId: string; recalledAt: string }) => {
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+        old.map(m => m._id === messageId ? { ...m, recalledAt, content: '', mediaUrl: undefined, sharedProduct: undefined } : m))
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    })
+    socket.on('message:edited', ({ messageId, content, editedAt }: { messageId: string; content: string; editedAt: string }) => {
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+        old.map(m => m._id === messageId ? { ...m, content, editedAt } : m))
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
     })
     socket.on('message:read', ({ readerId, readAt }: { readerId: string; readAt: string }) => {
@@ -434,6 +506,7 @@ export default function Thread() {
 
     return () => {
       socket.off('message:new'); socket.off('message:read'); socket.off('message:removed')
+      socket.off('message:recalled'); socket.off('message:edited')
       socket.off('message:delivered'); socket.off('typing')
       if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
       socket.emit('leave_conversation', id)
@@ -476,9 +549,65 @@ export default function Thread() {
     getSocket().emit('typing', { conversationId: id, isTyping: false })
   }
 
+  /** Unsend, and let the other side know it happened rather than vanish. */
+  const recall = async (msg: Message) => {
+    queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+      old.map(m => m._id === msg._id ? { ...m, recalledAt: new Date().toISOString(), content: '' } : m))
+    try {
+      await api.post(`/messages/message/${msg._id}/recall`)
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    } catch {
+      // Put it back: the window may have closed while it sat on screen.
+      queryClient.invalidateQueries({ queryKey: ['messages', id] })
+    }
+  }
+
+  const saveEdit = async (msg: Message, content: string) => {
+    const before = msg.content
+    queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+      old.map(m => m._id === msg._id ? { ...m, content, editedAt: new Date().toISOString() } : m))
+    setEditing(null); setText('')
+    try {
+      await api.patch(`/messages/message/${msg._id}`, { content })
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    } catch {
+      queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
+        old.map(m => m._id === msg._id ? { ...m, content: before } : m))
+    }
+  }
+
+  /** Scroll a quoted message into view and flash it, so the eye can find it. */
+  const jumpTo = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-brand-green', 'rounded-2xl')
+    window.setTimeout(() => el.classList.remove('ring-2', 'ring-brand-green', 'rounded-2xl'), 1400)
+  }
+
+  /** What this particular message offers, given who sent it and how long ago. */
+  const actionsFor = (msg: Message, isMe: boolean): MessageAction[] => {
+    if (msg.recalledAt || msg.pending) return []
+    const list: MessageAction[] = [
+      { key: 'reply', label: 'Reply', run: () => { setEditing(null); setReplyingTo(msg); inputRef.current?.focus() } },
+    ]
+    if (msg.content) {
+      list.push({ key: 'copy', label: 'Copy', run: () => { void navigator.clipboard?.writeText(msg.content) } })
+    }
+    if (isMe && withinWindow(msg)) {
+      if (msg.content) {
+        list.push({ key: 'edit', label: 'Edit', run: () => { setReplyingTo(null); setEditing(msg); setText(msg.content); inputRef.current?.focus() } })
+      }
+      list.push({ key: 'recall', label: 'Recall', danger: true, run: () => void recall(msg) })
+    }
+    return list
+  }
+
   const handleSend = () => {
     stopTyping()
-    if (!text.trim() || sendMutation.isPending || !canSend) return
+    if (!text.trim()) return
+    if (editing) { void saveEdit(editing, text.trim()); return }
+    if (sendMutation.isPending || !canSend) return
     nextClientId.current = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
     sendMutation.mutate(text.trim())
     if (!isNewConvo) setText('')
@@ -569,8 +698,10 @@ export default function Thread() {
             ))}
           </div>
         ) : (
-          grouped.map(({ msg, isMe, prevSame, isLast, showDay }) => (
-            <div key={msg._id}>
+          grouped.map(({ msg, isMe, prevSame, isLast, showDay }) => {
+            const actions = actionsFor(msg, isMe)
+            return (
+            <div key={msg._id} id={`msg-${msg._id}`} className="transition-shadow">
               {showDay && (
                 <div className="flex items-center gap-3 my-4">
                   <div className="flex-1 h-px bg-[var(--c-border)]" />
@@ -579,7 +710,8 @@ export default function Thread() {
                 </div>
               )}
 
-              <div className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`}>
+              <div className={`group/msg flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`}>
+                {isMe && <MessageMenu actions={actions} isMe />}
                 {!isMe && (
                   <div className="w-7 shrink-0">
                     {isLast ? (
@@ -588,7 +720,15 @@ export default function Thread() {
                   </div>
                 )}
 
-                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}
+                  {...(actions.length ? longPress(actions) : {})}>
+                  {/* A recalled message takes its quote with it — leaving the
+                      quoted line behind is a fragment of a message that is
+                      supposed to be gone. */}
+                  {msg.replyTo && !msg.recalledAt && (
+                    <QuotedMessage reply={msg.replyTo} isMe={isMe} myId={user?._id}
+                      onJump={() => jumpTo(msg.replyTo!._id)} />
+                  )}
                   {msg.sharedReel !== undefined && (
                     <SharedReelCard reel={msg.sharedReel as any} isMe={isMe} />
                   )}
@@ -597,6 +737,13 @@ export default function Thread() {
                   )}
                   {msg.storyReply && (
                     <StoryReplyCard reply={msg.storyReply} isMe={isMe} otherName={other?.name?.split(' ')[0]} />
+                  )}
+                  {msg.recalledAt && (
+                    <div className={`flex items-center gap-1.5 rounded-2xl border border-dashed px-3.5 py-2 text-[13px] italic ${
+                      isMe ? 'border-white/30 text-[var(--c-text-3)]' : 'border-[var(--c-border)] text-[var(--c-text-3)]'}`}>
+                      <Undo2 className="h-3.5 w-3.5" />
+                      {isMe ? 'You recalled this message' : 'This message was recalled'}
+                    </div>
                   )}
                   {/* A shared reel may travel with no note; draw no empty bubble. */}
                   {Boolean(msg.content) && (
@@ -620,19 +767,40 @@ export default function Thread() {
                   {isLast && (
                     <div className={`flex items-center gap-1 mt-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[var(--c-text-4)] text-[10px]">{formatTime(msg.createdAt)}</span>
-                      {isMe && <MessageTicks msg={msg} />}
+                      {msg.editedAt && !msg.recalledAt && <span className="text-[var(--c-text-4)] text-[10px]">edited</span>}
+                      {isMe && !msg.recalledAt && <MessageTicks msg={msg} />}
                     </div>
                   )}
                 </div>
+                {!isMe && <MessageMenu actions={actions} isMe={false} />}
               </div>
             </div>
-          ))
+            )
+          })
         )}
         <div ref={bottomRef} />
       </div>
 
       {/* ── Input ── */}
       <div className="shrink-0 px-4 py-3 border-t border-[var(--c-border)] bg-[var(--c-card)]">
+        {(replyingTo || editing) && (
+          <div className="max-w-4xl mx-auto mb-2.5 flex items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--c-input)] p-2 pl-3">
+            <div className={`w-[3px] self-stretch rounded-full ${editing ? 'bg-gold' : 'bg-brand-green'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] leading-tight text-[var(--c-text-4)]">
+                {editing ? 'Editing your message' : `Replying to ${replyingTo && getSenderId(replyingTo) === user?._id ? 'yourself' : (other?.name?.split(' ')[0] ?? 'them')}`}
+              </p>
+              <p className="truncate text-[13px] text-[var(--c-text-2)]">
+                {(editing ?? replyingTo)!.content || 'Photo'}
+              </p>
+            </div>
+            <button onClick={() => { setReplyingTo(null); if (editing) { setEditing(null); setText('') } }}
+              aria-label="Cancel"
+              className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)]">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {attachedProduct && (
           <div className="max-w-4xl mx-auto mb-2.5 flex items-center gap-2.5 p-2 rounded-2xl bg-[var(--c-input)] border border-[var(--c-border)]">
             <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--c-raised)] shrink-0">
@@ -654,21 +822,26 @@ export default function Thread() {
               ref={inputRef}
               value={text}
               onChange={e => { setText(e.target.value); signalTyping() }}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) handleSend()
+                if (e.key === 'Escape' && editing) { setEditing(null); setText('') }
+              }}
               disabled={!canSend}
-              placeholder={!canSend ? 'Pick someone to message first' : attachedProduct ? 'Ask about this listing…' : `Message ${other?.name ?? ''}…`}
+              placeholder={!canSend ? 'Pick someone to message first' : editing ? 'Edit your message…' : replyingTo ? 'Reply…' : attachedProduct ? 'Ask about this listing…' : `Message ${other?.name ?? ''}…`}
               className="flex-1 bg-transparent py-2.5 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none"
             />
           </div>
           <button
             onClick={handleSend}
-            disabled={!text.trim() || sendMutation.isPending || !canSend}
+            disabled={!text.trim() || sendMutation.isPending || (!canSend && !editing)}
             className="w-10 h-10 rounded-full bg-brand-green flex items-center justify-center text-white disabled:opacity-40 hover:bg-brand-emerald transition-colors shrink-0"
           >
             <Send className="h-4 w-4" />
           </button>
         </div>
       </div>
+      {/* The long-press sheet, outside the scrolling thread so it is not clipped. */}
+      {sheetNode}
     </div>
   )
 }

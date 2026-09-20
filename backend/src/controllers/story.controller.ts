@@ -318,6 +318,44 @@ export const replyToStory = async (req: AuthRequest, res: Response) => {
   }
 }
 
+/**
+ * GET /api/stories/:id — one story, if it is still up.
+ *
+ * A story reply in a chat keeps its own snapshot of what the story showed, so
+ * the conversation still makes sense next week. But while the story is alive
+ * the snapshot is a poor substitute for the real thing — it has no video, no
+ * attached produce and no progress bar — so tapping the card opens the story
+ * itself, and falls back to the snapshot once it has expired.
+ */
+export const getStory = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid story' })
+    const story = await Story.findOne({ _id: req.params.id, ...active() })
+      .populate('userId', AUTHOR_FIELDS)
+      .populate('productId', PRODUCT_FIELDS)
+      .lean()
+    // 404 is the honest answer: expired and never-existed are the same thing
+    // to a viewer, and the caller shows its saved copy either way.
+    if (!story) return res.status(404).json({ success: false, message: 'Story has expired' })
+
+    const mine = req.user?.id
+      ? await StoryView.findOne({ storyId: story._id, viewerId: req.user.id }).select('reaction').lean()
+      : null
+    const author: any = story.userId
+    res.json({
+      success: true,
+      data: {
+        user: author,
+        stories: [{ ...story, userId: String(author?._id ?? author), seen: !!mine, myReaction: mine?.reaction }],
+        allSeen: !!mine,
+        latestAt: story.createdAt,
+      },
+    })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
 /** DELETE /api/stories/:id — take a story down early. */
 export const deleteStory = async (req: AuthRequest, res: Response) => {
   try {

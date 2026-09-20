@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageSquare, Edit, X, Search, Loader2 } from 'lucide-react'
+import { MessageSquare, Edit, X, Search, Loader2, Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { StoryAvatar } from '@/components/stories/StoryAvatar'
 import { shortAgo } from '@/components/stories/StoryViewer'
@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
+import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import type { ApiResponse, User } from '@/types'
 
 interface Conversation {
@@ -42,12 +43,21 @@ const ROLE_LABELS: Record<string, string> = {
 export function ConversationList({ activeId }: { activeId?: string }) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [composing, setComposing] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [filter, setFilter] = useState('')
   const { data: storyGroups } = useStoryFeed()
   const storiesByUser = useMemo(() => new Map((storyGroups ?? []).map(g => [g.user._id, g])), [storyGroups])
   const debouncedQ = useDebounce(searchQ, 300)
+
+  // The chat waiting on a confirmation before it is cleared. Deleting a
+  // negotiation by accident is not something an undo toast can fix well, so
+  // it asks first.
+  const [confirmClear, setConfirmClear] = useState<Conversation | null>(null)
+  const [busy, setBusy] = useState(false)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pressMoved = useRef(false)
 
   const { data: conversations, isLoading } = useQuery({
     queryKey: ['conversations', user?._id],
@@ -87,6 +97,39 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   }
 
   const displayedUsers = searchResults ?? []
+  const clearChat = async (conv: Conversation) => {
+    setBusy(true)
+    try {
+      await api.delete(`/messages/${conv._id}`)
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      queryClient.removeQueries({ queryKey: ['messages', conv._id] })
+      void refreshUnreadMessages()
+      setConfirmClear(null)
+      // Standing in a thread that has just been emptied makes no sense.
+      if (conv._id === activeId) navigate('/messages')
+    } catch {
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+  }
+
+  /** Long press opens the same action on a phone, where there is no hover. */
+  const longPress = (conv: Conversation) => ({
+    onTouchStart: () => {
+      pressMoved.current = false
+      if (pressTimer.current) clearTimeout(pressTimer.current)
+      pressTimer.current = setTimeout(() => {
+        if (pressMoved.current) return
+        try { navigator.vibrate?.(12) } catch { /* not on iOS */ }
+        setConfirmClear(conv)
+      }, 500)
+    },
+    onTouchMove: () => { pressMoved.current = true; if (pressTimer.current) clearTimeout(pressTimer.current) },
+    onTouchEnd: () => { if (pressTimer.current) clearTimeout(pressTimer.current) },
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  })
+
   const shown = (conversations ?? []).filter(c => {
     if (!filter.trim()) return true
     const other = c.participants.find(p => String(p._id) !== String(user?._id))
@@ -141,7 +184,8 @@ export function ConversationList({ activeId }: { activeId?: string }) {
               const isActive = conv._id === activeId
               const hasUnread = (conv.unreadCount ?? 0) > 0
               return (
-                <Link key={conv._id} to={`/messages/${conv._id}`} className="block min-w-0">
+                <div key={conv._id} className="group/conv relative">
+                <Link to={`/messages/${conv._id}`} className="block min-w-0" {...longPress(conv)}>
                   <div className={`flex items-center gap-3 px-4 py-2 transition-colors ${isActive ? 'bg-[var(--c-raised)]' : 'hover:bg-[var(--c-raised)]/60'}`}>
                     {other
                       ? <StoryAvatar user={other} size={52} group={storiesByUser.get(other._id)} />
@@ -159,12 +203,50 @@ export function ConversationList({ activeId }: { activeId?: string }) {
                     {hasUnread && <span className="w-2.5 h-2.5 rounded-full bg-brand-green flex-shrink-0" aria-label="Unread" />}
                   </div>
                 </Link>
+                {/* Desktop reaches it on hover; a phone holds the row instead. */}
+                <button
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmClear(conv) }}
+                  aria-label={`Delete chat with ${other?.name ?? 'this person'}`}
+                  className="absolute right-3 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--c-card)] text-[var(--c-text-3)] opacity-0 shadow ring-1 ring-[var(--c-border)] transition-opacity hover:text-red-500 group-hover/conv:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:flex"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                </div>
               )
             })}
             {!shown.length && <p className="text-center text-[var(--c-text-3)] text-sm py-10">No chats match “{filter}”</p>}
           </div>
         )}
       </div>
+
+      {/* Deleting a chat — one-sided, and said so plainly */}
+      <AnimatePresence>
+        {confirmClear && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center"
+            onClick={e => { if (e.target === e.currentTarget) setConfirmClear(null) }}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmClear(null)} />
+            <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+              className="relative w-full max-w-sm rounded-2xl border border-[var(--c-border)] bg-[var(--c-card)] p-5 shadow-2xl">
+              <h2 className="text-[16px] font-bold text-[var(--c-text)]">Delete this chat?</h2>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--c-text-3)]">
+                It will be removed from your inbox. The other person keeps their copy,
+                and eMazao keeps a record in case an order from this conversation is ever disputed.
+              </p>
+              <div className="mt-5 flex gap-2">
+                <button onClick={() => setConfirmClear(null)}
+                  className="flex-1 rounded-xl border border-[var(--c-border)] py-2.5 text-[14px] font-semibold text-[var(--c-text)]">
+                  Cancel
+                </button>
+                <button onClick={() => void clearChat(confirmClear)} disabled={busy}
+                  className="flex-1 rounded-xl bg-red-500 py-2.5 text-[14px] font-semibold text-white disabled:opacity-60">
+                  {busy ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Compose Modal */}
       <AnimatePresence>
