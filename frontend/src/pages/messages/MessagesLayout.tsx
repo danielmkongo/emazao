@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
 import { MessageSquare } from 'lucide-react'
 import { ConversationList } from '@/components/messages/ConversationList'
@@ -15,8 +16,28 @@ export default function MessagesLayout() {
   const { id } = useParams<{ id: string }>()
   const isThreadOpen = location.pathname !== '/messages'
 
+  // The page behind the chat must not scroll at all. On a phone the document
+  // is 100vh tall but only 100dvh is visible, so it could still move by about a
+  // toolbar's height — and when the message list reached its end, the leftover
+  // scroll was handed to the page, carrying the composer up with it. Locking
+  // the document and pinning this layer to the space between the top bar and
+  // the bottom nav keeps the composer glued down whatever the finger does.
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    const before = [html.style.overflow, body.style.overflow, html.style.overscrollBehavior, body.style.overscrollBehavior]
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+    body.style.overscrollBehavior = 'none'
+    window.scrollTo(0, 0)
+    return () => {
+      ;[html.style.overflow, body.style.overflow, html.style.overscrollBehavior, body.style.overscrollBehavior] = before
+    }
+  }, [])
+
   return (
-    <div className="flex h-[calc(100dvh-112px-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] lg:h-screen bg-[var(--c-bg)]">
+    <div className="fixed inset-x-0 top-[calc(56px+env(safe-area-inset-top,0px))] bottom-[calc(56px+env(safe-area-inset-bottom,0px))] flex overscroll-none lg:static lg:h-screen bg-[var(--c-bg)]">
       <div className={`w-full min-w-0 overflow-hidden lg:w-[360px] lg:flex-shrink-0 lg:border-r lg:border-[var(--c-border)] ${isThreadOpen ? 'hidden lg:flex' : 'flex'}`}>
         <ConversationList activeId={id} />
       </div>

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { X, Search, Check, Link2, Share, Send, Loader2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
+import { ReelThumb } from '@/components/reels/ReelThumb'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import type { ApiResponse, User } from '@/types'
@@ -23,8 +24,15 @@ function useDebounce<T>(value: T, ms: number): T {
  * stay available underneath for sending it off-platform.
  */
 export function ShareSheet({
-  reelId, onClose, onShared,
-}: { reelId: string; onClose: () => void; onShared: (count: number) => void }) {
+  reelId, thumbnailUrl, videoUrl, onClose, onShared,
+}: {
+  reelId: string
+  /** Shown beside the message box, so it is clear what is being sent. */
+  thumbnailUrl?: string
+  videoUrl?: string
+  onClose: () => void
+  onShared: (count: number) => void
+}) {
   const { user, isAuthenticated } = useAuthStore()
   const queryClient = useQueryClient()
   const [q, setQ] = useState('')
@@ -164,11 +172,16 @@ export function ShareSheet({
 
         {picked.size > 0 ? (
           <div className="border-t border-[var(--c-border)] p-4 space-y-3">
-            <input
-              id="share-note" value={note} onChange={e => setNote(e.target.value)} maxLength={2000}
-              placeholder="Write a message…"
-              className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-4)] focus:outline-none focus:border-brand-green"
-            />
+            <div className="flex items-center gap-3">
+              <div className="h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-neutral-900">
+                <ReelThumb thumbnailUrl={thumbnailUrl} videoUrl={videoUrl} className="h-full w-full" />
+              </div>
+              <input
+                id="share-note" value={note} onChange={e => setNote(e.target.value)} maxLength={2000}
+                placeholder="Write a message…"
+                className="min-w-0 flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-4)] focus:outline-none focus:border-brand-green"
+              />
+            </div>
             {send.isError && (
               <p className="text-red-500 text-xs">{(send.error as any)?.response?.data?.message ?? 'Could not send.'}</p>
             )}

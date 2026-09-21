@@ -160,9 +160,12 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       .populate(SHARED_REEL_POPULATE)
       .populate(SHARED_PRODUCT_POPULATE)
       .populate({ path: 'replyTo', select: 'content senderId recalledAt mediaUrl', populate: { path: 'senderId', select: 'name username' } })
-      .sort({ createdAt: 1 })
+      // Newest first, then turned back round. Sorting oldest-first before the
+      // limit returned the first 100 messages ever sent, so a conversation
+      // past that length stopped showing anything new when it was reopened.
+      .sort({ createdAt: -1 })
       .limit(100)
-    res.json({ success: true, data: messages.map(forParticipant) })
+    res.json({ success: true, data: messages.reverse().map(forParticipant) })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })
   }

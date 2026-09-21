@@ -331,7 +331,7 @@ export const PostCard = memo(function PostCard({ kind, item, storyGroup }: PostC
       </div>
 
       {sharing && reel && (
-        <ShareSheet reelId={reel._id} onClose={() => setSharing(false)} onShared={() => setSharing(false)} />
+        <ShareSheet reelId={reel._id} thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.videoUrl} onClose={() => setSharing(false)} onShared={() => setSharing(false)} />
       )}
     </article>
   )

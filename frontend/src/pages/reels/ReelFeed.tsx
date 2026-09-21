@@ -495,7 +495,7 @@ function ReelCard({
 
       <AnimatePresence>
         {shareOpen && (
-          <ShareSheet reelId={reel._id} onClose={() => setShareOpen(false)} onShared={onSharedToPeople} />
+          <ShareSheet reelId={reel._id} thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.videoUrl} onClose={() => setShareOpen(false)} onShared={onSharedToPeople} />
         )}
       </AnimatePresence>
 

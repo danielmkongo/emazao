@@ -115,9 +115,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   }
 
   /** Long press opens the same action on a phone, where there is no hover. */
+  // Movement under 10px is a finger settling, not a scroll — cancelling on
+  // any touchmove at all meant the press never fired on a real phone.
+  const pressStart = useRef({ x: 0, y: 0 })
   const longPress = (conv: Conversation) => ({
-    onTouchStart: () => {
+    onTouchStart: (e: React.TouchEvent) => {
       pressMoved.current = false
+      pressStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       if (pressTimer.current) clearTimeout(pressTimer.current)
       pressTimer.current = setTimeout(() => {
         if (pressMoved.current) return
@@ -125,7 +129,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
         setConfirmClear(conv)
       }, 500)
     },
-    onTouchMove: () => { pressMoved.current = true; if (pressTimer.current) clearTimeout(pressTimer.current) },
+    onTouchMove: (e: React.TouchEvent) => {
+      const dx = e.touches[0].clientX - pressStart.current.x
+      const dy = e.touches[0].clientY - pressStart.current.y
+      if (Math.hypot(dx, dy) < 10) return
+      pressMoved.current = true
+      if (pressTimer.current) clearTimeout(pressTimer.current)
+    },
     onTouchEnd: () => { if (pressTimer.current) clearTimeout(pressTimer.current) },
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
   })
@@ -155,7 +165,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
         <p className="text-[15px] font-bold text-[var(--c-text)] mt-4">Messages</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain pb-2">
         {isLoading ? (
           <div className="space-y-2 p-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
         ) : !conversations?.length ? (

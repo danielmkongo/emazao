@@ -52,6 +52,27 @@ function loadImage(file: File): Promise<HTMLImageElement> {
 }
 
 /** Is this a photo, going by type or, when the browser leaves type blank (HEIC), by name? */
+/**
+ * A still image of a Cloudinary video, cut from its first second.
+ *
+ * The upload route used to make one by swapping '.mp4' for '.jpg', which does
+ * nothing to a phone recording — iPhones save .mov and the in-app camera
+ * saves .webm — so those reels were stored with the video itself as their
+ * "thumbnail". Cloudinary will render a frame of any video if asked by
+ * transformation, whatever the extension, so ask it that way.
+ */
+export function videoPoster(url?: string, width = 480): string | undefined {
+  if (!url) return undefined
+  const m = url.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.+?)(\.[a-z0-9]+)?(\?.*)?$/i)
+  if (!m) return undefined
+  return `${m[1]}so_1,w_${width},c_limit,q_auto,f_jpg/${m[2]}.jpg`
+}
+
+/** True when a URL points at a video file rather than a picture. */
+export function looksLikeVideo(url?: string) {
+  return !!url && /\.(mp4|mov|webm|m4v|3gp|mkv)(\?|$)/i.test(url)
+}
+
 export function isImageFile(file: File) {
   return file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
 }

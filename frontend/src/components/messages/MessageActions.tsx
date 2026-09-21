@@ -12,49 +12,32 @@ export interface MessageAction {
 
 const ICONS = { reply: Reply, edit: Pencil, recall: Undo2, copy: Copy }
 
+/** How far a message has to travel before letting go counts as "reply". */
+const SWIPE_TRIGGER = 56
+/** A finger never holds perfectly still; movement under this is not a gesture. */
+const JITTER = 10
+const LONG_PRESS_MS = 420
+
+const buzz = (ms: number) => { try { navigator.vibrate?.(ms) } catch { /* iOS has no vibration API */ } }
+
 /**
- * The same actions, reached the way each device expects.
- *
- * A phone has no hover, so a button floating beside every bubble would be
- * permanent clutter — there, a long press opens a sheet. A desktop has no
- * long press worth the name, so the trigger appears on hover next to the
- * bubble. One list of actions feeds both, so they cannot drift apart.
+ * The bottom sheet a long press opens on a phone. One list of actions feeds
+ * this and the desktop hover menu, so the two cannot drift apart.
  */
-export function useMessageActions() {
+export function useMessageSheet() {
   const [sheet, setSheet] = useState<MessageAction[] | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const moved = useRef(false)
+  // The finger that opened the sheet is still on the glass when it appears;
+  // lifting it produces a click, and that click landed on the backdrop and
+  // shut the sheet the instant it opened. Taps in the first moment are ignored.
+  const openedAt = useRef(0)
+  const open = (actions: MessageAction[]) => { openedAt.current = Date.now(); setSheet(actions) }
+  const dismiss = () => { if (Date.now() - openedAt.current > 450) setSheet(null) }
 
-  const cancel = () => {
-    if (timer.current) { clearTimeout(timer.current); timer.current = null }
-  }
-
-  /** Spread onto a bubble to give it a long press, on touch only. */
-  const longPress = (actions: MessageAction[]) => ({
-    onTouchStart: () => {
-      moved.current = false
-      cancel()
-      timer.current = setTimeout(() => {
-        if (moved.current) return
-        try { navigator.vibrate?.(12) } catch { /* not on iOS */ }
-        setSheet(actions)
-      }, 450)
-    },
-    // Scrolling the thread must not count as a press.
-    onTouchMove: () => { moved.current = true; cancel() },
-    onTouchEnd: cancel,
-    onTouchCancel: cancel,
-    // Chrome on Android raises its own text-selection menu otherwise.
-    onContextMenu: (e: React.MouseEvent) => { e.preventDefault() },
-  })
-
-  useEffect(() => cancel, [])
-
-  const sheetNode = (
+  const sheetNode = createPortal(
     <AnimatePresence>
-      {sheet && createPortal(
-        <div className="fixed inset-0 z-[70] flex items-end" role="dialog" aria-modal="true">
-          <motion.div className="absolute inset-0 bg-black/45" onClick={() => setSheet(null)}
+      {sheet && (
+        <div className="fixed inset-0 z-[70] flex items-end" role="dialog" aria-modal="true" key="sheet">
+          <motion.div className="absolute inset-0 bg-black/45" onClick={dismiss}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
           <motion.div
             className="relative w-full rounded-t-3xl bg-[var(--c-card)] pb-[max(12px,env(safe-area-inset-bottom))] pt-2"
@@ -75,13 +58,114 @@ export function useMessageActions() {
               )
             })}
           </motion.div>
-        </div>,
-        document.body,
+        </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 
-  return { longPress, sheetNode }
+  return { openSheet: open, sheetNode }
+}
+
+/**
+ * A message row that answers to a thumb the way WhatsApp's does.
+ *
+ * Swipe right to reply: the message follows the finger, a reply arrow fades in
+ * behind it, a tick of vibration marks the point of no return, and letting go
+ * past it quotes the message in the composer. Hold still to get everything
+ * else (copy, edit, recall) in a sheet.
+ *
+ * The earlier long press cancelled on any touchmove at all, and a real finger
+ * always moves a pixel or two, so on an actual phone it never fired. Both
+ * gestures now ignore movement under JITTER, and the row declares
+ * `touch-action: pan-y` so the browser keeps vertical scrolling while leaving
+ * sideways movement to us.
+ */
+export function GestureRow({ children, onReply, onLongPress, className }: {
+  children: React.ReactNode
+  onReply?: () => void
+  onLongPress?: () => void
+  className?: string
+}) {
+  const inner = useRef<HTMLDivElement>(null)
+  const icon = useRef<HTMLDivElement>(null)
+  const g = useRef({ x: 0, y: 0, mode: 'idle' as 'idle' | 'swipe' | 'scroll', armed: false, timer: 0 as any, pressed: false })
+
+  const paint = (dx: number) => {
+    if (inner.current) inner.current.style.transform = dx ? `translateX(${dx}px)` : ''
+    if (icon.current) {
+      const p = Math.min(1, dx / SWIPE_TRIGGER)
+      icon.current.style.opacity = String(p)
+      icon.current.style.transform = `translateY(-50%) scale(${0.6 + p * 0.4})`
+    }
+  }
+
+  const reset = () => {
+    clearTimeout(g.current.timer)
+    if (inner.current) inner.current.style.transition = 'transform 220ms cubic-bezier(.2,.8,.2,1)'
+    if (icon.current) icon.current.style.transition = 'opacity 180ms, transform 180ms'
+    paint(0)
+    g.current.mode = 'idle'
+    g.current.armed = false
+  }
+
+  return (
+    <div
+      className={`relative [touch-action:pan-y] ${className ?? ''}`}
+      onTouchStart={e => {
+        const t = e.touches[0]
+        g.current = { x: t.clientX, y: t.clientY, mode: 'idle', armed: false, timer: 0, pressed: false }
+        if (inner.current) inner.current.style.transition = 'none'
+        if (icon.current) icon.current.style.transition = 'none'
+        if (onLongPress) {
+          g.current.timer = setTimeout(() => {
+            if (g.current.mode !== 'idle') return
+            buzz(12)
+            g.current.mode = 'scroll' // the press is spent; nothing else fires
+            g.current.pressed = true
+            onLongPress()
+          }, LONG_PRESS_MS)
+        }
+      }}
+      onTouchMove={e => {
+        const t = e.touches[0]
+        const dx = t.clientX - g.current.x
+        const dy = t.clientY - g.current.y
+        if (Math.abs(dx) > JITTER || Math.abs(dy) > JITTER) clearTimeout(g.current.timer)
+        if (g.current.mode === 'idle') {
+          if (onReply && dx > JITTER && dx > Math.abs(dy) * 1.3) g.current.mode = 'swipe'
+          else if (Math.abs(dx) > JITTER || Math.abs(dy) > JITTER) g.current.mode = 'scroll'
+        }
+        if (g.current.mode !== 'swipe') return
+        // Follows the finger up to the trigger, then drags with resistance.
+        const d = dx <= 0 ? 0 : dx < SWIPE_TRIGGER ? dx : Math.min(96, SWIPE_TRIGGER + (dx - SWIPE_TRIGGER) * 0.3)
+        paint(d)
+        if (d >= SWIPE_TRIGGER && !g.current.armed) { g.current.armed = true; buzz(10) }
+        else if (d < SWIPE_TRIGGER && g.current.armed) g.current.armed = false
+      }}
+      onTouchEnd={e => {
+        const fire = g.current.mode === 'swipe' && g.current.armed
+        // After a long press, stop the browser turning the lift into a click.
+        if (g.current.pressed) e.preventDefault()
+        reset()
+        if (fire) onReply?.()
+      }}
+      onTouchCancel={reset}
+      // Android raises its own text-selection menu on a long press otherwise.
+      onContextMenu={e => { if (onLongPress) e.preventDefault() }}
+    >
+      {onReply && (
+        <div ref={icon} aria-hidden
+          className="pointer-events-none absolute left-1 top-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--c-input)] text-[var(--c-text-2)]"
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(.6)' }}>
+          <Reply className="h-4 w-4" />
+        </div>
+      )}
+      <div ref={inner} className="[@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]">
+        {children}
+      </div>
+    </div>
+  )
 }
 
 /**

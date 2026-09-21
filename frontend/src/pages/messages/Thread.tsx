@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play, X, Undo2 } from 'lucide-react'
+import { ArrowLeft, Send, Phone, Video, Check, CheckCheck, Clock, Play, X, Undo2, Reply, Pencil } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
-import { MessageMenu, useMessageActions, type MessageAction } from '@/components/messages/MessageActions'
+import { ReelThumb } from '@/components/reels/ReelThumb'
+import { MessageMenu, GestureRow, useMessageSheet, type MessageAction } from '@/components/messages/MessageActions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/authStore'
 import { useUnreadStore } from '@/store/unreadStore'
@@ -122,9 +123,10 @@ function SharedReelCard({ reel, isMe }: { reel: NonNullable<Message['sharedReel'
         <span className="text-xs font-semibold text-[var(--c-text)] truncate">@{reel.userId?.username}</span>
       </div>
       <div className="relative aspect-[9/16]">
-        {reel.thumbnailUrl
-          ? <img src={reel.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          : <video src={`${reel.videoUrl}#t=0.1`} preload="metadata" muted playsInline className="absolute inset-0 w-full h-full object-cover" />}
+        {/* Stored thumbnail, else a frame Cloudinary cuts from the video: an
+            iPhone will not paint one from an unplayed <video>, so without
+            this a shared reel arrived as an empty black card. */}
+        <ReelThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.videoUrl} className="absolute inset-0 w-full h-full" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
@@ -184,13 +186,16 @@ function QuotedMessage({ reply, isMe, myId, onJump }: {
   const sender = typeof reply.senderId === 'object' ? reply.senderId : undefined
   const who = sender?._id === myId ? 'You' : (sender?.name?.split(' ')[0] ?? 'Them')
   const body = reply.recalledAt ? 'Message recalled' : (reply.content || (reply.mediaUrl ? 'Photo' : ''))
+  // Lives inside the bubble it belongs to, tinted against that bubble — it was
+  // drawn above it on the page background with styles meant for a green
+  // bubble, which left near-white text on white.
   return (
-    <button onClick={onJump}
-      className={`w-full text-left rounded-xl border-l-[3px] px-2.5 py-1.5 mb-1 max-w-full ${
-        isMe ? 'bg-black/10 border-white/60' : 'bg-[var(--c-input)] border-brand-green'}`}>
-      <span className={`block text-[11.5px] font-semibold ${isMe ? 'text-white/90' : 'text-brand-green'}`}>{who}</span>
-      <span className={`block text-[12.5px] line-clamp-2 ${
-        isMe ? 'text-white/75' : 'text-[var(--c-text-3)]'} ${reply.recalledAt ? 'italic' : ''}`}>{body}</span>
+    <button type="button" onClick={e => { e.stopPropagation(); onJump() }}
+      className={`mb-1.5 block w-full rounded-xl px-2.5 py-1.5 text-left ${
+        isMe ? 'bg-black/15 active:bg-black/25' : 'bg-[var(--c-input)] active:bg-[var(--c-raised)]'}`}>
+      <span className={`block text-[12px] font-semibold ${isMe ? 'text-white' : 'text-brand-green'}`}>{who}</span>
+      <span className={`block text-[13px] leading-snug line-clamp-2 ${
+        isMe ? 'text-white/90' : 'text-[var(--c-text-2)]'} ${reply.recalledAt ? 'italic' : ''}`}>{body}</span>
     </button>
   )
 }
@@ -308,7 +313,9 @@ export default function Thread() {
   // or rewriting one that has already been sent.
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const [editing, setEditing] = useState<Message | null>(null)
-  const { longPress, sheetNode } = useMessageActions()
+  // A short line above the composer, for when an edit or recall is refused.
+  const [notice, setNotice] = useState<string | null>(null)
+  const { openSheet, sheetNode } = useMessageSheet()
   const { data: fetchedProduct } = useQuery({
     queryKey: ['product-by-id', productIdParam],
     queryFn: async () => {
@@ -385,24 +392,24 @@ export default function Thread() {
   const other = isNewConvo ? newConvoRecipient : conversationOther
 
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({ content, replyTo }: { content: string; replyTo?: Message | null }) => {
       if (isNewConvo) {
         const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
           '/messages',
-          { recipientId: recipientIdParam, content, productId: attachedProduct?._id, replyTo: replyingTo?._id }
+          { recipientId: recipientIdParam, content, productId: attachedProduct?._id, replyTo: replyTo?._id }
         )
         return res.data.data
       }
       const res = await api.post<ApiResponse<{ message: Message; conversationId: string }>>(
         '/messages',
-        { conversationId: id, content, clientId: nextClientId.current, productId: attachedProduct?._id, replyTo: replyingTo?._id }
+        { conversationId: id, content, clientId: nextClientId.current, productId: attachedProduct?._id, replyTo: replyTo?._id }
       )
       return res.data.data
     },
     // Show the message the instant it is typed, marked pending, and swap in the
     // saved copy when the server answers. On a slow connection the alternative
     // is a composer that clears with nothing visibly happening.
-    onMutate: (content: string) => {
+    onMutate: ({ content, replyTo }: { content: string; replyTo?: Message | null }) => {
       if (isNewConvo || !user?._id) return
       const optimistic: Message = {
         _id: nextClientId.current,
@@ -411,6 +418,12 @@ export default function Thread() {
         createdAt: new Date().toISOString(),
         pending: true,
         ...(attachedProduct ? { sharedProduct: attachedProduct } : {}),
+        ...(replyTo ? {
+          replyTo: {
+            _id: replyTo._id, content: replyTo.content, mediaUrl: replyTo.mediaUrl,
+            senderId: typeof replyTo.senderId === 'object' ? replyTo.senderId : { _id: replyTo.senderId },
+          },
+        } : {}),
       }
       queryClient.setQueryData(['messages', id], (old: Message[] = []) => [...old, optimistic])
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -513,8 +526,27 @@ export default function Thread() {
     }
   }, [id, user?._id, isNewConvo, queryClient])
 
+  // Follow the conversation down only when you are already at the bottom of
+  // it, or on first open. Scrolling on every change meant a read receipt or an
+  // edit arriving yanked you back down from whatever you had scrolled up to
+  // read, or had just jumped to from a quote.
+  const listRef = useRef<HTMLDivElement>(null)
+  const atBottom = useRef(true)
+  const lastCount = useRef(0)
+  useEffect(() => { lastCount.current = 0; atBottom.current = true }, [id])
+  // The reply, edit and notice strips make the composer taller; if you were
+  // reading the latest message, keep it in view rather than half behind them.
+  const composerMode = `${replyingTo?._id ?? ''}|${editing?._id ?? ''}|${notice ?? ''}`
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+    if (atBottom.current) requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }))
+  }, [composerMode])
+  useEffect(() => {
+    const count = messages?.length ?? 0
+    const first = lastCount.current === 0 && count > 0
+    const grew = count > lastCount.current
+    lastCount.current = count
+    if (first) bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+    else if (grew && atBottom.current) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   // Starting a thread requires knowing who it is with. Reaching /messages/new
@@ -550,19 +582,29 @@ export default function Thread() {
   }
 
   /** Unsend, and let the other side know it happened rather than vanish. */
+  const flashNotice = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(null), 3200) }
+
   const recall = async (msg: Message) => {
+    // The sheet was built when it opened; the minute may have run out since.
+    if (!withinWindow(msg)) { flashNotice('Messages can only be recalled within a minute of sending'); return }
     queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
       old.map(m => m._id === msg._id ? { ...m, recalledAt: new Date().toISOString(), content: '' } : m))
     try {
       await api.post(`/messages/message/${msg._id}/recall`)
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
-    } catch {
-      // Put it back: the window may have closed while it sat on screen.
+    } catch (err: any) {
+      // Put it back: the window may have closed on the way to the server.
       queryClient.invalidateQueries({ queryKey: ['messages', id] })
+      flashNotice(err?.response?.data?.message ?? 'Could not recall that message')
     }
   }
 
   const saveEdit = async (msg: Message, content: string) => {
+    if (!withinWindow(msg)) {
+      setEditing(null); setText('')
+      flashNotice('Messages can only be edited within a minute of sending')
+      return
+    }
     const before = msg.content
     queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
       old.map(m => m._id === msg._id ? { ...m, content, editedAt: new Date().toISOString() } : m))
@@ -570,9 +612,10 @@ export default function Thread() {
     try {
       await api.patch(`/messages/message/${msg._id}`, { content })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
-    } catch {
+    } catch (err: any) {
       queryClient.setQueryData(['messages', id], (old: Message[] = []) =>
         old.map(m => m._id === msg._id ? { ...m, content: before } : m))
+      flashNotice(err?.response?.data?.message ?? 'Could not save the edit')
     }
   }
 
@@ -585,11 +628,17 @@ export default function Thread() {
     window.setTimeout(() => el.classList.remove('ring-2', 'ring-brand-green', 'rounded-2xl'), 1400)
   }
 
+  const startReply = (msg: Message) => {
+    setEditing(null)
+    setReplyingTo(msg)
+    inputRef.current?.focus()
+  }
+
   /** What this particular message offers, given who sent it and how long ago. */
   const actionsFor = (msg: Message, isMe: boolean): MessageAction[] => {
     if (msg.recalledAt || msg.pending) return []
     const list: MessageAction[] = [
-      { key: 'reply', label: 'Reply', run: () => { setEditing(null); setReplyingTo(msg); inputRef.current?.focus() } },
+      { key: 'reply', label: 'Reply', run: () => startReply(msg) },
     ]
     if (msg.content) {
       list.push({ key: 'copy', label: 'Copy', run: () => { void navigator.clipboard?.writeText(msg.content) } })
@@ -609,7 +658,8 @@ export default function Thread() {
     if (editing) { void saveEdit(editing, text.trim()); return }
     if (sendMutation.isPending || !canSend) return
     nextClientId.current = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-    sendMutation.mutate(text.trim())
+    sendMutation.mutate({ content: text.trim(), replyTo: replyingTo })
+    setReplyingTo(null)
     if (!isNewConvo) setText('')
   }
 
@@ -633,7 +683,7 @@ export default function Thread() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--c-bg)]">
+    <div className="flex flex-col h-full min-h-0 w-full bg-[var(--c-bg)]">
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--c-border)] bg-[var(--c-card)] z-10 shrink-0">
         <button onClick={() => navigate(-1)} className="text-[var(--c-text-3)] hover:text-[var(--c-text)] transition-colors lg:hidden">
@@ -670,7 +720,11 @@ export default function Thread() {
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5">
+      <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 sm:px-4 py-4 space-y-0.5"
+        onScroll={e => {
+          const el = e.currentTarget
+          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+        }}>
         {isNewConvo ? (
           <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-12">
             {other ? (
@@ -710,7 +764,11 @@ export default function Thread() {
                 </div>
               )}
 
-              <div className={`group/msg flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`}>
+              <GestureRow
+                className={prevSame ? 'mt-0.5' : 'mt-3'}
+                onReply={actions.some(a => a.key === 'reply') ? () => startReply(msg) : undefined}
+                onLongPress={actions.length ? () => openSheet(actions) : undefined}>
+              <div className={`group/msg flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {isMe && <MessageMenu actions={actions} isMe />}
                 {!isMe && (
                   <div className="w-7 shrink-0">
@@ -720,15 +778,7 @@ export default function Thread() {
                   </div>
                 )}
 
-                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}
-                  {...(actions.length ? longPress(actions) : {})}>
-                  {/* A recalled message takes its quote with it — leaving the
-                      quoted line behind is a fragment of a message that is
-                      supposed to be gone. */}
-                  {msg.replyTo && !msg.recalledAt && (
-                    <QuotedMessage reply={msg.replyTo} isMe={isMe} myId={user?._id}
-                      onJump={() => jumpTo(msg.replyTo!._id)} />
-                  )}
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%] sm:max-w-[72%]`}>
                   {msg.sharedReel !== undefined && (
                     <SharedReelCard reel={msg.sharedReel as any} isMe={isMe} />
                   )}
@@ -739,8 +789,7 @@ export default function Thread() {
                     <StoryReplyCard reply={msg.storyReply} isMe={isMe} otherName={other?.name?.split(' ')[0]} />
                   )}
                   {msg.recalledAt && (
-                    <div className={`flex items-center gap-1.5 rounded-2xl border border-dashed px-3.5 py-2 text-[13px] italic ${
-                      isMe ? 'border-white/30 text-[var(--c-text-3)]' : 'border-[var(--c-border)] text-[var(--c-text-3)]'}`}>
+                    <div className="flex items-center gap-1.5 rounded-2xl border border-[var(--c-border)] px-3.5 py-2 text-[13px] italic text-[var(--c-text-3)]">
                       <Undo2 className="h-3.5 w-3.5" />
                       {isMe ? 'You recalled this message' : 'This message was recalled'}
                     </div>
@@ -749,7 +798,7 @@ export default function Thread() {
                   {Boolean(msg.content) && (
                   <div
                     className={`
-                      px-4 py-2.5 text-sm leading-relaxed break-words ${msg.sharedReel || msg.storyReply?.reaction ? 'mt-3' : ''} ${msg.sharedProduct !== undefined ? 'mt-1.5' : ''}
+                      ${msg.replyTo && !msg.recalledAt ? 'p-1.5 pb-2' : 'px-3.5 py-2'} text-[14.5px] leading-snug break-words whitespace-pre-wrap ${msg.sharedReel || msg.storyReply?.reaction ? 'mt-3' : ''} ${msg.sharedProduct !== undefined ? 'mt-1.5' : ''}
                       ${isMe
                         ? `bg-brand-green text-white
                            ${!prevSame ? 'rounded-t-2xl' : 'rounded-t-lg'}
@@ -760,7 +809,12 @@ export default function Thread() {
                       }
                     `}
                   >
-                    {msg.content}
+                    {/* A recalled message takes its quote with it. */}
+                    {msg.replyTo && !msg.recalledAt && (
+                      <QuotedMessage reply={msg.replyTo} isMe={isMe} myId={user?._id}
+                        onJump={() => jumpTo(msg.replyTo!._id)} />
+                    )}
+                    <span className={msg.replyTo && !msg.recalledAt ? 'block px-2' : undefined}>{msg.content}</span>
                   </div>
                   )}
 
@@ -774,6 +828,7 @@ export default function Thread() {
                 </div>
                 {!isMe && <MessageMenu actions={actions} isMe={false} />}
               </div>
+              </GestureRow>
             </div>
             )
           })
@@ -783,12 +838,20 @@ export default function Thread() {
 
       {/* ── Input ── */}
       <div className="shrink-0 px-4 py-3 border-t border-[var(--c-border)] bg-[var(--c-card)]">
+        {notice && (
+          <p role="status" className="max-w-4xl mx-auto mb-2 rounded-xl bg-[var(--c-input)] px-3 py-2 text-center text-[12.5px] text-[var(--c-text-2)]">
+            {notice}
+          </p>
+        )}
         {(replyingTo || editing) && (
-          <div className="max-w-4xl mx-auto mb-2.5 flex items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--c-input)] p-2 pl-3">
-            <div className={`w-[3px] self-stretch rounded-full ${editing ? 'bg-gold' : 'bg-brand-green'}`} />
+          <div className="max-w-4xl mx-auto mb-2 flex items-center gap-3 rounded-2xl bg-[var(--c-input)] py-2 pl-2.5 pr-1.5">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+              editing ? 'bg-gold/15 text-gold' : 'bg-brand-green/12 text-brand-green'}`}>
+              {editing ? <Pencil className="h-4 w-4" /> : <Reply className="h-4 w-4" />}
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] leading-tight text-[var(--c-text-4)]">
-                {editing ? 'Editing your message' : `Replying to ${replyingTo && getSenderId(replyingTo) === user?._id ? 'yourself' : (other?.name?.split(' ')[0] ?? 'them')}`}
+              <p className={`text-[12px] font-semibold leading-tight ${editing ? 'text-gold' : 'text-brand-green'}`}>
+                {editing ? 'Edit message' : `Reply to ${replyingTo && getSenderId(replyingTo) === user?._id ? 'yourself' : (other?.name?.split(' ')[0] ?? 'them')}`}
               </p>
               <p className="truncate text-[13px] text-[var(--c-text-2)]">
                 {(editing ?? replyingTo)!.content || 'Photo'}
@@ -828,7 +891,7 @@ export default function Thread() {
               }}
               disabled={!canSend}
               placeholder={!canSend ? 'Pick someone to message first' : editing ? 'Edit your message…' : replyingTo ? 'Reply…' : attachedProduct ? 'Ask about this listing…' : `Message ${other?.name ?? ''}…`}
-              className="flex-1 bg-transparent py-2.5 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-sm focus:outline-none"
+              className="flex-1 bg-transparent py-2.5 text-[var(--c-text)] placeholder:text-[var(--c-text-4)] text-[16px] sm:text-sm focus:outline-none"
             />
           </div>
           <button
