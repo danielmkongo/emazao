@@ -12,6 +12,7 @@ import { refreshUnreadMessages } from '@/hooks/useUnreadMessages'
 import { getSocket } from '@/lib/socket'
 import api from '@/lib/api'
 import { STORY_BACKGROUNDS, useStoryUI, type StoryBackground, type StoryGroup } from '@/lib/stories'
+import { tinyThumb, looksLikeVideo } from '@/lib/media'
 import type { ApiResponse, Product, User } from '@/types'
 
 interface Message {
@@ -32,6 +33,9 @@ interface Message {
   replyTo?: {
     _id: string; content?: string; mediaUrl?: string; recalledAt?: string
     senderId?: { _id: string; name?: string; username?: string } | string
+    sharedReel?: { thumbnailUrl?: string; videoUrl?: string; caption?: string } | null
+    sharedProduct?: { title?: string; images?: string[] } | null
+    storyReply?: { mediaUrl?: string; mediaType?: 'IMAGE' | 'VIDEO'; text?: string; background?: StoryBackground; reaction?: string }
   } | null
   /** The sender's own id for this message; ties the saved copy to its "sending…" copy. */
   clientId?: string
@@ -180,22 +184,62 @@ const withinWindow = (msg: Message) => Date.now() - new Date(msg.createdAt).getT
  * Tapping it jumps to the original, which is the whole point of quoting:
  * "which of the four prices do you mean" has an answer you can get to.
  */
+/**
+ * What a quoted message was, in a few words and (for media) a fingertip-sized
+ * picture, so a reply to a reel or a listing shows which one it was.
+ */
+function describeQuote(m: { content?: string; mediaUrl?: string; recalledAt?: string } & {
+  sharedReel?: { thumbnailUrl?: string; videoUrl?: string; caption?: string } | null
+  sharedProduct?: { title?: string; images?: string[] } | null
+  storyReply?: { mediaUrl?: string; mediaType?: 'IMAGE' | 'VIDEO'; text?: string; background?: StoryBackground; reaction?: string }
+}): { text: string; thumb?: string; swatch?: string; video?: boolean } {
+  if (m.recalledAt) return { text: 'Message recalled' }
+  if (m.sharedReel) {
+    const r = m.sharedReel
+    const still = r.thumbnailUrl && !looksLikeVideo(r.thumbnailUrl) ? tinyThumb(r.thumbnailUrl) : tinyThumb(r.videoUrl)
+    return { text: m.content || r.caption || 'Reel', thumb: still, video: true }
+  }
+  if (m.sharedProduct) return { text: m.content || m.sharedProduct.title || 'Listing', thumb: tinyThumb(m.sharedProduct.images?.[0]) }
+  if (m.storyReply) {
+    const s = m.storyReply
+    const text = m.content || (s.reaction ? `Reacted ${s.reaction} to a story` : 'Story')
+    if (s.mediaUrl) return { text, thumb: tinyThumb(s.mediaUrl), video: s.mediaType === 'VIDEO' }
+    return { text, swatch: STORY_BACKGROUNDS[s.background ?? 'harvest'] }
+  }
+  if (m.mediaUrl) return { text: m.content || 'Photo', thumb: tinyThumb(m.mediaUrl) }
+  return { text: m.content || '' }
+}
+
+/** The small square on the right of a quote. Decorative, so it is hidden from screen readers. */
+function QuoteThumb({ thumb, swatch, video }: { thumb?: string; swatch?: string; video?: boolean }) {
+  if (!thumb && !swatch) return null
+  return (
+    <span aria-hidden className="relative ml-2 h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-black/10" style={swatch ? { background: swatch } : undefined}>
+      {thumb && <img src={thumb} alt="" loading="lazy" decoding="async" width={40} height={40} className="h-full w-full object-cover" />}
+      {video && <Play className="absolute inset-0 m-auto h-3.5 w-3.5 fill-white text-white drop-shadow" />}
+    </span>
+  )
+}
+
 function QuotedMessage({ reply, isMe, myId, onJump }: {
   reply: NonNullable<Message['replyTo']>; isMe: boolean; myId?: string; onJump: () => void
 }) {
   const sender = typeof reply.senderId === 'object' ? reply.senderId : undefined
   const who = sender?._id === myId ? 'You' : (sender?.name?.split(' ')[0] ?? 'Them')
-  const body = reply.recalledAt ? 'Message recalled' : (reply.content || (reply.mediaUrl ? 'Photo' : ''))
+  const q = describeQuote(reply)
   // Lives inside the bubble it belongs to, tinted against that bubble — it was
   // drawn above it on the page background with styles meant for a green
   // bubble, which left near-white text on white.
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onJump() }}
-      className={`mb-1.5 block w-full rounded-xl px-2.5 py-1.5 text-left ${
+      className={`mb-1.5 flex w-full items-center rounded-xl py-1.5 pl-2.5 pr-1.5 text-left ${
         isMe ? 'bg-black/15 active:bg-black/25' : 'bg-[var(--c-input)] active:bg-[var(--c-raised)]'}`}>
-      <span className={`block text-[12px] font-semibold ${isMe ? 'text-white' : 'text-brand-green'}`}>{who}</span>
-      <span className={`block text-[13px] leading-snug line-clamp-2 ${
-        isMe ? 'text-white/90' : 'text-[var(--c-text-2)]'} ${reply.recalledAt ? 'italic' : ''}`}>{body}</span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-[12px] font-semibold ${isMe ? 'text-white' : 'text-brand-green'}`}>{who}</span>
+        <span className={`text-[13px] leading-snug line-clamp-2 ${
+          isMe ? 'text-white/90' : 'text-[var(--c-text-2)]'} ${reply.recalledAt ? 'italic' : ''}`}>{q.text}</span>
+      </span>
+      {!reply.recalledAt && <QuoteThumb {...q} />}
     </button>
   )
 }
@@ -421,6 +465,7 @@ export default function Thread() {
         ...(replyTo ? {
           replyTo: {
             _id: replyTo._id, content: replyTo.content, mediaUrl: replyTo.mediaUrl,
+            sharedReel: replyTo.sharedReel ?? undefined, sharedProduct: replyTo.sharedProduct ?? undefined, storyReply: replyTo.storyReply,
             senderId: typeof replyTo.senderId === 'object' ? replyTo.senderId : { _id: replyTo.senderId },
           },
         } : {}),
@@ -854,9 +899,10 @@ export default function Thread() {
                 {editing ? 'Edit message' : `Reply to ${replyingTo && getSenderId(replyingTo) === user?._id ? 'yourself' : (other?.name?.split(' ')[0] ?? 'them')}`}
               </p>
               <p className="truncate text-[13px] text-[var(--c-text-2)]">
-                {(editing ?? replyingTo)!.content || 'Photo'}
+                {editing ? editing.content : describeQuote(replyingTo as any).text}
               </p>
             </div>
+            {replyingTo && !editing && <QuoteThumb {...describeQuote(replyingTo as any)} />}
             <button onClick={() => { setReplyingTo(null); if (editing) { setEditing(null); setText('') } }}
               aria-label="Cancel"
               className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:bg-[var(--c-raised)]">

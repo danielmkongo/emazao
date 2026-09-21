@@ -199,7 +199,7 @@ export default function LiveBroadcast() {
     if (stream && primary) {
       const canvasTrack = canvasTrackRef.current
       if (canvasTrack) { stream.removeTrack(canvasTrack); canvasTrack.stop() }
-      if (!stream.getVideoTracks().includes(primary)) stream.addTrack(primary)
+      if (!stream.getVideoTracks().some(t => t === primary)) stream.addTrack(primary)
       peers.current.forEach(pc => {
         pc.getSenders().find(x => x.track?.kind === 'video')?.replaceTrack(primary).catch(() => {})
       })

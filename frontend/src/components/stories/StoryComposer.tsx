@@ -7,7 +7,7 @@ import { X, Camera, Images, Type, Tag, Loader2, ChevronRight, Check } from 'luci
 import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/lib/utils'
 import api from '@/lib/api'
-import { prepareImage, uploadMedia, uploadErrorMessage, isImageFile, isVideoFile } from '@/lib/media'
+import { prepareImage, uploadMedia, uploadErrorMessage, uploadLabel, isImageFile, isVideoFile, type UploadStage } from '@/lib/media'
 import { StoryCamera } from './StoryCamera'
 import { useStoryUI, refreshStories, STORY_BACKGROUNDS, type StoryBackground } from '@/lib/stories'
 import type { ApiResponse, Product } from '@/types'
@@ -35,6 +35,7 @@ function Composer() {
   const [product, setProduct] = useState<Product | null>(null)
   const [picking, setPicking] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
+  const [stage, setStage] = useState<UploadStage>('uploading')
   const [error, setError] = useState<string | null>(null)
   const [cameraOpen, setCameraOpen] = useState(false)
 
@@ -77,7 +78,7 @@ function Composer() {
       let mediaUrl: string | undefined
       if (mode === 'media' && file) {
         setProgress(0)
-        mediaUrl = (await uploadMedia(file, setProgress)).url
+        mediaUrl = (await uploadMedia(file, (pct, s) => { setProgress(pct); setStage(s) })).url
       }
       setProgress(100)
       await api.post('/stories', mode === 'media'
@@ -176,7 +177,7 @@ function Composer() {
               <button onClick={share} disabled={!canShare || progress !== null}
                 className="ml-auto h-12 pl-3 pr-5 rounded-full bg-white text-black text-[14px] font-bold flex items-center gap-2.5 disabled:opacity-50 press">
                 {me?.avatar ? <img src={me.avatar} alt="" className="w-7 h-7 rounded-full object-cover" /> : <span className="w-7 h-7 rounded-full bg-brand-green" />}
-                {progress !== null ? <><Loader2 className="h-4 w-4 animate-spin" /> {progress < 100 ? `${progress}%` : t('stories.sharing')}</> : <>{t('stories.yourStory')} <ChevronRight className="h-4 w-4 -ml-1" /></>}
+                {progress !== null ? <><Loader2 className="h-4 w-4 animate-spin" /> {progress < 100 ? uploadLabel(progress, stage) : t('stories.sharing')}</> : <>{t('stories.yourStory')} <ChevronRight className="h-4 w-4 -ml-1" /></>}
               </button>
             </div>
           </div>

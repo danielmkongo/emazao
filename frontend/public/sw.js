@@ -1,4 +1,4 @@
-const CACHE = 'emazao-v4'
+const CACHE = 'emazao-v5'
 const STATIC = [
   '/',
   '/feed',
@@ -22,6 +22,14 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const { request } = e
   const url = new URL(request.url)
+
+  // Only our own GETs. Anything this worker answers, the page loses upload
+  // progress for — the browser hands the worker the whole body at once — so
+  // uploads (POSTs, and every request to the media host) sat on "0%" until
+  // they finished. Cross-origin images were also being stored here without
+  // limit, and browsers pad each such entry to several megabytes of quota.
+  // The browser's own HTTP cache already handles those well.
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return
 
   // Always go network-first for API calls
   if (url.pathname.startsWith('/api')) {

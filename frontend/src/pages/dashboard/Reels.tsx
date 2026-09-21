@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatNumber, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
-import { uploadErrorMessage } from '@/lib/media'
+import { uploadErrorMessage, uploadMedia, uploadLabel } from '@/lib/media'
 import type { ApiResponse, Reel, Product } from '@/types'
 
 interface NewReelForm {
@@ -56,18 +56,12 @@ export default function DashboardReels() {
     if (!file) return
     setUploadError('')
     setUploading(true)
-    setUploadProgress('Uploading video…')
+    setUploadProgress('Preparing video…')
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await api.post<{ success: boolean; data: { url: string; thumbnailUrl: string } }>(
-        '/upload/video', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 10 * 60_000,
-          onUploadProgress: e => { if (e.total) setUploadProgress(`Uploading video… ${Math.round((e.loaded / e.total) * 100)}%`) },
-        }
-      )
-      setForm(f => ({ ...f, videoUrl: res.data.data.url, thumbnailUrl: res.data.data.thumbnailUrl ?? '' }))
+      // Compressed on the phone, then sent straight to the media host with
+      // real progress — see lib/media.
+      const res = await uploadMedia(file, (pct, stage) => setUploadProgress(`${uploadLabel(pct, stage)}…`))
+      setForm(f => ({ ...f, videoUrl: res.url, thumbnailUrl: res.thumbnailUrl ?? '' }))
       setUploadProgress('Video ready!')
     } catch (err: any) {
       setUploadError(uploadErrorMessage(err))

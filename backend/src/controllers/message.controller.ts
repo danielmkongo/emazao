@@ -159,7 +159,7 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       .populate('senderId', 'name username avatar')
       .populate(SHARED_REEL_POPULATE)
       .populate(SHARED_PRODUCT_POPULATE)
-      .populate({ path: 'replyTo', select: 'content senderId recalledAt mediaUrl', populate: { path: 'senderId', select: 'name username' } })
+      .populate(REPLY_TO_POPULATE)
       // Newest first, then turned back round. Sorting oldest-first before the
       // limit returned the first 100 messages ever sent, so a conversation
       // past that length stopped showing anything new when it was reopened.
@@ -296,6 +296,21 @@ const SHARED_REEL_POPULATE = {
   populate: { path: 'userId', select: 'name username avatar isVerified' },
 }
 
+/**
+ * What a quoted message carries: enough words to recognise it, and when it was
+ * a reel, a listing or a story, just enough of that to draw a thumbnail beside
+ * the quote. Never the full media — a reply is a pointer, not a copy.
+ */
+const REPLY_TO_POPULATE = {
+  path: 'replyTo',
+  select: 'content senderId recalledAt mediaUrl sharedReel sharedProduct storyReply',
+  populate: [
+    { path: 'senderId', select: 'name username' },
+    { path: 'sharedReel', select: 'thumbnailUrl videoUrl caption' },
+    { path: 'sharedProduct', select: 'title images' },
+  ],
+}
+
 /** How an attached listing is embedded wherever a message is sent to a client. */
 const SHARED_PRODUCT_POPULATE = {
   path: 'sharedProduct',
@@ -336,7 +351,7 @@ export async function deliverMessage(
   await message.populate('senderId', 'name username avatar')
   if (fields.sharedReel) await message.populate(SHARED_REEL_POPULATE)
   if (fields.sharedProduct) await message.populate(SHARED_PRODUCT_POPULATE)
-  if (fields.replyTo) await message.populate({ path: 'replyTo', select: 'content senderId recalledAt mediaUrl', populate: { path: 'senderId', select: 'name username' } })
+  if (fields.replyTo) await message.populate(REPLY_TO_POPULATE)
 
   emitToRoom(`conv:${conversation._id}`, 'message:new', forParticipant(message))
 
