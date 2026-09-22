@@ -1,6 +1,5 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { nextCustomerId, findActiveBan } from '../services/identity.service'
 import { nanoid } from 'nanoid'
@@ -8,13 +7,11 @@ import { env } from '../config/env'
 import User from '../models/User'
 import Wallet from '../models/Wallet'
 import { AuthRequest } from '../middleware/auth.middleware'
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/tokens'
 import { sendOtpEmail, sendPasswordResetEmail } from '../services/email.service'
 
-const signAccess = (id: string, role: string, email: string) =>
-  jwt.sign({ id, role, email }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions)
-
-const signRefresh = (id: string) =>
-  jwt.sign({ id }, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions)
+const signAccess = (id: string, role: string, email: string) => signAccessToken({ id, role, email })
+const signRefresh = (id: string) => signRefreshToken(id)
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -168,7 +165,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { id: string }
+    const decoded = verifyRefreshToken(refreshToken)
     const user = await User.findById(decoded.id)
     if (!user || user.refreshToken !== refreshToken) {
       res.status(401).json({ success: false, message: 'Invalid refresh token' })

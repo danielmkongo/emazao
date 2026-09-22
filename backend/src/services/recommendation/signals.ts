@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import InteractionEvent, { ContentType, EventType, EventSource } from '../../models/InteractionEvent'
 import ContentStats from '../../models/ContentStats'
+import FeedImpression from '../../models/FeedImpression'
 import UserInterest from '../../models/UserInterest'
 
 /**
@@ -178,6 +179,89 @@ export async function recordInteraction(input: InteractionInput): Promise<void> 
   } catch {
     // Signal loss is non-fatal — never break the user action that triggered it
   }
+}
+
+/**
+ * Feed impressions, collected in memory and written in one batch every
+ * FLUSH_MS for everyone at once.
+ *
+ * Every feed page shows ~20 items and each is an impression: a "seen" row, an
+ * event row and a counter bump. Written per request that was 60 writes per
+ * page view, each passing through Mongoose's casting, defaults and validation,
+ * and it was the largest single cost left in the feed. Buffered, a busy
+ * second of feed loads becomes three bulk operations, and counters for the
+ * same item across many viewers collapse into one increment.
+ *
+ * The trade: a crash loses up to FLUSH_MS of impression counts. Impressions
+ * only steer exploration (they carry no interest weight), and losing them was
+ * already treated as harmless.
+ */
+type PendingImpression = { userId: string; contentId: string; contentType: ContentType; creatorId?: string }
+const FLUSH_MS = 2000
+const MAX_PENDING = 20_000
+let pending: PendingImpression[] = []
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+export function queueImpressions(userId: string, items: Omit<PendingImpression, 'userId'>[]): void {
+  for (const i of items) pending.push({ userId, ...i })
+  if (pending.length >= MAX_PENDING) { void flushImpressions(); return }
+  if (!flushTimer) {
+    flushTimer = setTimeout(() => { flushTimer = null; void flushImpressions() }, FLUSH_MS)
+    flushTimer.unref?.()
+  }
+}
+
+export async function flushImpressions(): Promise<void> {
+  if (!pending.length) return
+  const batch = pending
+  pending = []
+  const now = new Date()
+  const oid = (id: string) => new mongoose.Types.ObjectId(id)
+
+  // "Seen" is one row per (viewer, item), however often it was shown.
+  const seen = new Map<string, PendingImpression>()
+  // Counters are per item: many viewers' impressions become one increment.
+  const counts = new Map<string, { n: number; item: PendingImpression }>()
+  for (const i of batch) {
+    seen.set(`${i.userId}:${i.contentId}`, i)
+    const c = counts.get(i.contentId)
+    if (c) c.n++
+    else counts.set(i.contentId, { n: 1, item: i })
+  }
+
+  await Promise.all([
+    FeedImpression.bulkWrite([...seen.values()].map(i => ({
+      updateOne: {
+        filter: { userId: i.userId, contentId: i.contentId },
+        update: { $setOnInsert: { userId: i.userId, contentId: i.contentId, contentType: i.contentType, createdAt: now } },
+        upsert: true,
+      },
+    })) as any[], { ordered: false }).catch(() => {}),
+    // Straight to the collection: these rows have nothing to default or
+    // validate beyond what is set here, and there can be thousands per flush.
+    InteractionEvent.collection.insertMany(batch.map(i => ({
+      userId: oid(i.userId), contentId: oid(i.contentId), contentType: i.contentType,
+      ...(i.creatorId ? { creatorId: oid(i.creatorId) } : {}),
+      event: 'impression', source: 'feed', createdAt: now,
+    })), { ordered: false }).catch(() => {}),
+    ContentStats.bulkWrite([...counts].map(([contentId, { n, item }]) => ({
+      updateOne: {
+        filter: { contentId },
+        update: {
+          $inc: { impressions: n, 'window.impressions': n },
+          $set: { lastEventAt: now },
+          $setOnInsert: {
+            contentId,
+            contentType: item.contentType,
+            creatorId: item.creatorId || new mongoose.Types.ObjectId(),
+            contentCreatedAt: now,
+            stage: 'TEST',
+          },
+        },
+        upsert: true,
+      },
+    })) as any[], { ordered: false }).catch(() => {}),
+  ])
 }
 
 /** Batch ingestion for the client event API. */

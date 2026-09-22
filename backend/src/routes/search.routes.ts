@@ -1,3 +1,4 @@
+import { memo } from '../utils/memo'
 import { Router } from 'express'
 import { Request, Response } from 'express'
 import Product from '../models/Product'
@@ -40,10 +41,14 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.get('/trending', async (_req: Request, res: Response) => {
   try {
-    const products = await Product.find({ status: 'ACTIVE' })
-      .sort({ viewCount: -1 })
-      .limit(10)
-      .select('title slug images price priceUnit viewCount')
+    // The same ten products for everyone: ask the database once a minute.
+    const products = await memo('search:trending', 60_000, () =>
+      Product.find({ status: 'ACTIVE' })
+        .sort({ viewCount: -1 })
+        .limit(10)
+        .select('title slug images price priceUnit viewCount')
+        .lean())
+    res.set('Cache-Control', 'public, max-age=60')
     res.json({ success: true, data: products })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })

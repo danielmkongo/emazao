@@ -1,3 +1,5 @@
+import { memo } from '../utils/memo'
+import { literal } from '../utils/regex'
 import { Request, Response } from 'express'
 import User from '../models/User'
 import SellerProfile from '../models/SellerProfile'
@@ -13,11 +15,12 @@ import slugify from 'slugify'
 export const getTopFarmers = async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(String(req.query['limit'] ?? '20')) || 20, 50)
-    const scores = await CreatorScore.find()
+    // Same list for everyone, and scores only move when the creators job runs.
+    const scores = await memo(`top-farmers:${limit}`, 60_000, () => CreatorScore.find()
       .sort({ credibility: -1 })
       .limit(limit)
       .populate('creatorId', 'name username avatar isVerified country bio')
-      .lean()
+      .lean())
 
     const data = scores
       .filter((s: any) => s.creatorId)
@@ -45,10 +48,10 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
     const filter: Record<string, unknown> = {}
     if (role !== 'ALL') filter.role = role
     if (q) filter['$or'] = [
-      { name: { $regex: q, $options: 'i' } },
-      { username: { $regex: q, $options: 'i' } },
-      { bio: { $regex: q, $options: 'i' } },
-      { country: { $regex: q, $options: 'i' } },
+      { name: { $regex: literal(q), $options: 'i' } },
+      { username: { $regex: literal(q), $options: 'i' } },
+      { bio: { $regex: literal(q), $options: 'i' } },
+      { country: { $regex: literal(q), $options: 'i' } },
     ]
     const users = await User.find(filter)
       .select('-passwordHash -refreshToken -otp -otpExpiry')

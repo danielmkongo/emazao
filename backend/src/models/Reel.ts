@@ -54,5 +54,8 @@ const ReelSchema = new Schema<IReel>(
 ReelSchema.index({ userId: 1 })
 ReelSchema.index({ tags: 1 })
 ReelSchema.index({ status: 1, isBoosted: 1 })
+// "Newest published first" — the reels tab and the feed's candidate pool.
+// Without it the query read every reel to return the latest few.
+ReelSchema.index({ status: 1, createdAt: -1 })
 
 export default mongoose.model<IReel>('Reel', ReelSchema)

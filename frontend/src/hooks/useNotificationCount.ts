@@ -12,8 +12,12 @@ export function useNotificationCount() {
     queryKey: ['notifications-count'],
     queryFn: async () => (await api.get<{ unreadCount: number }>('/notifications?limit=1')).data,
     enabled: !!user,
+    // New notifications arrive over the socket and bump this in place (App.tsx);
+    // polling is only a safety net for a dropped connection. Every minute from
+    // every open tab was ~80 requests a second at 5,000 users, for a number
+    // that was almost always already right.
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   })
   return data?.unreadCount ?? 0
 }

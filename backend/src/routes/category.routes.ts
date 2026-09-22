@@ -1,3 +1,4 @@
+import { memo } from '../utils/memo'
 import { Router } from 'express'
 import { Request, Response } from 'express'
 import Category from '../models/Category'
@@ -6,7 +7,9 @@ const router = Router()
 
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const categories = await Category.find().sort({ name: 1 })
+    // Categories change only when the seed runs.
+    const categories = await memo('categories', 10 * 60_000, () => Category.find().sort({ name: 1 }).lean())
+    res.set('Cache-Control', 'public, max-age=300')
     res.json({ success: true, data: categories })
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message })

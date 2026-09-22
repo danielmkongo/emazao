@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io'
-import jwt from 'jsonwebtoken'
+import { verifyAccessToken } from '../utils/tokens'
 import { env } from '../config/env'
 import LiveSession from '../models/LiveSession'
 import User from '../models/User'
@@ -8,7 +8,11 @@ import Conversation from '../models/Conversation'
 import Message from '../models/Message'
 import { sendNotification } from '../services/notification.service'
 
-const onlineUsers  = new Map<string, string>()         // userId → socketId
+// userId → every socket that user has open. One entry per user used to be
+// kept, so someone on both phone and laptop was marked offline the moment
+// either closed — and their calls, deliveries and live viewing were cleaned
+// up as if they had left entirely.
+const onlineUsers  = new Map<string, Set<string>>()
 const liveViewers  = new Map<string, Set<string>>()    // broadcasterId → Set<userId>
 const viewerOf     = new Map<string, string>()         // userId → broadcasterId (for disconnect cleanup)
 const activeCalls  = new Map<string, string>()         // userId → peerUserId (only while a call is accepted/connected)
@@ -28,7 +32,30 @@ function resolveMissedCall(calleeId: string) {
   })
 }
 
+/**
+ * Viewer counts go out at most once per VIEWER_COUNT_MS per stream, carrying
+ * the latest number.
+ *
+ * Sent on every join and leave, the global update reached every connected
+ * user each time: a stream gaining 1,000 viewers with 5,000 people online was
+ * ~5 million socket messages and 1,000 database writes in a few minutes. Now a
+ * burst of joins becomes one broadcast and one write, and the count on screen
+ * is never more than a couple of seconds behind.
+ */
+const VIEWER_COUNT_MS = 2000
+const viewerCountTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
 function emitViewerCount(io: Server, broadcasterId: string) {
+  if (viewerCountTimers.has(broadcasterId)) return
+  const t = setTimeout(() => {
+    viewerCountTimers.delete(broadcasterId)
+    sendViewerCount(io, broadcasterId)
+  }, VIEWER_COUNT_MS)
+  t.unref?.()
+  viewerCountTimers.set(broadcasterId, t)
+}
+
+function sendViewerCount(io: Server, broadcasterId: string) {
   const count = liveViewers.get(broadcasterId)?.size ?? 0
   // Emit to everyone in the stream so broadcaster and all viewers see the same count
   io.to(`live:${broadcasterId}`).emit('live:viewer-count', { count })
@@ -57,7 +84,7 @@ export const initSocket = (io: Server): void => {
     const token = socket.handshake.auth?.['token'] as string | undefined
     if (!token) return next(new Error('unauthorized'))
     try {
-      const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; role: string }
+      const decoded = verifyAccessToken(token)
       socket.data.userId = decoded.id
       socket.data.role = decoded.role
       next()
@@ -68,7 +95,8 @@ export const initSocket = (io: Server): void => {
 
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.userId as string
-    onlineUsers.set(userId, socket.id)
+    if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set())
+    onlineUsers.get(userId)!.add(socket.id)
 
     // Resolved server-side so a client cannot present someone else's name in a
     // typing indicator. Best-effort: the indicator degrades to "Typing…".
@@ -243,23 +271,34 @@ export const initSocket = (io: Server): void => {
 
     // socket.to() excludes sender — broadcaster won't see their own comment twice
     socket.on('live:comment', async (data: { broadcasterId: string; text: string }) => {
-      const author = await User.findById(userId).select('name username').lean()
+      // Looked up once per connection rather than once per comment: a busy
+      // stream's chat was a database read for every line typed.
+      if (socket.data.displayName === undefined) {
+        const author = await User.findById(userId).select('name username').lean()
+        socket.data.displayName = author?.username ?? author?.name ?? 'Someone'
+      }
       socket.to(`live:${data.broadcasterId}`).emit('live:comment', {
         broadcasterId: data.broadcasterId,
-        text: data.text,
-        username: author?.username ?? author?.name ?? 'Someone',
+        text: String(data.text ?? '').slice(0, 500),
+        username: socket.data.displayName,
       })
     })
 
     socket.on('live:end', async (data: { broadcasterId: string }) => {
       if (data.broadcasterId !== userId) return // only the broadcaster can end their own stream
       liveViewers.delete(userId)
+      clearTimeout(viewerCountTimers.get(userId))
+      viewerCountTimers.delete(userId)
       await LiveSession.deleteOne({ broadcasterId: userId })
       io.to(`live:${userId}`).emit('live:ended')
       io.emit('live:removed', { broadcasterId: userId })
     })
 
     socket.on('disconnect', async () => {
+      const mine = onlineUsers.get(userId)
+      mine?.delete(socket.id)
+      // Another device or tab is still here: they have not gone anywhere.
+      if (mine && mine.size > 0) return
       onlineUsers.delete(userId)
 
       // Notify the other party of an in-progress call instead of leaving them

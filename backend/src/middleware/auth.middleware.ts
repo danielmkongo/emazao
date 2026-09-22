@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { env } from '../config/env'
 import User from '../models/User'
+import { requestClaims } from '../utils/tokens'
 
 export interface AuthRequest extends Request {
   user?: {
@@ -13,14 +12,8 @@ export interface AuthRequest extends Request {
 
 export const optionalProtect = async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1]
-      if (token) {
-        const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; role: string; email: string }
-        req.user = { id: decoded.id, role: decoded.role, email: decoded.email }
-      }
-    }
+    const claims = requestClaims(req)
+    if (claims) req.user = { id: claims.id, role: claims.role, email: claims.email }
   } catch {}
   next()
 }
@@ -39,8 +32,15 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       return
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; role: string; email: string }
-    const user = await User.findById(decoded.id).select('-passwordHash -refreshToken -otp -otpExpiry')
+    const decoded = requestClaims(req)
+    if (!decoded) {
+      res.status(401).json({ success: false, message: 'Token invalid or expired' })
+      return
+    }
+    // Two fields and a plain object: this runs on every signed-in request, and
+    // turning a whole user document into a Mongoose object only to read
+    // `isSuspended` was a measurable share of the server's CPU.
+    const user = await User.findById(decoded.id).select('isSuspended lastSeenAt').lean()
     if (!user) {
       res.status(401).json({ success: false, message: 'User no longer exists' })
       return

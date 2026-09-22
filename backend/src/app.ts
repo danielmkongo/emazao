@@ -1,11 +1,12 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import morgan from 'morgan'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
-import jwt from 'jsonwebtoken'
+import { requestClaims } from './utils/tokens'
 import path from 'path'
 import fs from 'fs'
 
@@ -45,6 +46,7 @@ import storyRoutes from './routes/story.routes'
 import { seedCategories } from './config/seed'
 import { startRecommendationJobs } from './services/recommendation/jobs'
 import { startMoneyJobs } from './services/money.jobs'
+import { flushImpressions } from './services/recommendation/signals'
 import { startRequirementExpiryJob } from './services/requirementExpiry.job'
 import LiveSession from './models/LiveSession'
 import { migrateSaves } from './models/Save'
@@ -58,12 +60,10 @@ app.set('trust proxy', 1)
 
 /** The verified user id behind a request's bearer token, if any. */
 function userKey(req: express.Request): string | undefined {
-  const header = req.headers.authorization
-  if (!header?.startsWith('Bearer ')) return undefined
-  try {
-    const { id } = jwt.verify(header.slice(7), env.JWT_SECRET) as { id?: string }
-    return id ? `user:${id}` : undefined
-  } catch { return undefined }
+  // Checked once per request and remembered: the limiter asks twice (for the
+  // limit and for the key) and `protect` asks again. See utils/tokens.
+  const id = requestClaims(req)?.id
+  return id ? `user:${id}` : undefined
 }
 const httpServer = createServer(app)
 
@@ -126,6 +126,11 @@ app.use(cors({ origin: corsOrigin, credentials: true }))
 // production incident even involved, only whatever a controller happened to
 // console.error inside its own catch block.
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'))
+
+// Gzip JSON responses. A feed page or product list is ~27 KB of JSON and
+// about a fifth of that compressed — on mobile data that is most of the wait.
+// Small bodies are left alone; compressing them costs more than it saves.
+app.use(compression({ threshold: 1024 }))
 
 // Snippe signs the raw bytes of a webhook, so those bytes have to survive
 // parsing. Only the payment callbacks keep a copy — holding one for every
@@ -268,6 +273,15 @@ const start = async () => {
   httpServer.listen(parseInt(env.PORT), () => {
     console.log(`🚀 EMAZAO API running on port ${env.PORT}`)
     console.log(`🌐 Environment: ${env.NODE_ENV}`)
+  })
+}
+
+// pm2 restart and deploys send SIGINT/SIGTERM. Write out the impressions still
+// waiting in memory (at most a couple of seconds' worth) before exiting; pm2
+// allows ~1.6s before it forces the issue, and a flush takes a few ms.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    flushImpressions().catch(() => {}).finally(() => process.exit(0))
   })
 }
 

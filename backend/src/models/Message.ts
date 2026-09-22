@@ -96,5 +96,8 @@ const MessageSchema = new Schema<IMessage>(
 MessageSchema.index({ conversationId: 1, createdAt: 1 })
 // Serves the "mark everything not yet delivered to me" update on thread open.
 MessageSchema.index({ conversationId: 1, deliveredAt: 1 })
+// Unread counts: jump straight to the unread messages in each conversation
+// instead of reading every message in it. Asked on every page load.
+MessageSchema.index({ conversationId: 1, readAt: 1 })
 
 export default mongoose.model<IMessage>('Message', MessageSchema)

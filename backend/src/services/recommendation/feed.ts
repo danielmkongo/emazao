@@ -12,7 +12,7 @@ import { getRankingConfig } from './config'
 import {
   contentQualityScore, relevanceScore, statsViewFrom, emptyStatsView, type StatsView,
 } from './ranking'
-import { recordInteraction } from './signals'
+import { queueImpressions } from './signals'
 import type { ContentType } from '../../models/InteractionEvent'
 
 export interface FeedItem {
@@ -57,6 +57,88 @@ const toCand = (doc: any, type: ContentType): Candidate => {
 }
 
 /**
+ * The part of the feed that is the same for everyone: the newest reels and
+ * products, what is trending, and the stats and creator scores the ranking
+ * reads. Only follows, interests, what you have already seen and your own
+ * likes are personal — so this is built once, kept for POOL_TTL_MS, and shared.
+ *
+ * It used to be rebuilt on every request: two populated queries of 80 rows,
+ * the trending set, then stats and credibility for all 160, each row turned
+ * into a full Mongoose document. That was ~300 ms of work per feed load with
+ * a realistic amount of content, identical for every visitor. Rows are plain
+ * objects now too; nothing downstream needed them to be documents.
+ *
+ * Concurrent requests during a rebuild wait on the same promise rather than
+ * each starting their own, so a cold cache under load costs one build, not
+ * one per waiting visitor.
+ */
+interface Pool {
+  candidates: Candidate[]
+  statsMap: Map<string, StatsView>
+  credMap: Map<string, number>
+}
+const POOL_TTL_MS = 30_000
+const pools = new Map<string, { value?: Pool; expires: number; building?: Promise<Pool> }>()
+
+async function candidatePool(size: number, trendingLimit: number): Promise<Pool> {
+  const key = `${size}:${trendingLimit}`
+  const slot = pools.get(key)
+  if (slot?.value && slot.expires > Date.now()) return slot.value
+  if (slot?.building) return slot.building
+
+  const building = (async (): Promise<Pool> => {
+    const [recentReels, recentProducts, trending] = await Promise.all([
+      Reel.find({ status: 'PUBLISHED' }).populate('userId', 'name username avatar isVerified country region').populate('productId', 'title price priceUnit images slug').sort({ createdAt: -1 }).limit(size).lean(),
+      Product.find({ status: 'ACTIVE' }).populate('sellerId', 'name username avatar isVerified country region').populate('categoryId', 'name slug').sort({ createdAt: -1 }).limit(size).lean(),
+      ContentStats.find({ stage: { $in: ['BROAD', 'VIRAL'] }, quality: { $ne: 'SUSPICIOUS' } }).sort({ score: -1 }).limit(trendingLimit).select('contentId contentType').lean(),
+    ])
+
+    const candMap = new Map<string, Candidate>()
+    for (const r of recentReels) candMap.set(r._id.toString(), toCand(r, 'REEL'))
+    for (const p of recentProducts) candMap.set(p._id.toString(), toCand(p, 'PRODUCT'))
+
+    // Trending items not already among the newest.
+    const missingReelIds = trending.filter(t => t.contentType === 'REEL' && !candMap.has(t.contentId.toString())).map(t => t.contentId)
+    const missingProdIds = trending.filter(t => t.contentType === 'PRODUCT' && !candMap.has(t.contentId.toString())).map(t => t.contentId)
+    if (missingReelIds.length || missingProdIds.length) {
+      const [tReels, tProds] = await Promise.all([
+        missingReelIds.length ? Reel.find({ _id: { $in: missingReelIds }, status: 'PUBLISHED' }).populate('userId', 'name username avatar isVerified country region').populate('productId', 'title price priceUnit images slug').lean() : [],
+        missingProdIds.length ? Product.find({ _id: { $in: missingProdIds }, status: 'ACTIVE' }).populate('sellerId', 'name username avatar isVerified country region').populate('categoryId', 'name slug').lean() : [],
+      ])
+      for (const r of tReels) candMap.set(r._id.toString(), toCand(r, 'REEL'))
+      for (const p of tProds) candMap.set(p._id.toString(), toCand(p, 'PRODUCT'))
+    }
+
+    const candidates = [...candMap.values()]
+    const ids = candidates.map(c => c.id)
+    const creatorIds = [...new Set(candidates.map(c => c.creatorId).filter(Boolean))]
+    const [statsRows, credRows] = candidates.length
+      ? await Promise.all([
+          ContentStats.find({ contentId: { $in: ids } }).lean(),
+          CreatorScore.find({ creatorId: { $in: creatorIds } }).select('creatorId credibility').lean(),
+        ])
+      : [[], []]
+    return {
+      candidates,
+      statsMap: new Map<string, StatsView>(statsRows.map((s: any) => [s.contentId.toString(), statsViewFrom(s)])),
+      credMap: new Map<string, number>(credRows.map((c: any) => [c.creatorId.toString(), c.credibility])),
+    }
+  })()
+
+  pools.set(key, { value: slot?.value, expires: slot?.expires ?? 0, building })
+  try {
+    const value = await building
+    pools.set(key, { value, expires: Date.now() + POOL_TTL_MS })
+    return value
+  } catch (err) {
+    // Keep serving the last good pool if a rebuild fails.
+    pools.set(key, { value: slot?.value, expires: slot?.expires ?? 0 })
+    if (slot?.value) return slot.value
+    throw err
+  }
+}
+
+/**
  * Personalized, multi-source feed.
  *   retrieve → score → diversify → paginate → record impressions
  * Works from day one (legacy content with no ContentStats is scored on freshness),
@@ -67,47 +149,19 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
   const offset = Math.max(0, parseInt(cursor ?? '0', 10) || 0)
   const pool = limit * 4
 
-  // ── Parallel context loads ────────────────────────────────────────────────
-  const [recentReels, recentProducts, trending, interest, follows, me] = await Promise.all([
-    Reel.find({ status: 'PUBLISHED' }).populate('userId', 'name username avatar isVerified country region').populate('productId', 'title price priceUnit images slug').sort({ createdAt: -1 }).limit(pool),
-    Product.find({ status: 'ACTIVE' }).populate('sellerId', 'name username avatar isVerified country region').populate('categoryId', 'name slug').sort({ createdAt: -1 }).limit(pool),
-    ContentStats.find({ stage: { $in: ['BROAD', 'VIRAL'] }, quality: { $ne: 'SUSPICIOUS' } }).sort({ score: -1 }).limit(limit * 2).select('contentId contentType'),
-    userId ? UserInterest.findOne({ userId }) : null,
-    userId ? Follow.find({ followerId: userId }).select('followingId').lean() : [],
-    userId ? User.findById(userId).select('region') : null,
-  ])
-
-  // ── Assemble candidate docs (dedupe by id) ────────────────────────────────
-  const candMap = new Map<string, Candidate>()
-  for (const r of recentReels) candMap.set(r._id.toString(), toCand(r, 'REEL'))
-  for (const p of recentProducts) candMap.set(p._id.toString(), toCand(p, 'PRODUCT'))
-
-  // Hydrate trending items not already in the pool
-  const missingReelIds = trending.filter(t => t.contentType === 'REEL' && !candMap.has(t.contentId.toString())).map(t => t.contentId)
-  const missingProdIds = trending.filter(t => t.contentType === 'PRODUCT' && !candMap.has(t.contentId.toString())).map(t => t.contentId)
-  if (missingReelIds.length || missingProdIds.length) {
-    const [tReels, tProds] = await Promise.all([
-      missingReelIds.length ? Reel.find({ _id: { $in: missingReelIds }, status: 'PUBLISHED' }).populate('userId', 'name username avatar isVerified country region').populate('productId', 'title price priceUnit images slug') : [],
-      missingProdIds.length ? Product.find({ _id: { $in: missingProdIds }, status: 'ACTIVE' }).populate('sellerId', 'name username avatar isVerified country region').populate('categoryId', 'name slug') : [],
-    ])
-    for (const r of tReels) candMap.set(r._id.toString(), toCand(r, 'REEL'))
-    for (const p of tProds) candMap.set(p._id.toString(), toCand(p, 'PRODUCT'))
-  }
-
-  const candidates = [...candMap.values()]
+  // ── Shared: the candidates everyone ranks from (see candidatePool) ──────
+  const { candidates, statsMap, credMap } = await candidatePool(pool, limit * 2)
   if (candidates.length === 0) return []
 
-  // ── Batch-load stats, seen-set, creator credibility ───────────────────────
+  // ── Personal: small, indexed lookups for this viewer only ─────────────────
   const ids = candidates.map(c => c.id)
-  const creatorIds = [...new Set(candidates.map(c => c.creatorId).filter(Boolean))]
-  const [statsRows, seenRows, credRows] = await Promise.all([
-    ContentStats.find({ contentId: { $in: ids } }),
+  const [interest, follows, me, seenRows] = await Promise.all([
+    userId ? UserInterest.findOne({ userId }).lean() : null,
+    userId ? Follow.find({ followerId: userId }).select('followingId').lean() : [],
+    userId ? User.findById(userId).select('region').lean() : null,
     userId ? FeedImpression.find({ userId, contentId: { $in: ids } }).select('contentId').lean() : [],
-    CreatorScore.find({ creatorId: { $in: creatorIds } }).select('creatorId credibility').lean(),
   ])
-  const statsMap = new Map<string, StatsView>(statsRows.map(s => [s.contentId.toString(), statsViewFrom(s)]))
   const seen = new Set(seenRows.map((s: any) => s.contentId.toString()))
-  const credMap = new Map<string, number>(credRows.map((c: any) => [c.creatorId.toString(), c.credibility]))
   const followed = new Set((follows as any[]).map(f => f.followingId.toString()))
   const userRegion = (me as any)?.region
   const userTopics = interest?.topics
@@ -127,7 +181,9 @@ export async function buildFeed(userId?: string, cursor?: string, limit = 20, so
     const score = relevanceScore({
       base, stats, cfg,
       userTopics,
-      creatorAffinity: userCreators instanceof Map ? (userCreators.get(c.creatorId) ?? 0) : 0,
+      creatorAffinity: userCreators instanceof Map
+        ? (userCreators.get(c.creatorId) ?? 0)
+        : ((userCreators as Record<string, number> | undefined)?.[c.creatorId] ?? 0),
       creatorCredibility: credMap.get(c.creatorId) ?? 0,
       sameRegion: !!userRegion && itemRegion === userRegion,
       seen: seen.has(c.id),
@@ -226,20 +282,9 @@ function diversify(scored: { c: Candidate; score: number }[], cfg: IRankingConfi
   return out
 }
 
-async function recordImpressions(userId: string, cands: Candidate[]) {
-  try {
-    const ops = cands.map(c => ({
-      updateOne: {
-        filter: { userId, contentId: c.id },
-        update: { $setOnInsert: { userId, contentId: c.id, contentType: c.type, createdAt: new Date() } },
-        upsert: true,
-      },
-    })) as any[]
-    await FeedImpression.bulkWrite(ops, { ordered: false })
-    for (const c of cands) {
-      void recordInteraction({ userId, contentId: c.id, contentType: c.type, creatorId: c.creatorId, event: 'impression', source: 'feed' })
-    }
-  } catch { /* impression loss is non-fatal */ }
+/** Queued, not written: see queueImpressions for why the writes are batched. */
+function recordImpressions(userId: string, cands: Candidate[]) {
+  queueImpressions(userId, cands.map(c => ({ contentId: c.id, contentType: c.type, creatorId: c.creatorId || undefined })))
 }
 
 // Minimal structural type so diversify() doesn't import the full Mongoose doc type

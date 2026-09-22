@@ -91,6 +91,11 @@ ProductSchema.index({ tags: 1 })
 // the match, the ordering and the pagination from one index scan. This is the
 // most-requested query on the platform.
 ProductSchema.index({ status: 1, isBoosted: -1, createdAt: -1 })
+// Newest active listings (feed candidates) and most-viewed (trending). The
+// isBoosted index above cannot serve a plain createdAt or viewCount sort, so
+// trending read all 20,000 products to return 10.
+ProductSchema.index({ status: 1, createdAt: -1 })
+ProductSchema.index({ status: 1, viewCount: -1 })
 // Serves the nutrition section's filtered listing.
 ProductSchema.index({ nutritionTags: 1, status: 1 })
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' })

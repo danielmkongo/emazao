@@ -55,7 +55,12 @@ export function useLiveSessions() {
         return []
       }
     },
-    refetchInterval: 20_000,
+    // Kept current by the live:* socket events below; this is only a catch-up
+    // after a dropped connection. At every 20 seconds it was the single largest
+    // source of load — ~250 requests a second at 5,000 idle users — for a list
+    // the socket already keeps right.
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
   })
 
   useEffect(() => {

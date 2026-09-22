@@ -1,3 +1,4 @@
+import { literal } from '../utils/regex'
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Product from '../models/Product'
@@ -30,11 +31,14 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       if (maxPrice) (filter['price'] as Record<string, number>)['$lte'] = parseFloat(maxPrice as string)
     }
     if (q) {
-      const re = { $regex: q as string, $options: 'i' }
+      const re = { $regex: literal(q), $options: 'i' }
       filter['$or'] = [{ title: re }, { tags: re }, { origin: re }, { description: re }]
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
+    // Bounded: an unchecked ?limit=100000 loaded and serialised every listing.
+    const pageNum = Math.max(1, parseInt(page as string) || 1)
+    const pageSize = Math.min(Math.max(parseInt(limit as string) || 20, 1), 60)
+    const skip = (pageNum - 1) * pageSize
     // "recommended" keeps paid boosts on top; the explicit sorts are what a
     // shopper asked for, so boosts do not get to override them.
     const SORTS: Record<string, Record<string, 1 | -1>> = {
@@ -46,15 +50,18 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     }
     const sort = SORTS[String(sortBy ?? 'recommended')] ?? SORTS.recommended
 
-    const [products, total] = await Promise.all([
-      Product.find(filter)
-        .populate('sellerId', 'name username avatar isVerified')
-        .populate('categoryId', 'name slug')
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit as string)),
-      Product.countDocuments(filter),
-    ])
+    // One extra row says whether there is a next page. Counting every match
+    // on each request (countDocuments) read the whole active catalogue from
+    // the index to produce a total the app never displayed.
+    const rows = await Product.find(filter)
+      .populate('sellerId', 'name username avatar isVerified')
+      .populate('categoryId', 'name slug')
+      .sort(sort)
+      .skip(skip)
+      .limit(pageSize + 1)
+      .lean()
+    const hasMore = rows.length > pageSize
+    const products = hasMore ? rows.slice(0, pageSize) : rows
 
     // The viewer's own saves, so a heart on a product tile shows the truth
     // rather than always starting empty.
@@ -63,13 +70,13 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     if (viewerId && products.length) {
       const saves = await Save.find({ userId: viewerId, targetType: 'Product', targetId: { $in: products.map(p => p._id) } }).select('targetId').lean()
       const saved = new Set(saves.map(s => String(s.targetId)))
-      data = products.map(p => ({ ...p.toObject(), userSaved: saved.has(String(p._id)) }))
+      data = products.map(p => ({ ...p, userSaved: saved.has(String(p._id)) }))
     }
 
     res.json({
       success: true,
       data,
-      pagination: { page: parseInt(page as string), limit: parseInt(limit as string), total },
+      pagination: { page: pageNum, limit: pageSize, hasMore },
     })
   } catch (err) {
     res.status(500).json({ success: false, message: (err as Error).message })

@@ -94,5 +94,7 @@ ContentStatsSchema.index({ stage: 1, impressions: 1 })            // cold-start 
 ContentStatsSchema.index({ creatorId: 1, score: -1 })
 ContentStatsSchema.index({ topics: 1, score: -1 })
 ContentStatsSchema.index({ scoreUpdatedAt: 1 })                  // job: re-score stale
+ContentStatsSchema.index({ stage: 1, score: -1 })                 // feed: trending candidates by stage
+ContentStatsSchema.index({ 'window.since': 1 })                   // job: roll stale windows (was a full scan)
 
 export default mongoose.model<IContentStats>('ContentStats', ContentStatsSchema)
